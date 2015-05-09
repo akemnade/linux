@@ -133,6 +133,7 @@
 #define LIS302_IRQ1_GPIO 114
 #define LIS302_IRQ2_GPIO -EINVAL  /* Not yet in use */
 #define ITG3200_IRQ_GPIO 56
+#define HMC5883L_IRQ_GPIO 112
 
 /*
  * Board peripheral code name passed through a "mux="
@@ -1659,7 +1660,8 @@ static void __init gta04_init(void)
 			gta04_i2c2_boardinfo[i].irq = gpio_to_irq(ITG3200_IRQ_GPIO);
 #endif
 #if defined(CONFIG_SENSORS_HMC5843) || defined(CONFIG_SENSORS_HMC5843_MODULE)
-		//TODO
+		if(gta04_i2c2_boardinfo[i].addr == 0x1e)
+			gta04_i2c2_boardinfo[i].irq = gpio_to_irq(HMC5883L_IRQ_GPIO);
 #endif
 	}
 	
