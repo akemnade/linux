@@ -23,6 +23,7 @@
 #include <linux/i2c.h>
 #include <linux/iio/iio.h>
 #include <linux/iio/sysfs.h>
+#include <linux/iio/trigger.h>
 #include <linux/iio/trigger_consumer.h>
 #include <linux/iio/buffer.h>
 #include <linux/iio/triggered_buffer.h>
@@ -121,6 +122,7 @@ struct hmc5843_chip_info {
 /* Each client has this additional data */
 struct hmc5843_data {
 	struct i2c_client *client;
+	struct iio_trigger *trig;
 	struct mutex lock;
 	u8 rate;
 	u8 meas_conf;
@@ -578,6 +580,45 @@ static const struct iio_info hmc5843_info = {
 
 static const unsigned long hmc5843_scan_masks[] = {0x7, 0};
 
+int hmc5843_probe_trigger(struct iio_dev *indio_dev)
+{
+	int ret;
+	struct hmc5843_data *st = iio_priv(indio_dev);
+
+	st->trig = iio_trigger_alloc("%s-dev%d", indio_dev->name,
+				     indio_dev->id);
+	if (!st->trig)
+		return -ENOMEM;
+
+	ret = request_irq(st->client->irq,
+			  &iio_trigger_generic_data_rdy_poll,
+			  IRQF_TRIGGER_RISING,
+			  "hmc5843_data_rdy",
+			  st->trig);
+	if (ret)
+		goto error_free_trig;
+
+
+	st->trig->dev.parent = &st->client->dev;
+	//st->trig->ops = &hmc5843_trigger_ops;
+	iio_trigger_set_drvdata(st->trig, indio_dev);
+	ret = iio_trigger_register(st->trig);
+	if (ret)
+		goto error_free_irq;
+
+	/* select default trigger */
+	indio_dev->trig = st->trig;
+
+	return 0;
+
+error_free_irq:
+	free_irq(st->client->irq, st->trig);
+error_free_trig:
+	iio_trigger_free(st->trig);
+	return ret;
+
+}
+
 static int hmc5843_probe(struct i2c_client *client,
 			 const struct i2c_device_id *id)
 {
@@ -610,6 +651,12 @@ static int hmc5843_probe(struct i2c_client *client,
 		hmc5843_trigger_handler, NULL);
 	if (ret < 0)
 		return ret;
+
+	if (client->irq) {
+		ret = hmc5843_probe_trigger(indio_dev);
+		if (ret)
+			goto buffer_cleanup;
+	}
 
 	ret = iio_device_register(indio_dev);
 	if (ret < 0)
