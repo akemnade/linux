@@ -297,9 +297,9 @@ int tps6518x_chip_power(struct tps6518x *tps6518x,int iIsON,int iIsWakeup,int iI
 			if(iWakeupCurrentStat!=1) {
 
 				//printk("%s(%d),wakeup set 1\n",__FUNCTION__,__LINE__);
-				i2c_lock_adapter (tps6518x->i2c_client->adapter);
+		//		i2c_lock_adapter (tps6518x->i2c_client->adapter);
 				gpio_set_value(tps6518x->gpio_pmic_wakeup,1);
-				i2c_unlock_adapter (tps6518x->i2c_client->adapter);
+		//		i2c_unlock_adapter (tps6518x->i2c_client->adapter);
 				//msleep(4);
 
 				tps6518x->dwSafeTickToCommunication = jiffies+TPS6518X_WAKEUP_WAIT_TICKS;
