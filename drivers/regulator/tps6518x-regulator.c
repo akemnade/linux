@@ -1189,12 +1189,21 @@ static const struct platform_device_id tps6518x_pmic_id[] = {
 };
 MODULE_DEVICE_TABLE(platform, tps6518x_pmic_id);
 
+static const struct of_device_id tps6518x_of_match[] = {
+	{ .compatible = "ti,tps65180", },
+	{ .compatible = "ti,tps65181", },
+	{ .compatible = "ti,tps65182", },
+	{ /* sentinel */ }
+};
+MODULE_DEVICE_TABLE(of, tps6518x_of_match);
+
 static struct platform_driver tps6518x_regulator_driver = {
 	.probe = tps6518x_regulator_probe,
 	.remove = tps6518x_regulator_remove,
 	.id_table = tps6518x_pmic_id,
 	.driver = {
 		.name = "tps6518x-pmic",
+		.of_match_table = of_match_ptr(tps6518x_of_match),
 	},
 };
 
