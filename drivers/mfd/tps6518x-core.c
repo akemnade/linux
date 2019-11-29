@@ -209,6 +209,8 @@ int tps6518x_reg_read(struct tps6518x *tps6518x,int reg_num, unsigned int *reg_v
 	return PMIC_SUCCESS;
 }
 
+EXPORT_SYMBOL(tps6518x_reg_read);
+
 int tps6518x_reg_write(struct tps6518x *tps6518x,int reg_num, const unsigned int reg_val)
 {
 	int result;
@@ -255,6 +257,7 @@ int tps6518x_reg_write(struct tps6518x *tps6518x,int reg_num, const unsigned int
 	return PMIC_SUCCESS;
 }
 
+EXPORT_SYMBOL(tps6518x_reg_write);
 
 int tps6518x_chip_power(struct tps6518x *tps6518x,int iIsON,int iIsWakeup,int iIsRailsON)
 {
@@ -327,7 +330,9 @@ int tps6518x_chip_power(struct tps6518x *tps6518x,int iIsON,int iIsWakeup,int iI
 				tps6518x_reg_read(tps6518x,REG_TPS65180_INT2,&dwDummy);
 #if 1
 				// restore registers here ....
-				tps6518x_setup_timings(tps6518x);tps6518x->timing_need_restore = 0;
+// FIXME: this is a dependency of core from tps6518x-regulator
+				tps6518x_setup_timings(tps6518x);
+				tps6518x->timing_need_restore = 0;
 #endif
 
 				iRet = 2;
@@ -440,6 +445,7 @@ int tps6518x_chip_power(struct tps6518x *tps6518x,int iIsON,int iIsWakeup,int iI
 	return iRet;
 }
 
+EXPORT_SYMBOL(tps6518x_chip_power);
 
 #ifdef CONFIG_OF
 static struct tps6518x_platform_data *tps6518x_i2c_parse_dt_pdata(
@@ -651,8 +657,10 @@ static int tps6518x_remove(struct i2c_client *i2c)
 	return 0;
 }
 
+// FIXME: this does not exist in our kernel
 extern int gSleep_Mode_Suspend;
 
+int gSleep_Mode_Suspend;
 
 static int tps6518x_suspend(struct device *dev)
 {
