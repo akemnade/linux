@@ -24,7 +24,7 @@
  * Copyright 2008 Embedded Alley Solutions, Inc All Rights Reserved.
  */
 
-#include <linux/busfreq-imx.h>
+// #include <linux/busfreq-imx.h>
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/device.h>
@@ -54,7 +54,7 @@
 #include <linux/mfd/syscon.h>
 #include <linux/regmap.h>
 #include <linux/regulator/driver.h>
-#include <linux/mfd/max17135.h>
+// #include <linux/mfd/max17135.h>
 #include <linux/fsl_devices.h>
 #include <linux/bitops.h>
 #include <linux/pinctrl/consumer.h>
@@ -821,6 +821,7 @@ static inline void epdc_set_temp(u32 temp)
 	unsigned int ext_temp, ext_temp_index = temp;
 
 	if (temp == DEFAULT_TEMP_INDEX) {
+#if 0	// FIXME: this should be done through phandle or hwmon
 		ret = max17135_reg_read(REG_MAX17135_EXT_TEMP, &ext_temp);
 		if (ret == 0) {
 			ext_temp = ext_temp >> 8;
@@ -828,6 +829,7 @@ static inline void epdc_set_temp(u32 temp)
 				ext_temp);
 			ext_temp_index = mxc_epdc_fb_get_temp_index(g_fb_data, ext_temp);
 		}
+#endif
 	}
 
 	__raw_writel(ext_temp_index, EPDC_TEMP);
