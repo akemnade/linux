@@ -146,6 +146,7 @@ int tps6518x_get_temperature(struct tps6518x *tps6518x,int *O_piTemperature)
 	return 0;
 }
 
+EXPORT_SYMBOL(tps6518x_get_temperature);
 
 /*
  * Sysfs stuff
@@ -374,6 +375,8 @@ int tps6518x_set_vcom(struct tps6518x *tps6518x,int iVCOMmV,int iIsWriteToFlash)
 	return iRet;
 }
 
+EXPORT_SYMBOL(tps6518x_set_vcom);
+
 int tps6518x_get_vcom(struct tps6518x *tps6518x,int *O_piVCOMmV)
 {
 	unsigned int reg_val;
@@ -428,6 +431,8 @@ int tps6518x_get_vcom(struct tps6518x *tps6518x,int *O_piVCOMmV)
 	
 	return 0;
 }
+
+EXPORT_SYMBOL(tps6518x_get_vcom);
 
 static ssize_t show_vcom(struct device *dev,
 	struct device_attribute *attr, char *buf)
