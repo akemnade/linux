@@ -1370,6 +1370,8 @@ int tps6518x_setup_timings(struct tps6518x *tps6518x)
 	return 0;
 }
 
+EXPORT_SYMBOL(tps6518x_setup_timings);
+
 #define CHECK_PROPERTY_ERROR_KFREE(prop) \
 do { \
 	int ret = of_property_read_u32(tps6518x->dev->of_node, \
