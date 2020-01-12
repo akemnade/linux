@@ -882,3 +882,7 @@ static void __exit tps6518x_exit(void)
  */
 subsys_initcall(tps6518x_init);
 module_exit(tps6518x_exit);
+
+MODULE_AUTHOR("???");
+MODULE_DESCRIPTION("TPS6518xx PMIC for Electronic Paper Display driver");
+MODULE_LICENSE("GPL");
