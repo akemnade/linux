@@ -262,6 +262,16 @@ struct mxc_epdc_fb_data {
 
 	/* qos */
 	struct regmap *qos_regmap;
+
+	/* FB elements related to gen2 waveform data */
+	u8 *waveform_vcd_buffer;
+	u8 *waveform_acd_buffer;
+	u32 waveform_magic_number;
+	u8 *waveform_xwi_buffer;
+	char *waveform_xwi_string;
+	unsigned waveform_xwi_string_length;
+	u32 waveform_mc;
+	u32 waveform_trc;
 };
 
 struct waveform_data_header {
@@ -279,7 +289,7 @@ struct waveform_data_header {
 	unsigned int luts:8;
 	unsigned int mc:8;
 	unsigned int trc:8;
-	unsigned int reserved0_0:8;
+	unsigned int reserved0_0:8; /* awv */
 	unsigned int eb:8;
 	unsigned int sb:8;
 	unsigned int reserved0_1:8;
@@ -501,6 +511,41 @@ static int epdc_working_buffer_update(struct mxc_epdc_fb_data *fb_data,
 				      struct update_data_list *upd_data_list,
 				      struct mxcfb_rect *update_region);
 extern void pxp_get_collision_info(struct pxp_collision_info *info);
+
+static int mxc_epdc_fb_fetch_wxi_data(uint8_t *xwi_buffer, char *outbuf)
+{
+	int l = xwi_buffer[0];
+	if (outbuf) {
+		u8 chk = 0;
+		int i;
+
+		for (i = 0; i <= l; i++)
+			chk += xwi_buffer[i];
+
+		if (chk != xwi_buffer[i])
+			return -EINVAL;
+
+		memcpy(outbuf, xwi_buffer + 1, l);
+	}
+
+	return l;
+}
+
+static int mxc_epdc_fb_fetch_vc_data(u8 *vcd_buffer, u32 waveform_mode, u32 waveform_tempRange, u32 mc, u32 trc, u8 *vcd)
+{
+	u8 *vcd_src = vcd_buffer + 16 * (waveform_mode * trc + waveform_tempRange);
+	int i;
+	u8 chk = 0;
+	for(i = 0 ; i < 15; i++)
+		chk += vcd_src[i];
+
+	if (chk != vcd_src[i])
+		return -EINVAL;
+
+	memcpy(vcd, vcd_src, 16);
+	return 0;
+}
+
 
 #ifdef DEBUG
 static void dump_pxp_config(struct mxc_epdc_fb_data *fb_data,
@@ -757,6 +802,41 @@ static void dump_fw_header(struct device *dev,
 
 #endif
 
+/* 
+ * EPDC Voltage Control data handler
+ */
+struct epd_vc_data {
+		unsigned version:16;
+		unsigned v1:16;
+		unsigned v2:16;
+		unsigned v3:16;
+		unsigned v4:16;
+		unsigned v5:16;
+		unsigned v6:16;
+		unsigned v7:8;
+		u8	cs:8;
+	};
+void fetch_epdc_pmic_voltages( struct epd_vc_data *vcd, struct mxc_epdc_fb_data *fb_data,
+	u32 waveform_mode,
+	u32 waveform_temp_range)
+{
+	/* fetch and display the voltage control data  */
+	if (fb_data->waveform_vcd_buffer) {
+
+		/* fetch the voltage control data */
+		if (mxc_epdc_fb_fetch_vc_data(fb_data->waveform_vcd_buffer,
+					      waveform_mode,
+					      waveform_temp_range,
+					      fb_data->waveform_mc,
+					      fb_data->waveform_trc,
+					      (unsigned char *) vcd) < 0)
+			dev_err(fb_data->dev, " *** Extra Waveform Data checksum error ***\n");
+		else
+			dev_dbg(fb_data->dev, " -- VC Data version 0x%04x : v1 = 0x%04x, v2 = 0x%04x, v3 = 0x%04x, v4 = 0x%04x, v5 = 0x%04x, v6 = 0x%04x, v7 = 0x%02x --\n",
+				vcd->version, vcd->v1, vcd->v2, vcd->v3, vcd->v4, vcd->v5, vcd->v6, vcd->v7 );
+
+	}
+}
 
 /********************************************************
  * Start Low-Level EPDC Functions
@@ -4750,6 +4830,148 @@ static void mxc_epdc_fb_fw_handler(const struct firmware *fw,
 	/* Get offset and size for waveform data */
 	wv_data_offs = sizeof(wv_file->wdh) + fb_data->trt_entries + 1;
 	fb_data->waveform_buffer_size = fw->size - wv_data_offs;
+
+	/* process 2nd generation waveform data which may contain 
+	 * the voltage control data, advance waveform data,
+	 * and extra waveform  data
+	 */
+
+	{
+		int awv, wmc, wtrc, xwia;
+		u64 longOffset;
+		u32 bufferSize;
+		u8 *fwDataBuffer = (u8 *)(fw->data) + wv_data_offs;
+
+		wtrc = wv_file->wdh.trc + 1;
+		wmc = wv_file->wdh.mc + 1;
+		awv = wv_file->wdh.reserved0_0;
+		xwia = wv_file->wdh.xwia;
+		memcpy (&longOffset,fwDataBuffer,8);
+		if ((unsigned) longOffset > (8*wmc))
+		{
+			u64 avcOffset, acdOffset, acdMagic, xwiOffset;
+			avcOffset = acdOffset = acdMagic = xwiOffset = 0l;
+			/* look at the advance waveform flags */
+			switch ( awv ) {
+				case 0 : /* voltage control flag is set */
+					if (xwia > 0) {
+						/* extra waveform information */
+						memcpy (&xwiOffset,fwDataBuffer + (8*wmc),8);
+						bufferSize = (unsigned)(fb_data->waveform_buffer_size - xwiOffset);
+						fb_data->waveform_xwi_buffer = kmalloc(bufferSize, GFP_KERNEL);
+						memcpy(fb_data->waveform_xwi_buffer, fwDataBuffer+xwiOffset, bufferSize );
+						fb_data->waveform_buffer_size = xwiOffset;
+					}
+					break;
+				case 1 : /* voltage control flag is set */
+					memcpy (&avcOffset,fwDataBuffer + (8*wmc),8);
+					if (xwia > 0) {
+						/* extra waveform information */
+						memcpy (&xwiOffset,fwDataBuffer + (8*wmc) +8,8);
+						bufferSize = (unsigned)(fb_data->waveform_buffer_size - xwiOffset);
+						fb_data->waveform_xwi_buffer = devm_kmalloc(fb_data->dev, bufferSize, GFP_KERNEL);
+						/* voltage control data */
+						memcpy(fb_data->waveform_xwi_buffer, fwDataBuffer+xwiOffset, bufferSize );
+						bufferSize = (unsigned)(xwiOffset - avcOffset);
+						fb_data->waveform_vcd_buffer = devm_kmalloc(fb_data->dev, bufferSize, GFP_KERNEL);
+						memcpy(fb_data->waveform_vcd_buffer, fwDataBuffer+avcOffset, bufferSize );
+					}
+					else {
+						/* voltage control data */
+						bufferSize = (unsigned)(fb_data->waveform_buffer_size - avcOffset);
+						fb_data->waveform_vcd_buffer = devm_kmalloc(fb_data->dev, bufferSize, GFP_KERNEL);
+						memcpy(fb_data->waveform_vcd_buffer, fwDataBuffer+avcOffset, bufferSize );
+					}
+					fb_data->waveform_buffer_size = avcOffset;
+					break;
+				case 2 : /* voltage control flag is set */
+					memcpy (&acdOffset,fwDataBuffer + (8*wmc),8);
+					memcpy (&acdMagic,fwDataBuffer + (8*wmc) + 8,8);
+					if (xwia > 0) {
+						/* extra waveform information */
+						memcpy (&xwiOffset,fwDataBuffer + (8*wmc) + 16,8);
+						bufferSize = (unsigned)(fb_data->waveform_buffer_size - xwiOffset);
+						fb_data->waveform_xwi_buffer = devm_kmalloc(fb_data->dev, bufferSize, GFP_KERNEL);
+						memcpy(fb_data->waveform_xwi_buffer, fwDataBuffer+xwiOffset, bufferSize );
+						/* algorithm control data */
+						bufferSize = (unsigned)(xwiOffset - acdOffset);
+						fb_data->waveform_acd_buffer = devm_kmalloc(fb_data->dev, bufferSize, GFP_KERNEL);
+						memcpy(fb_data->waveform_acd_buffer, fwDataBuffer+acdOffset, bufferSize );
+					}
+					else {
+						/* algorithm control data */
+						bufferSize = (unsigned)(fb_data->waveform_buffer_size - acdOffset);
+						fb_data->waveform_acd_buffer = devm_kmalloc(fb_data->dev, bufferSize, GFP_KERNEL);
+						memcpy(fb_data->waveform_acd_buffer, fwDataBuffer+acdOffset, bufferSize );
+					}
+					fb_data->waveform_buffer_size = acdOffset;
+					break;
+				case 3 : /* voltage control flag is set */
+					memcpy (&avcOffset,fwDataBuffer + (8*wmc),8);
+					memcpy (&acdOffset,fwDataBuffer + (8*wmc) + 8,8);
+					memcpy (&acdMagic,fwDataBuffer + (8*wmc) + 16,8);
+					if (xwia > 0) {
+						/* extra waveform information */
+						memcpy (&xwiOffset,fwDataBuffer + (8*wmc) + 24,8);
+						bufferSize = (unsigned)(fb_data->waveform_buffer_size - xwiOffset);
+						fb_data->waveform_xwi_buffer = kmalloc(bufferSize, GFP_KERNEL);
+						memcpy(fb_data->waveform_xwi_buffer, fwDataBuffer+xwiOffset, bufferSize );
+						/* algorithm control data */
+						bufferSize = (unsigned)(xwiOffset - acdOffset);
+						fb_data->waveform_acd_buffer = kmalloc(bufferSize, GFP_KERNEL);
+						memcpy(fb_data->waveform_acd_buffer, fwDataBuffer+acdOffset, bufferSize );
+						/* voltage control data */
+						bufferSize = (unsigned)(acdOffset - avcOffset);
+						fb_data->waveform_vcd_buffer = kmalloc(bufferSize, GFP_KERNEL);
+						memcpy(fb_data->waveform_vcd_buffer, fwDataBuffer+avcOffset, bufferSize );
+					}
+					else {
+						/* algorithm control data */
+						bufferSize = (unsigned)(fb_data->waveform_buffer_size - acdOffset);
+						fb_data->waveform_acd_buffer = kmalloc(bufferSize, GFP_KERNEL);
+						memcpy(fb_data->waveform_acd_buffer, fwDataBuffer+avcOffset, bufferSize );
+						/* voltage control data */
+						bufferSize = (unsigned)(acdOffset - avcOffset);
+						fb_data->waveform_vcd_buffer = kmalloc(bufferSize, GFP_KERNEL);
+						memcpy(fb_data->waveform_vcd_buffer, fwDataBuffer+avcOffset, bufferSize );
+					}
+					fb_data->waveform_buffer_size = avcOffset;
+					break;
+				}
+			if (acdMagic) fb_data->waveform_magic_number = acdMagic;
+			/* store the waveform mode count and waveform temperature range count
+			 */
+			fb_data->waveform_mc = wmc;
+			fb_data->waveform_trc =wtrc;
+		}
+	}
+
+	/* get the extra waveform info and display it - This can be removed! It is here for illustration only */
+	if (fb_data->waveform_xwi_buffer) {
+		int l = mxc_epdc_fb_fetch_wxi_data(fb_data->waveform_xwi_buffer, NULL);
+		if (l <= 0)
+		   dev_info(fb_data->dev, " --- Invalid Extra Waveform\n");
+		else {
+			dev_info(fb_data->dev, " --- Extra Waveform Data length: %d bytes---\n", l);
+			fb_data->waveform_xwi_string = (char *) devm_kzalloc(fb_data->dev, l + 1, GFP_KERNEL);
+			if (mxc_epdc_fb_fetch_wxi_data(fb_data->waveform_xwi_buffer, fb_data->waveform_xwi_string) > 0) {
+				fb_data->waveform_xwi_string[l] = '\0' ;
+				fb_data->waveform_xwi_string_length = l ;
+				dev_info(fb_data->dev, "     Extra Waveform Data: %s\n",fb_data->waveform_xwi_string);
+			} else
+				dev_err(fb_data->dev, " *** Extra Waveform Data checksum error ***\n");
+
+		}	
+	}
+
+	/* show the vcd */
+	if (fb_data->waveform_vcd_buffer) {
+		{
+			struct epd_vc_data vcd;
+			/* fetch and display the voltage control data for waveform mode 0, temp range 0 */
+			fetch_epdc_pmic_voltages(&vcd, fb_data, 0, 0);
+		}
+	}
 
 	/* Allocate memory for waveform data */
 	fb_data->waveform_buffer_virt = dma_alloc_coherent(fb_data->dev,
