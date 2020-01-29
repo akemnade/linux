@@ -64,6 +64,8 @@
 #include <linux/pinctrl/consumer.h>
 #include <linux/platform_data/dma-imx.h>
 #include <asm/cacheflush.h>
+#define DISPLAY_RESOLUTION 5 /* gptHWCFG->m_val.bDisplayResolution */
+#define DISPLAY_BUS_WIDTH 0 /* gptHWCFG->m_val.bDisplayBusWidth */
 
 #include "epdc_v2_regs.h"
 
@@ -272,6 +274,8 @@ struct mxc_epdc_fb_data {
 	unsigned waveform_xwi_string_length;
 	u32 waveform_mc;
 	u32 waveform_trc;
+
+	u32 dwSafeTicksEP3V3; // the safe ticks we must to wait for EP3V3 .
 };
 
 struct waveform_data_header {
@@ -307,6 +311,534 @@ struct mxcfb_waveform_data_file {
 
 #define WAVEFORM_HDR_LUT_ADVANCED_ALGO_MASK 0xc
 
+#if 1 //[
+
+#define EPD_TIMING_ED068OG1_NUMCE3	1
+
+static struct fb_videomode ed060sct_mode = {
+.name = "E60SCT",
+.refresh = 85,
+.xres = 800,
+.yres = 600,
+.pixclock = 26680000,
+.left_margin = 8,
+.right_margin = 96,
+.upper_margin = 4,
+.lower_margin = 13,
+.hsync_len = 4,
+.vsync_len = 1,
+.sync = 0,
+.vmode = FB_VMODE_NONINTERLACED,
+.flag = 0,
+};
+
+static struct fb_videomode ed060scq_mode = {
+.name = "E60SCQ",
+.refresh = 85,
+.xres = 800,
+.yres = 600,
+.pixclock = 25000000,
+.left_margin = 8,
+.right_margin = 60,
+.upper_margin = 4,
+.lower_margin = 10,
+.hsync_len = 8,
+.vsync_len = 4,
+.sync = 0,
+.vmode = FB_VMODE_NONINTERLACED,
+.flag = 0,
+};
+
+static struct fb_videomode ed060sc8_mode = {
+.name = "E60SC8",
+.refresh = 85,
+.xres = 800,
+.yres = 600,
+.pixclock = 30000000,
+.left_margin = 8,
+.right_margin = 164,
+.upper_margin = 4,
+.lower_margin = 18,
+.hsync_len = 4,
+.vsync_len = 1,
+.sync = 0,
+.vmode = FB_VMODE_NONINTERLACED,
+.flag = 0,
+};
+
+// for ED060XC5 release by Freescale Grace 20120726 .
+
+static struct fb_videomode ed060xc1_mode = {
+.name = "E60XC1",
+.refresh = 85,
+.xres = 1024,
+.yres = 768,
+.pixclock = 40000000,
+.left_margin = 12,
+.right_margin = 72,
+.upper_margin = 4,
+.lower_margin = 5,
+.hsync_len = 8,
+.vsync_len = 2,
+.sync = 0,
+.vmode = FB_VMODE_NONINTERLACED,
+.flag = 0,
+};
+
+static struct fb_videomode ed060xc5_mode = {
+.name = "E60XC5",
+.refresh = 85,
+.xres = 1024,
+.yres = 758,
+.pixclock = 40000000,
+.left_margin = 12,
+.right_margin = 76,
+.upper_margin = 4,
+.lower_margin = 5,
+.hsync_len = 12,
+.vsync_len = 2,
+.sync = 0,
+.vmode = FB_VMODE_NONINTERLACED,
+.flag = 0,
+};
+
+static struct fb_videomode e60_v110_mode = {
+.name = "E60_V110",
+.refresh = 50,
+.xres = 800,
+.yres = 600,
+.pixclock = 18604700,
+.left_margin = 8,
+.right_margin = 176,
+.upper_margin = 4,
+.lower_margin = 2,
+.hsync_len = 4,
+.vsync_len = 1,
+.sync = 0,
+.vmode = FB_VMODE_NONINTERLACED,
+.flag = 0,
+};
+
+static struct fb_videomode ed050xxx_mode = {
+	.name="ED050XXXX",
+	.refresh=85,
+	.xres=800,
+	.yres=600,
+	.pixclock=26666667,
+	.left_margin=4,
+	.right_margin=98,
+	.upper_margin=4,
+	.lower_margin=9,
+	.hsync_len=8,
+	.vsync_len=2,
+	.sync=0,
+	.vmode=FB_VMODE_NONINTERLACED,
+	.flag=0,
+};
+
+
+#ifdef EPD_TIMING_ED068TG1 //[
+static struct fb_videomode ed068tg1_mode = {
+.name = "ED068TG1",
+.refresh=85,
+.xres=1440,
+.yres=1080,
+.pixclock=96000000,
+.left_margin=24,
+.right_margin=267,
+.upper_margin=4,
+.lower_margin=5,
+.hsync_len=24,
+.vsync_len=2,
+.sync=0,
+.vmode=FB_VMODE_NONINTERLACED,
+.flag=0,
+};
+#elif defined(EPD_TIMING_ED068OG1_NUMCE3) //][
+/* i.MX508 waveform data timing data structures for ed068og1_numce3 */
+/* Created on - Monday, October 15, 2012 10:36:24
+   Warning: this pixel clock is derived from 480 MHz parent! */
+
+static struct fb_videomode ed068og1_numce3_mode = {
+.name="ED068OG1_NUMCE3",
+.refresh=85,
+.xres=1440,
+.yres=1080,
+.pixclock=96000000,
+.left_margin=24,
+.right_margin=267,
+.upper_margin=4,
+.lower_margin=5,
+.hsync_len=24,
+.vsync_len=2,
+.sync=0,
+.vmode=FB_VMODE_NONINTERLACED,
+.flag=0,
+};
+#else
+static struct fb_videomode ed068og1_mode = {
+.name = "E68OG1",
+.refresh=85,
+.xres=1440,
+.yres=1080,
+.pixclock=120000000,
+.left_margin=32,
+.right_margin=508,
+.upper_margin=4,
+.lower_margin=5,
+.hsync_len=32,
+.vsync_len=2,
+.sync=0,
+.vmode=FB_VMODE_NONINTERLACED,
+.flag=0,
+};
+#endif//]EPD_TIMING_ED068OG1_NUMCE3
+
+static struct fb_videomode peng060d_mode = {
+.name = "PENG060D",
+.refresh=85,
+.xres=1448,
+.yres=1072,
+.pixclock=80000000,
+.left_margin=16,
+.right_margin=102,
+.upper_margin=4,
+.lower_margin=4,
+.hsync_len=28,
+.vsync_len=2,
+.sync=0,
+.vmode=FB_VMODE_NONINTERLACED,
+.flag=0,
+};
+
+static struct fb_videomode ef133ut1sce_mode = {
+.name="EF133UT1SCE",
+.refresh=65,
+.xres=1600,
+.yres=1200,
+.pixclock=72222223,
+.left_margin=8,
+.right_margin=97,
+.upper_margin=4,
+.lower_margin=7,
+.hsync_len=12,
+.vsync_len=1,
+.sync=0,
+.vmode=FB_VMODE_NONINTERLACED,
+.flag=0,
+};
+
+static struct fb_videomode ed078kh1_75Hz_mode = {
+.name = "ED078KH1_75HZ",
+.refresh=75,
+.xres=1872,
+.yres=1404,
+.pixclock=120000000,
+.left_margin=52,
+.right_margin=75,
+.upper_margin=4,
+.lower_margin=14,
+.hsync_len=60,
+.vsync_len=2,
+.sync=0,
+.vmode=FB_VMODE_NONINTERLACED,
+.flag=0,
+};
+static struct fb_videomode ed078kh1_mode = {
+.name = "ED078KH1",
+.refresh=85,
+.xres=1872,
+.yres=1404,
+.pixclock=133400000,
+.left_margin=44,
+.right_margin=89,
+.upper_margin=4,
+.lower_margin=5,
+.hsync_len=44,
+.vsync_len=1,
+.sync=0,
+.vmode=FB_VMODE_NONINTERLACED,
+.flag=0,
+};
+static struct fb_videomode r031_peng078f01_mode = {
+	.name = "R031_PENG078F01",
+	.refresh = 85,
+	.xres = 1600,
+	.yres = 1200,
+	.pixclock = 96000000,
+	.left_margin = 24,
+	.right_margin = 70,
+	.upper_margin = 4,
+	.lower_margin = 4,
+	.hsync_len = 40,
+	.vsync_len = 1,
+	.sync = 0,
+	.vmode = FB_VMODE_NONINTERLACED,
+	.flag = 0,
+};
+static struct fb_videomode es080kh1_mode = {
+	.name="es080kh1",
+	.refresh=85,
+	.xres=1920,
+	.yres=1440,
+	.pixclock=160000000,
+	.left_margin=40,
+	.right_margin=257,
+	.upper_margin=4,
+	.lower_margin=5,
+	.hsync_len=40,
+	.vsync_len=1,
+	.sync=0,
+	.vmode=FB_VMODE_NONINTERLACED,
+	.flag=0,
+};
+
+
+static struct imx_epdc_fb_mode panel_modes[] = {
+////////////////////
+{ // 0 
+& ed060sc8_mode,
+4,            /* vscan_holdoff */
+10,          /* sdoed_width */
+20,          /* sdoed_delay */
+10,          /* sdoez_width */
+20,          /* sdoez_delay */
+465,        /* gdclk_hp_offs */
+250,        /* gdsp_offs changed delay to 8.3 uS */
+0,            /* gdoe_offs */
+8,            /* gdclk_offs changed delay to 4.5 SDCLK */
+1,            /* num_ce */
+},
+
+////////////////////
+{ // 1
+& e60_v110_mode,
+4,            /* vscan_holdoff */
+10,          /* sdoed_width */
+20,          /* sdoed_delay */
+10,          /* sdoez_width */
+20,          /* sdoez_delay */
+465,        /* gdclk_hp_offs */
+250,        /* gdsp_offs changed delay to 8.3 uS */
+0,            /* gdoe_offs */
+8,            /* gdclk_offs changed delay to 4.5 SDCLK */
+1,            /* num_ce */
+},
+
+////////////////////
+{ // 2
+& ed060xc5_mode,
+4,            /* vscan_holdoff */
+10,          /* sdoed_width */
+20,          /* sdoed_delay */
+10,          /* sdoez_width */
+20,          /* sdoez_delay */
+524,        /* gdclk_hp_offs */
+25,        /* gdsp_offs changed delay to 8.3 uS */
+0,            /* gdoe_offs */
+19,            /* gdclk_offs changed delay to 4.5 SDCLK */
+1,            /* num_ce */
+},
+
+////////////////////
+{ // 3
+& ed060xc1_mode,
+4,            /* vscan_holdoff */
+10,          /* sdoed_width */
+20,          /* sdoed_delay */
+10,          /* sdoez_width */
+20,          /* sdoez_delay */
+492,        /* gdclk_hp_offs */
+29,        /* gdsp_offs changed delay to 8.3 uS */
+0,            /* gdoe_offs */
+23,            /* gdclk_offs changed delay to 4.5 SDCLK */
+1,            /* num_ce */
+},
+
+////////////////////
+{// 4
+	&ed050xxx_mode, 	/* struct fb_videomode *mode */
+		4, 	/* vscan_holdoff */
+		10, 	/* sdoed_width */
+		20, 	/* sdoed_delay */
+		10, 	/* sdoez_width */
+		20, 	/* sdoez_delay */
+		420, 	/* GDCLK_HP */
+		20, 	/* GDSP_OFF */
+		0, 	/* GDOE_OFF */
+		11, 	/* gdclk_offs */
+		3, 	/* num_ce */
+},	
+
+#ifdef EPD_TIMING_ED068TG1 //[
+{ // 5
+& ed068tg1_mode,
+4,            /* vscan_holdoff */
+10,          /* sdoed_width */
+20,          /* sdoed_delay */
+10,          /* sdoez_width */
+20,          /* sdoez_delay */
+665,        /* GDCLK_HP */
+718,        /* GDSP_OFF */
+0,            /* GDOE_OFF */
+199,        /* gdclk_offs */
+1,            /* num_ce */
+},
+#elif defined(EPD_TIMING_ED068OG1_NUMCE3)//][
+{ // 5
+& ed068og1_numce3_mode,
+4,            /* vscan_holdoff */
+10,          /* sdoed_width */
+20,          /* sdoed_delay */
+10,          /* sdoez_width */
+20,          /* sdoez_delay */
+665,        /* GDCLK_HP */
+210,        /* GDSP_OFF */
+0,            /* GDOE_OFF */
+199,        /* gdclk_offs */
+3,            /* num_ce */
+},
+#else//][ !EPD_TIMING_ED068OG1_NUMCE3
+{ // 5
+& ed068og1_mode,
+4,            /* vscan_holdoff */
+10,          /* sdoed_width */
+20,          /* sdoed_delay */
+10,          /* sdoez_width */
+20,          /* sdoez_delay */
+831,        /* GDCLK_HP */
+285,        /* GDSP_OFF */
+0,            /* GDOE_OFF */
+271,        /* gdclk_offs */
+1,            /* num_ce */
+},
+#endif//] EPD_TIMING_ED068OG1_NUMCE3
+
+{ // 6
+&peng060d_mode,
+4,            /* vscan_holdoff */
+10,          /* sdoed_width */
+20,          /* sdoed_delay */
+10,          /* sdoez_width */
+20,          /* sdoez_delay */
+562,        /* GDCLK_HP */
+662,        /* GDSP_OFF */
+0,            /* GDOE_OFF */
+225,        /* gdclk_offs */
+3,            /* num_ce */
+},
+{ // 7
+&ef133ut1sce_mode,
+4,      /* vscan_holdoff */
+10,     /* sdoed_width */
+20,     /* sdoed_delay */
+10,     /* sdoez_width */
+20,     /* sdoez_delay */
+743,    /* GDCLK_HP */
+475,    /* GDSP_OFF */
+0,      /* GDOE_OFF */
+15,     /* gdclk_offs */
+1,      /* num_ce */
+},
+{ // 8
+&ed060scq_mode,
+4,      /* vscan_holdoff */
+10,     /* sdoed_width */
+20,     /* sdoed_delay */
+10,     /* sdoez_width */
+20,     /* sdoez_delay */
+438,    /* GDCLK_HP */
+263,    /* GDSP_OFF */
+0,      /* GDOE_OFF */
+23,     /* gdclk_offs */
+3,      /* num_ce */
+},
+{ // 9
+&ed078kh1_mode,
+4,      /* vscan_holdoff */
+10,     /* sdoed_width */
+20,     /* sdoed_delay */
+10,     /* sdoez_width */
+20,     /* sdoez_delay */
+772,    /* GDCLK_HP */
+757,    /* GDSP_OFF */
+0,      /* GDOE_OFF */
+199,     /* gdclk_offs */
+1,      /* num_ce */
+},
+{ // 10
+&ed060sct_mode,
+4,      /* vscan_holdoff */
+10,     /* sdoed_width */
+20,     /* sdoed_delay */
+10,     /* sdoez_width */
+20,     /* sdoez_delay */
+372,    /* GDCLK_HP */
+367,    /* GDSP_OFF */
+0,      /* GDOE_OFF */
+111,     /* gdclk_offs */
+1,      /* num_ce */
+},
+{ // 11
+	&r031_peng078f01_mode,
+	4,      /* vscan_holdoff */
+	10,     /* sdoed_width */
+	20,     /* sdoed_delay */
+	10,     /* sdoez_width */
+	20,     /* sdoez_delay */
+	691,    /* gdclk_hp_offs */
+	592,     /* gdsp_offs */
+	0,      /* gdoe_offs */
+	123,      /* gdclk_offs */
+	2,      /* num_ce */
+},
+{ // 12
+&ed078kh1_75Hz_mode,
+4,      /* vscan_holdoff */
+10,     /* sdoed_width */
+20,     /* sdoed_delay */
+10,     /* sdoez_width */
+20,     /* sdoez_delay */
+583,    /* GDCLK_HP */
+939,    /* GDSP_OFF */
+0,      /* GDOE_OFF */
+376,     /* gdclk_offs */
+3,      /* num_ce */
+},
+{ // 13
+&es080kh1_mode, 	/* struct fb_videomode *mode */
+4, 	/* vscan_holdoff */
+10, 	/* sdoed_width */
+20, 	/* sdoed_delay */
+10, 	/* sdoez_width */
+20, 	/* sdoez_delay */
+971, 	/* GDCLK_HP */
+723, 	/* GDSP_OFF */
+0, 	/* GDOE_OFF */
+73, 	/* gdclk_offs */
+1, 	/* num_ce */
+},
+};
+ 
+
+#else //][!
+
+static struct fb_videomode ed078kh1_mode = {
+	.name = "ED078KH1",
+	.refresh=85,
+	.xres=1872,
+	.yres=1404,
+	.pixclock=133400000,
+	.left_margin=44,
+	.right_margin=89,
+	.upper_margin=4,
+	.lower_margin=5,
+	.hsync_len=44,
+	.vsync_len=1,
+	.sync=0,
+	.vmode=FB_VMODE_NONINTERLACED,
+	.flag=0,
+};
 static struct fb_videomode ed060xh2c1mode = {
 	.name = "ED060XH2C1",
 	.refresh = 85,
@@ -459,6 +991,7 @@ static struct imx_epdc_fb_mode panel_modes[] = {
 		3,      /* num_ce */
 	}
 };
+#endif //]
 
 static struct imx_epdc_fb_platform_data epdc_data = {
 	.epdc_mode = panel_modes,
@@ -5172,6 +5705,8 @@ static int mxc_epdc_fb_probe(struct platform_device *pdev)
 	int enable_gpio;
 	enum of_gpio_flags flag;
 	unsigned short *wk_p;
+	unsigned int dwSafeTicksTurnoffEP3V3;
+
 
 	if (!np)
 		return -EINVAL;
@@ -5278,7 +5813,64 @@ static int mxc_epdc_fb_probe(struct platform_device *pdev)
 		fb_data->default_bpp = 16;
 
 	/* Set default (first defined mode) before searching for a match */
+#if 1
+	if(1==DISPLAY_RESOLUTION) {
+		printk("%s(%d):EPD 1024x758 \n",__FILE__,__LINE__);
+		fb_data->cur_mode = &fb_data->pdata->epdc_mode[2];//
+		fb_data->dwSafeTicksEP3V3 = 400;
+	}
+	else if(3==DISPLAY_RESOLUTION) {
+		printk("%s(%d):EPD 1440x1080 \n",__FILE__,__LINE__);
+		fb_data->cur_mode = &fb_data->pdata->epdc_mode[5];//
+		fb_data->dwSafeTicksEP3V3 = 200;
+	}
+	else if(5==DISPLAY_RESOLUTION) {
+		printk("%s(%d):EPD 1448x1072 \n",__FILE__,__LINE__);
+		fb_data->cur_mode = &fb_data->pdata->epdc_mode[6];//
+		fb_data->dwSafeTicksEP3V3 = 800;
+	}
+	else if(6==DISPLAY_RESOLUTION) {
+		printk("%s(%d):EPD 1600x1200 \n",__FILE__,__LINE__);
+		switch (DISPLAY_BUS_WIDTH) {
+		case 1: // 16 bits .
+		case 3:
+			fb_data->cur_mode = &fb_data->pdata->epdc_mode[7];//
+			break;
+		case 0:
+		case 2: // 8 bits mirror 
+		default: // PENG060D  
+			fb_data->cur_mode = &fb_data->pdata->epdc_mode[11];//
+			break;
+		}
+		fb_data->dwSafeTicksEP3V3 = 400;
+	}
+	else if(8==DISPLAY_RESOLUTION) {
+#ifdef ED078KH1_75HZ //[
+		printk("%s(%d):EPD 1872x1404 75Hz\n",__FILE__,__LINE__);
+		fb_data->cur_mode = &fb_data->pdata->epdc_mode[12];//
+#else //][ED078KH1_75HZ
+		printk("%s(%d):EPD 1872x1404 \n",__FILE__,__LINE__);
+		fb_data->cur_mode = &fb_data->pdata->epdc_mode[9];//
+#endif //]ED078KH1_75HZ
+		fb_data->dwSafeTicksEP3V3 = 900;
+	}
+	else if(2==DISPLAY_RESOLUTION) {
+		printk("%s(%d):EPD 1024x768 \n",__FILE__,__LINE__);
+		fb_data->cur_mode = &fb_data->pdata->epdc_mode[3];//
+		fb_data->dwSafeTicksEP3V3 = 400;
+	}
+	else if(14==DISPLAY_RESOLUTION) {
+		printk("%s(%d):EPD 1920x1440 \n",__FILE__,__LINE__);
+		fb_data->cur_mode = &fb_data->pdata->epdc_mode[13];//
+		fb_data->dwSafeTicksEP3V3 = 900;
+	}
+	else {
+		fb_data->cur_mode = &fb_data->pdata->epdc_mode[8];
+		fb_data->dwSafeTicksEP3V3 = 400;
+	}
+#else
 	fb_data->cur_mode = &fb_data->pdata->epdc_mode[0];
+#endif
 
 	if (panel_str)
 		for (i = 0; i < fb_data->pdata->num_modes; i++)
