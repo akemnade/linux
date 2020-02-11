@@ -111,6 +111,7 @@
 
 static u64 used_luts = 0x1;	/* do not use LUT0 */
 static unsigned long default_bpp = 16;
+static int vcom_nominal;
 
 struct update_marker_data {
 	struct list_head full_list;
@@ -1440,7 +1441,7 @@ static inline void epdc_set_temp(u32 temp)
 	unsigned int ext_temp, ext_temp_index = temp;
 
 	if (temp == DEFAULT_TEMP_INDEX) {
-#if 0	// FIXME: this should be done through phandle or hwmon
+#if 0
 		ret = max17135_reg_read(REG_MAX17135_EXT_TEMP, &ext_temp);
 		if (ret == 0) {
 			ext_temp = ext_temp >> 8;
@@ -2047,6 +2048,7 @@ static void epdc_init_settings(struct mxc_epdc_fb_data *fb_data)
 
 static void epdc_powerup(struct mxc_epdc_fb_data *fb_data)
 {
+	struct epd_vc_data vcd;
 	int ret = 0;
 	mutex_lock(&fb_data->power_mutex);
 
@@ -2084,6 +2086,49 @@ static void epdc_powerup(struct mxc_epdc_fb_data *fb_data)
 	clk_prepare_enable(fb_data->epdc_clk_pix);
 
 	__raw_writel(EPDC_CTRL_CLKGATE, EPDC_CTRL_CLEAR);
+
+	if (/* fb_data->wfm < 256 && */ fb_data->waveform_vcd_buffer) {
+		/* fetch and display the voltage control data for waveform mode 0, temp range 0 */
+		fetch_epdc_pmic_voltages(&vcd, fb_data, 0, fb_data->temp_index);
+
+
+	}
+	else
+		vcd.v5 = 0;
+
+
+	{
+		int vcom_uV, new_vcom_uV;
+		static volatile int last_vcom_uV = 0;
+		int v5_sign = 1;
+		int v5_offset = vcd.v5 & 0x7fff;
+
+		/* get vcom offset value */
+		if (vcd.v5 & 0x8000) {
+			v5_sign = -1;
+		}
+		if( 0 == last_vcom_uV ) {
+			last_vcom_uV = vcom_uV = regulator_get_voltage(fb_data->vcom_regulator);
+		}
+		else {
+			vcom_uV = last_vcom_uV;
+		}
+		dev_dbg(fb_data->dev,"current VCOM %duV\n",vcom_uV);
+		/* TODO: doule check sign here */
+		new_vcom_uV = vcom_nominal - v5_offset * 3125 * v5_sign;
+		if (new_vcom_uV!=vcom_uV) 
+		{
+			dev_info(fb_data->dev,"AWV change VCOM %d->%d uV\n",vcom_uV,new_vcom_uV);
+			if ( (new_vcom_uV <= 3050000) && (new_vcom_uV >= 500000) ) 
+			{
+				regulator_set_voltage(fb_data->vcom_regulator, new_vcom_uV, new_vcom_uV);
+				last_vcom_uV = new_vcom_uV;
+			}
+			else {
+				printk(KERN_ERR" adjusted VCOM is out of range, %d uV (offset:0x%04x)\n", new_vcom_uV, vcd.v5);
+			}
+		}
+	}
 
 	/* Enable power to the EPD panel */
 	ret = regulator_enable(fb_data->display_regulator);
@@ -6298,6 +6343,8 @@ static int mxc_epdc_fb_probe(struct platform_device *pdev)
 		goto out_dma_work_buf;
 	}
 
+	vcom_nominal = regulator_get_voltage(fb_data->vcom_regulator); /* save the vcom_nominal value in uV */
+
 	if (device_create_file(info->dev, &fb_attrs[0]))
 		dev_err(&pdev->dev, "Unable to create file from fb_attrs\n");
 
@@ -6473,6 +6520,9 @@ static int mxc_epdc_fb_remove(struct platform_device *pdev)
 	struct mxc_epdc_fb_data *fb_data = platform_get_drvdata(pdev);
 	int i;
 
+	/* restore the vcom_nominal value */
+	regulator_set_voltage(fb_data->vcom_regulator, vcom_nominal, vcom_nominal);
+
 	mxc_epdc_fb_blank(FB_BLANK_POWERDOWN, &fb_data->info);
 
 	flush_workqueue(fb_data->epdc_submit_workqueue);
@@ -6499,6 +6549,7 @@ static int mxc_epdc_fb_remove(struct platform_device *pdev)
 		dma_free_wc(&pdev->dev, fb_data->max_pix_size*2,
 				fb_data->virt_addr_copybuf,
 				fb_data->phys_addr_copybuf);
+
 	list_for_each_entry_safe(plist, temp_list, &fb_data->upd_buf_free_list,
 			list) {
 		list_del(&plist->list);
