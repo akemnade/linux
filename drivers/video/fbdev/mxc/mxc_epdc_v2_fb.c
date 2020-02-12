@@ -174,6 +174,7 @@ struct mxc_epdc_fb_data {
 	struct regulator *display_regulator;
 	struct regulator *vcom_regulator;
 	struct regulator *v3p3_regulator;
+	struct regulator *tmst_regulator;
 	bool fw_default_load;
 	int rev;
 
@@ -1045,6 +1046,7 @@ static int epdc_working_buffer_update(struct mxc_epdc_fb_data *fb_data,
 				      struct update_data_list *upd_data_list,
 				      struct mxcfb_rect *update_region);
 extern void pxp_get_collision_info(struct pxp_collision_info *info);
+static int mxc_epdc_fb_set_temperature(int temperature, struct fb_info *info);
 
 static int mxc_epdc_fb_fetch_wxi_data(uint8_t *xwi_buffer, char *outbuf)
 {
@@ -2144,6 +2146,13 @@ static void epdc_powerup(struct mxc_epdc_fb_data *fb_data)
 			"err = 0x%x\n", ret);
 		mutex_unlock(&fb_data->power_mutex);
 		return;
+	}
+
+	if (!IS_ERR(fb_data->tmst_regulator)) {
+		int temp = regulator_get_voltage(fb_data->tmst_regulator);
+		if (temp != 0xFF) {
+			mxc_epdc_fb_set_temperature(temp, &fb_data->info);
+		}
 	}
 
 	fb_data->power_state = POWER_STATE_ON;
@@ -6341,6 +6350,11 @@ static int mxc_epdc_fb_probe(struct platform_device *pdev)
 			"err = 0x%x\n", (int)fb_data->vcom_regulator);
 		ret = -ENODEV;
 		goto out_dma_work_buf;
+	}
+	fb_data->tmst_regulator = devm_regulator_get(&pdev->dev, "TMST");
+	if (IS_ERR(fb_data->tmst_regulator)) {
+		dev_info(&pdev->dev, "Unable to get TMST regulator."
+			"err = 0x%x\n", (int)fb_data->tmst_regulator);
 	}
 
 	vcom_nominal = regulator_get_voltage(fb_data->vcom_regulator); /* save the vcom_nominal value in uV */
