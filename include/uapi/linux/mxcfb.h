@@ -145,10 +145,38 @@ struct mxcfb_update_marker_data {
 	__u32 collision_test;
 };
 
+
+#define WFM_ENABLE_AA				1
+#define WFM_ENABLE_AAD			1
+
+
 /*
  * Structure used to define waveform modes for driver
  * Needed for driver to perform auto-waveform selection
  */
+#ifndef MXCFB_WAVEFORM_MODES_NTX //[
+#define MXCFB_WAVEFORM_MODES_NTX
+struct mxcfb_waveform_modes_ntx {
+	int mode_init;
+	int mode_du;
+	int mode_gc4;
+	int mode_gc8;
+	int mode_gc16;
+	int mode_gc32;
+	int mode_gl16;
+	int mode_a2;
+
+#ifdef WFM_ENABLE_AA//[
+	int mode_aa;
+#endif //]WFM_ENABLE_AA
+
+#ifdef WFM_ENABLE_AAD//[
+	int mode_aad;
+#endif //]WFM_ENABLE_AAD
+	
+};
+#endif//] MXCFB_WAVEFORM_MODES_NTX
+
 struct mxcfb_waveform_modes {
 	int mode_init;
 	int mode_du;
@@ -185,6 +213,7 @@ struct mxcfb_csc_matrix {
 
 /* IOCTLs for E-ink panel updates */
 #define MXCFB_SET_WAVEFORM_MODES	_IOW('F', 0x2B, struct mxcfb_waveform_modes)
+#define MXCFB_SET_WAVEFORM_MODES_NTX	_IOW('F', 0x2B, struct mxcfb_waveform_modes_ntx)
 #define MXCFB_SET_TEMPERATURE		_IOW('F', 0x2C, int32_t)
 #define MXCFB_SET_AUTO_UPDATE_MODE	_IOW('F', 0x2D, __u32)
 #define MXCFB_SEND_UPDATE		_IOW('F', 0x2E, struct mxcfb_update_data)
