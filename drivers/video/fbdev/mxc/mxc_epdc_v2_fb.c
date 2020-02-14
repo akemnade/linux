@@ -109,6 +109,23 @@
 
 /* #define EPD_SUSPEND_BLANK			1 */
 
+#define NTX_WFM_MODE_INIT			0
+#define NTX_WFM_MODE_DU				1
+#define NTX_WFM_MODE_GC16			2
+#define NTX_WFM_MODE_GC4			3
+#define NTX_WFM_MODE_A2				4
+#define NTX_WFM_MODE_GL16			5
+#define NTX_WFM_MODE_GLR16		6
+#define NTX_WFM_MODE_GLD16		7
+#define NTX_WFM_MODE_TOTAL		8
+static int giNTX_waveform_modeA[NTX_WFM_MODE_TOTAL];
+
+
+unsigned char gbModeVersion=0 ;
+unsigned char gbWFM_REV ;
+unsigned char gbFPL_Platform ;
+
+
 static u64 used_luts = 0x1;	/* do not use LUT0 */
 static unsigned long default_bpp = 16;
 static int vcom_nominal;
@@ -196,7 +213,13 @@ struct mxc_epdc_fb_data {
 	int trt_entries;
 	int temp_index;
 	u8 *temp_range_bounds;
+
+#ifdef MXCFB_WAVEFORM_MODES_NTX //[
+	struct mxcfb_waveform_modes_ntx wv_modes;
+#else //][!MXCFB_WAVEFORM_MODES_NTX
 	struct mxcfb_waveform_modes wv_modes;
+#endif //] MXCFB_WAVEFORM_MODES_NTX
+
 	bool wv_modes_update;
 	bool waveform_is_advanced;
 	u32 *waveform_buffer_virt;
@@ -1484,7 +1507,11 @@ static inline void epdc_set_update_dimensions(u32 width, u32 height)
 	__raw_writel(val, EPDC_UPD_SIZE);
 }
 
+#ifdef MXCFB_WAVEFORM_MODES_NTX //[
+static void epdc_set_update_waveform(struct mxcfb_waveform_modes_ntx *wv_modes)
+#else //][!MXCFB_WAVEFORM_MODES_NTX
 static void epdc_set_update_waveform(struct mxcfb_waveform_modes *wv_modes)
+#endif //] MXCFB_WAVEFORM_MODES_NTX
 {
 	u32 val;
 
@@ -1527,7 +1554,14 @@ static void epdc_set_update_stride(u32 stride)
 static void epdc_submit_update(u32 lut_num, u32 waveform_mode, u32 update_mode,
 			       bool use_dry_run, bool use_test_mode, u32 np_val)
 {
+	volatile static int giLast_waveform_mode = -1;
 	u32 reg_val = 0;
+
+	if(giLast_waveform_mode!=waveform_mode) {
+		if( g_fb_data->wv_modes.mode_a2==waveform_mode &&
+				g_fb_data->wv_modes.mode_du!=giLast_waveform_mode)
+			waveform_mode=g_fb_data->wv_modes.mode_du;
+	}
 
 	if (use_test_mode) {
 		reg_val |=
@@ -1563,6 +1597,8 @@ static void epdc_submit_update(u32 lut_num, u32 waveform_mode, u32 update_mode,
 #endif
 	dump_epdc_reg();
 	__raw_writel(reg_val, EPDC_UPD_CTRL);
+	giLast_waveform_mode = waveform_mode;
+
 }
 
 static inline bool epdc_is_lut_complete(int rev, u32 lut_num)
@@ -2749,15 +2785,23 @@ static int mxc_epdc_fb_check_var(struct fb_var_screeninfo *var,
 	return 0;
 }
 
+#ifdef MXCFB_WAVEFORM_MODES_NTX //[
+static void mxc_epdc_fb_set_waveform_modes(struct mxcfb_waveform_modes_ntx *modes,
+	struct fb_info *info)
+#else //][!MXCFB_WAVEFORM_MODES_NTX
 static void mxc_epdc_fb_set_waveform_modes(struct mxcfb_waveform_modes *modes,
 	struct fb_info *info)
+#endif //]MXCFB_WAVEFORM_MODES_NTX
 {
 	struct mxc_epdc_fb_data *fb_data = info ?
 		(struct mxc_epdc_fb_data *)info:g_fb_data;
 
 	mutex_lock(&fb_data->queue_mutex);
-
+#ifdef MXCFB_WAVEFORM_MODES_NTX //[
+	memcpy(&fb_data->wv_modes, modes, sizeof(struct mxcfb_waveform_modes_ntx));
+#else //][!MXCFB_WAVEFORM_MODES_NTX
 	memcpy(&fb_data->wv_modes, modes, sizeof(struct mxcfb_waveform_modes));
+#endif //] MXCFB_WAVEFORM_MODES_NTX
 
 	/* Set flag to ensure that new waveform modes
 	 * are programmed into EPDC before next update */
@@ -2984,8 +3028,14 @@ static int epdc_working_buffer_update(struct mxc_epdc_fb_data *fb_data,
 	}
 
 	/* for REAGL/-D Processing */
+#ifdef MXCFB_WAVEFORM_MODES_NTX//[
+	if ( ((fb_data->wv_modes.mode_aa!=fb_data->wv_modes.mode_gl16)&&(wv_mode == fb_data->wv_modes.mode_aa)) || \
+			((fb_data->wv_modes.mode_aad!=fb_data->wv_modes.mode_gc16)&&(wv_mode == fb_data->wv_modes.mode_aad)) ) 
+#else//][! MXCFB_WAVEFORM_MODES_NTX
 	if (wv_mode == WAVEFORM_MODE_GLR16
-	 || wv_mode == WAVEFORM_MODE_GLD16) {
+	 || wv_mode == WAVEFORM_MODE_GLD16)
+#endif //] MXCFB_WAVEFORM_MODES_NTX
+	{
 		/* This is a blocking call, so upon return PxP tx should be done */
 		ret = pxp_wfe_b_process_update(fb_data, update_region);
 		if (ret) {
@@ -3314,9 +3364,14 @@ static int epdc_process_update(struct update_data_list *upd_data_list,
 
 	}
 
+#ifdef MXCFB_WAVEFORM_MODES_NTX//[
+	fb_data->pxp_conf.proc_data.reagl_d_en =
+		((fb_data->wv_modes.mode_aad!=fb_data->wv_modes.mode_gc16)&&(upd_desc_list->upd_data.waveform_mode == fb_data->wv_modes.mode_aad));
+#else //][!MXCFB_WAVEFORM_MODES_NTX
 	/* Regal D Processing */
 	fb_data->pxp_conf.proc_data.reagl_d_en =
 		(upd_desc_list->upd_data.waveform_mode == WAVEFORM_MODE_GLD16);
+#endif //] MXCFB_WAVEFORM_MODES_NTX
 
 	mutex_unlock(&fb_data->pxp_mutex);
 
@@ -4001,6 +4056,66 @@ static int mxc_epdc_fb_send_single_update(struct mxcfb_update_data *upd_data,
 	INIT_LIST_HEAD(&upd_desc->upd_marker_list);
 	upd_desc->upd_data = *upd_data;
 	upd_desc->update_order = fb_data->order_cnt++;
+
+#if 1 //[ auto select mode 
+	{ 
+
+
+		if(WAVEFORM_MODE_AUTO!=upd_desc->upd_data.waveform_mode) {
+
+#ifdef NTX_WFM_MODE_OPTIMIZED //[
+			{
+
+				if(NTX_WFM_MODE_GC16==upd_desc->upd_data.waveform_mode) {
+					if(upd_desc->upd_data.update_mode == UPDATE_MODE_FULL) {
+						#ifdef NTX_WFM_MODE_OPTIMIZED_REAGL//[
+						if(giNTX_waveform_modeA[NTX_WFM_MODE_GLD16]!=giNTX_waveform_modeA[NTX_WFM_MODE_GC16]) {
+							// has GLD16 mode .
+							DBG_MSG("WF Mode version=0x%02x,chg W.F Mode GC16(%d)->GLD16(%d) @ full\n",
+								gbModeVersion,NTX_WFM_MODE_GC16,NTX_WFM_MODE_GLD16);
+							upd_desc->upd_data.waveform_mode = NTX_WFM_MODE_GLD16;
+						}
+						#endif //]NTX_WFM_MODE_OPTIMIZED_REAGL
+					}
+					else if(upd_desc->upd_data.update_mode == UPDATE_MODE_PARTIAL){
+						#ifdef NTX_WFM_MODE_OPTIMIZED_REAGL//[
+						if(giNTX_waveform_modeA[NTX_WFM_MODE_GLR16]!=giNTX_waveform_modeA[NTX_WFM_MODE_GC16]) {
+							DBG_MSG("WF Mode version=0x%02x,chg W.F Mode GC16(%d)->GLR16(%d) @ partial\n",
+								gbModeVersion,NTX_WFM_MODE_GC16,NTX_WFM_MODE_GLR16);
+							upd_desc->upd_data.waveform_mode = NTX_WFM_MODE_GLR16;
+						}
+						else
+						#endif //]NTX_WFM_MODE_OPTIMIZED_REAGL
+						if (giNTX_waveform_modeA[NTX_WFM_MODE_GL16]!=giNTX_waveform_modeA[NTX_WFM_MODE_GC16]) {
+							DBG_MSG("chg W.F Mode GC16(%d)->GL16(%d) @ partial\n",
+								NTX_WFM_MODE_GC16,NTX_WFM_MODE_GL16);
+							upd_desc->upd_data.waveform_mode = NTX_WFM_MODE_GL16;
+						}
+					}	
+				}
+
+			}
+#endif //] NTX_WFM_MODE_OPTIMIZED
+
+#ifdef WFM_ENABLE_AAD //[
+			if( NTX_WFM_MODE_GLD16==upd_desc->upd_data.waveform_mode && 
+					giNTX_waveform_modeA[NTX_WFM_MODE_GLD16]!=giNTX_waveform_modeA[NTX_WFM_MODE_GC16]) 
+			{
+				//upd_desc->upd_data.flags |= EPDC_FLAG_USE_AAD;
+			}
+			/*
+			else {
+				upd_desc->upd_data.flags &= ~EPDC_FLAG_USE_AAD;
+			}
+			*/
+#endif //]WFM_ENABLE_AAD
+
+			upd_desc->upd_data.waveform_mode = giNTX_waveform_modeA[upd_desc->upd_data.waveform_mode];
+
+		}
+	}
+#endif //]
+
 	list_add_tail(&upd_desc->list, &fb_data->upd_pending_list);
 
 	/* If marker specified, associate it with a completion */
@@ -4312,6 +4427,37 @@ static int mxc_epdc_fb_ioctl(struct fb_info *info, unsigned int cmd,
 	int ret = -EINVAL;
 
 	switch (cmd) {
+#ifdef MXCFB_WAVEFORM_MODES_NTX //[
+	case MXCFB_SET_WAVEFORM_MODES_NTX:
+		{
+			struct mxcfb_waveform_modes_ntx modes;
+			if (!copy_from_user(&modes, argp, sizeof(modes))) {
+				mxc_epdc_fb_set_waveform_modes(&modes, info);
+				ret = 0;
+			}
+			break;
+		}
+	case MXCFB_SET_WAVEFORM_MODES:
+		{
+			struct mxc_epdc_fb_data *fb_data = info ?
+				(struct mxc_epdc_fb_data *)info:g_fb_data;
+			struct mxcfb_waveform_modes modes;
+			struct mxcfb_waveform_modes_ntx modes_ntx;
+			if (!copy_from_user(&modes, argp, sizeof(modes))) {
+				memcpy(&modes_ntx,&fb_data->wv_modes,sizeof(struct mxcfb_waveform_modes_ntx));
+				modes_ntx.mode_init = modes.mode_init;
+				modes_ntx.mode_du = modes.mode_du;
+				modes_ntx.mode_gc4 = modes.mode_gc4;
+				modes_ntx.mode_gc8 = modes.mode_gc8;
+				modes_ntx.mode_gc16 = modes.mode_gc16;
+				modes_ntx.mode_gc32 = modes.mode_gc32;
+
+				mxc_epdc_fb_set_waveform_modes(&modes_ntx, info);
+				ret = 0;
+			}
+			break;
+		}
+#else //][!MXCFB_WAVEFORM_MODES_NTX
 	case MXCFB_SET_WAVEFORM_MODES:
 		{
 			struct mxcfb_waveform_modes modes;
@@ -4321,6 +4467,7 @@ static int mxc_epdc_fb_ioctl(struct fb_info *info, unsigned int cmd,
 			}
 			break;
 		}
+#endif //] MXCFB_WAVEFORM_MODES_NTX
 	case MXCFB_SET_TEMPERATURE:
 		{
 			int temperature;
@@ -5396,6 +5543,150 @@ static void mxc_epdc_fb_fw_handler(const struct firmware *fw,
 
 		return;
 	}
+	gbModeVersion = *(fw->data+0x10);
+	gbWFM_REV = *(fw->data+0x16);
+	gbFPL_Platform=*(fw->data+0x0d);
+
+
+	if((0x20==gbModeVersion)||(0x19==gbModeVersion)||(0x18==gbModeVersion)||(0x43==gbModeVersion))
+	{
+		if(0x18==gbModeVersion) {
+			fb_data->wv_modes.mode_gc4 = 2; /* GC4 mode */
+		}
+		else {
+			fb_data->wv_modes.mode_gc4 = 7; /* GC4 mode */
+		}
+		fb_data->wv_modes.mode_du = 1; /* DU mode */
+#ifdef MXCFB_WAVEFORM_MODES_NTX//[
+		fb_data->wv_modes.mode_gl16 = 3; /* GL16 mode */
+		fb_data->wv_modes.mode_a2 = 6; /* A2 mode */
+
+#ifdef WFM_ENABLE_AA//[
+		fb_data->wv_modes.mode_aa = 4; /* REAGL mode */
+#endif //]WFM_ENABLE_AA
+
+#ifdef WFM_ENABLE_AAD//[
+		fb_data->wv_modes.mode_aad = 5; /*REAGL-D mode */
+#endif //]WFM_ENABLE_AAD
+
+#endif //]MXCFB_WAVEFORM_MODES_NTX
+
+	}
+	else if(0x13==gbModeVersion) {
+		fb_data->wv_modes.mode_du = 1; /* DU mode */
+#ifdef MXCFB_WAVEFORM_MODES_NTX//[
+
+		fb_data->wv_modes.mode_gl16 = 3; /* GL16 mode as GLR16*/
+		fb_data->wv_modes.mode_a2 = 4; /* A2 mode */
+
+#ifdef WFM_ENABLE_AA//[
+		fb_data->wv_modes.mode_aa = 3; /* REAGL mode as GLR16*/
+#endif //]WFM_ENABLE_AA
+#ifdef WFM_ENABLE_AAD//[
+		fb_data->wv_modes.mode_aad = fb_data->wv_modes.mode_gc16; /*REAGL-D mode as GC16*/
+#endif //]WFM_ENABLE_AAD
+#endif //]MXCFB_WAVEFORM_MODES_NTX
+	}
+	else if(0x23==gbModeVersion) {
+		// AD type non regal waveform .
+		fb_data->wv_modes.mode_du = 1; /* DU mode */
+#ifdef MXCFB_WAVEFORM_MODES_NTX//[
+		fb_data->wv_modes.mode_gl16 = 3; /* GL16 mode */
+		fb_data->wv_modes.mode_a2 = 4; /* A2 mode */
+
+#ifdef WFM_ENABLE_AA//[
+		fb_data->wv_modes.mode_aa = fb_data->wv_modes.mode_gl16; /* REAGL mode as GLR16*/
+#endif //]WFM_ENABLE_AA
+
+#ifdef WFM_ENABLE_AAD//[
+		fb_data->wv_modes.mode_aad = fb_data->wv_modes.mode_gc16; /*REAGL-D mode as GC16*/
+#endif //]WFM_ENABLE_AAD
+#endif //]MXCFB_WAVEFORM_MODES_NTX
+	}
+	else if(0x4==gbModeVersion) {
+#ifdef MXCFB_WAVEFORM_MODES_NTX//[
+		fb_data->wv_modes.mode_gl16 = 5; /* GL16 mode */
+		fb_data->wv_modes.mode_a2 = 4; /* A2 mode */
+#ifdef WFM_ENABLE_AA//[
+		fb_data->wv_modes.mode_aa = 5; /* REAGL mode */
+#endif //]WFM_ENABLE_AA
+#ifdef WFM_ENABLE_AAD//[
+		fb_data->wv_modes.mode_aad = 5; /* REAGL-D mode */
+#endif //]WFM_ENABLE_AAD
+#endif //]MXCFB_WAVEFORM_MODES_NTX
+	}
+	else if(0x15==gbModeVersion||0x9==gbModeVersion) {
+		// WY type .
+#ifdef MXCFB_WAVEFORM_MODES_NTX//[
+		fb_data->wv_modes.mode_gl16 = 3; /* GL16 mode */
+		fb_data->wv_modes.mode_a2 = 4; /* A2 mode */
+
+#ifdef WFM_ENABLE_AA//[
+		fb_data->wv_modes.mode_aa = fb_data->wv_modes.mode_gl16; /* REAGL mode */
+#endif //]WFM_ENABLE_AA
+
+#ifdef WFM_ENABLE_AAD//[
+		fb_data->wv_modes.mode_aad = fb_data->wv_modes.mode_gc16; /* REAGL-D mode */
+#endif //]WFM_ENABLE_AAD
+
+#endif //]MXCFB_WAVEFORM_MODES_NTX
+		// when mode version is 0x15
+		//  GC4=5 
+		//  GL4=6 
+		  
+	}
+	else {
+		// no a2/aa/aad/gl16 .
+#ifdef MXCFB_WAVEFORM_MODES_NTX//[
+		fb_data->wv_modes.mode_gl16 = fb_data->wv_modes.mode_gc16; /* GL16 mode */
+		fb_data->wv_modes.mode_a2 = fb_data->wv_modes.mode_du; /* A2 mode as DU */
+
+#ifdef WFM_ENABLE_AA//[
+		fb_data->wv_modes.mode_aa = fb_data->wv_modes.mode_gc16; /* REAGL mode */
+#endif //]WFM_ENABLE_AA
+
+#ifdef WFM_ENABLE_AAD//[
+		fb_data->wv_modes.mode_aad = fb_data->wv_modes.mode_gc16; /* REAGL-D mode */
+#endif //]WFM_ENABLE_AAD
+#endif //]MXCFB_WAVEFORM_MODES_NTX
+	}
+
+	
+#if defined(NO_CUS_REAGL_MODE) && defined(MXCFB_WAVEFORM_MODES_NTX) //[
+
+#ifdef WFM_ENABLE_AA//[
+	fb_data->wv_modes.mode_aa = fb_data->wv_modes.mode_gc16; /* REAGL mode */
+#endif //]WFM_ENABLE_AA
+#ifdef WFM_ENABLE_AAD//[
+	fb_data->wv_modes.mode_aad = fb_data->wv_modes.mode_gc16; /* REAGL-D mode */
+#endif //]WFM_ENABLE_AAD
+#endif //]NO_CUS_REAGL_MODE && MXCFB_WAVEFORM_MODES_NTX
+
+
+	fb_data->wv_modes_update = true;
+
+	giNTX_waveform_modeA[NTX_WFM_MODE_INIT] = fb_data->wv_modes.mode_init;
+	giNTX_waveform_modeA[NTX_WFM_MODE_DU] = fb_data->wv_modes.mode_du;
+	giNTX_waveform_modeA[NTX_WFM_MODE_GC16] = fb_data->wv_modes.mode_gc16;
+	giNTX_waveform_modeA[NTX_WFM_MODE_GC4] = fb_data->wv_modes.mode_gc4;
+
+
+
+#ifdef MXCFB_WAVEFORM_MODES_NTX//[
+	giNTX_waveform_modeA[NTX_WFM_MODE_A2] = fb_data->wv_modes.mode_a2;
+	giNTX_waveform_modeA[NTX_WFM_MODE_GL16] = fb_data->wv_modes.mode_gl16;
+
+#ifdef WFM_ENABLE_AA//[
+	giNTX_waveform_modeA[NTX_WFM_MODE_GLR16] = fb_data->wv_modes.mode_aa;
+#else //][!WFM_ENABLE_AA
+	giNTX_waveform_modeA[NTX_WFM_MODE_GLR16] = fb_data->wv_modes.mode_gl16;
+#endif //]WFM_ENABLE_AA
+#ifdef WFM_ENABLE_AAD//[
+	giNTX_waveform_modeA[NTX_WFM_MODE_GLD16] = fb_data->wv_modes.mode_aad;
+#else //][!WFM_ENABLE_AAD
+	giNTX_waveform_modeA[NTX_WFM_MODE_GLD16] = fb_data->wv_modes.mode_gc16;
+#endif //]WFM_ENABLE_AAD
+#endif //] MXCFB_WAVEFORM_MODES_NTX
 
 	wv_file = (struct mxcfb_waveform_data_file *)fw->data;
 
@@ -7318,8 +7609,13 @@ static int pxp_wfe_a_process(struct mxc_epdc_fb_data *fb_data,
 	} else
 		proc_data->detection_only = 0;
 
+#ifdef MXCFB_WAVEFORM_MODES_NTX//[
+	if (((fb_data->wv_modes.mode_aa!=fb_data->wv_modes.mode_gl16)&&(wv_mode == fb_data->wv_modes.mode_aa)) || \
+			((fb_data->wv_modes.mode_aad!=fb_data->wv_modes.mode_gc16)&&(wv_mode == fb_data->wv_modes.mode_aad)))
+#else //][!MXCFB_WAVEFORM_MODES_NTX
 	if (wv_mode == WAVEFORM_MODE_GLR16
 	 || wv_mode == WAVEFORM_MODE_GLD16)
+#endif //] MXCFB_WAVEFORM_MODES_NTX
 		proc_data->reagl_en = 1;
 
 	if (upd_data_list->update_desc->upd_data.update_mode == UPDATE_MODE_PARTIAL)
@@ -7383,8 +7679,13 @@ static int pxp_wfe_a_process(struct mxc_epdc_fb_data *fb_data,
 	pxp_conf->wfe_a_store_param[1].stride = fb_data->cur_mode->vmode->xres;
 	pxp_conf->wfe_a_store_param[1].width = update_region->width;
 	pxp_conf->wfe_a_store_param[1].height = update_region->height;
+#ifdef MXCFB_WAVEFORM_MODES_NTX//[
+	if (((fb_data->wv_modes.mode_aa!=fb_data->wv_modes.mode_gl16)&&(wv_mode == fb_data->wv_modes.mode_aa)) || \
+			((fb_data->wv_modes.mode_aad!=fb_data->wv_modes.mode_gc16)&&(wv_mode == fb_data->wv_modes.mode_aad)))
+#else//][! MXCFB_WAVEFORM_MODES_NTX
 	if (wv_mode == WAVEFORM_MODE_GLR16
 	 || wv_mode == WAVEFORM_MODE_GLD16)
+#endif //] MXCFB_WAVEFORM_MODES_NTX
 		pxp_conf->wfe_a_store_param[1].paddr = fb_data->tmp_working_buffer_phys;
 	else
 		pxp_conf->wfe_a_store_param[1].paddr = fb_data->working_buffer_phys;
