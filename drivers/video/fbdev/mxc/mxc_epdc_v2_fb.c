@@ -28,7 +28,6 @@
 #define BUS_FREQ_HIGH 1
 #define request_bus_freq(FREQ)	/*empty*/
 #define release_bus_freq(FREQ)	/*empty*/
-#define imx_dma_is_pxp(CHAN) false
 
 #include <linux/module.h>
 #include <linux/kernel.h>
