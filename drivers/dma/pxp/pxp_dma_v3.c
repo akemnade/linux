@@ -304,7 +304,6 @@ struct pxp_task_info {
 
 struct pxps {
 	struct platform_device *pdev;
-	struct clk *ipg_clk;
 	struct clk *axi_clk;
 	void __iomem *base;
 	int irq;		/* PXP IRQ to the CPU */
@@ -3617,7 +3616,6 @@ static void pxp_clk_enable(struct pxps *pxp)
 
 	pm_runtime_get_sync(pxp->dev);
 
-	clk_prepare_enable(pxp->ipg_clk);
 	clk_prepare_enable(pxp->axi_clk);
 	pxp->clk_stat = CLK_STAT_ON;
 
@@ -3638,7 +3636,6 @@ static void pxp_clk_disable(struct pxps *pxp)
 	spin_lock_irqsave(&pxp->lock, flags);
 	if ((pxp->pxp_ongoing == 0) && list_empty(&head)) {
 		spin_unlock_irqrestore(&pxp->lock, flags);
-		clk_disable_unprepare(pxp->ipg_clk);
 		clk_disable_unprepare(pxp->axi_clk);
 		pxp->clk_stat = CLK_STAT_OFF;
 	} else
@@ -7962,10 +7959,9 @@ static int pxp_probe(struct platform_device *pdev)
 
 	v3p_flag = (pxp_is_v3p(pxp)) ? true : false;
 
-	pxp->ipg_clk = devm_clk_get(&pdev->dev, "pxp_ipg");
 	pxp->axi_clk = devm_clk_get(&pdev->dev, "pxp_axi");
 
-	if (IS_ERR(pxp->ipg_clk) || IS_ERR(pxp->axi_clk)) {
+	if (IS_ERR(pxp->axi_clk)) {
 		dev_err(&pdev->dev, "pxp clocks invalid\n");
 		err = -EINVAL;
 		goto exit;
@@ -8056,7 +8052,6 @@ static int pxp_remove(struct platform_device *pdev)
 	kthread_stop(pxp->dispatch);
 	cancel_work_sync(&pxp->work);
 	del_timer_sync(&pxp->clk_timer);
-	clk_disable_unprepare(pxp->ipg_clk);
 	clk_disable_unprepare(pxp->axi_clk);
 	pxp_remove_attrs(pdev);
 	dma_async_device_unregister(&(pxp->pxp_dma.dma));
