@@ -657,10 +657,7 @@ static int tps6518x_remove(struct i2c_client *i2c)
 	return 0;
 }
 
-// FIXME: this does not exist in our kernel
-extern int gSleep_Mode_Suspend;
-
-int gSleep_Mode_Suspend;
+static int gSleep_Mode_Suspend = 0;
 
 static int tps6518x_suspend(struct device *dev)
 {
