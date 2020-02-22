@@ -7558,6 +7558,7 @@ MODULE_DEVICE_TABLE(platform, imx_pxpdma_devtype);
 static const struct of_device_id imx_pxpdma_dt_ids[] = {
 	{ .compatible = "fsl,imx7d-pxp-dma", .data = &imx_pxpdma_devtype[0], },
 	{ .compatible = "fsl,imx6ull-pxp-dma", .data = &imx_pxpdma_devtype[1], },
+	{ .compatible = "fsl,imx6sll-pxp", .data = &imx_pxpdma_devtype[1], },
 	{ /* sentinel */ }
 };
 MODULE_DEVICE_TABLE(of, imx_pxpdma_dt_ids);
@@ -7959,7 +7960,7 @@ static int pxp_probe(struct platform_device *pdev)
 
 	v3p_flag = (pxp_is_v3p(pxp)) ? true : false;
 
-	pxp->axi_clk = devm_clk_get(&pdev->dev, "pxp_axi");
+	pxp->axi_clk = devm_clk_get(&pdev->dev, "axi");
 
 	if (IS_ERR(pxp->axi_clk)) {
 		dev_err(&pdev->dev, "pxp clocks invalid\n");
