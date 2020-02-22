@@ -8034,7 +8034,7 @@ static int pxp_probe(struct platform_device *pdev)
 	register_pxp_device();
 	pm_runtime_enable(pxp->dev);
 
-	dma_alloc_coherent(NULL, PAGE_ALIGN(1920 * 1088 * 4),
+	dma_alloc_coherent(pxp->dev, PAGE_ALIGN(1920 * 1088 * 4),
 			   &paddr, GFP_KERNEL);
 
 exit:
