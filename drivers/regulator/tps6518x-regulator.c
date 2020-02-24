@@ -664,19 +664,15 @@ static DEVICE_ATTR (regs,0444,tps6518x_regs_read,NULL);
 
 static int vcom_rs_to_uV(unsigned int reg_setting)
 {
-	if (reg_setting <= TPS65180_VCOM_MIN_SET)
-		return TPS65180_VCOM_MIN_uV;
 	if (reg_setting >= TPS65180_VCOM_MAX_SET)
 		return TPS65180_VCOM_MAX_uV;
-	return -(reg_setting * TPS65180_VCOM_STEP_uV);
+	return (reg_setting * TPS65180_VCOM_STEP_uV);
 }
 static int vcom2_rs_to_uV(unsigned int reg_setting)
 {
-	if (reg_setting <= TPS65185_VCOM_MIN_SET)
-		return TPS65185_VCOM_MIN_uV;
 	if (reg_setting >= TPS65185_VCOM_MAX_SET)
 		return TPS65185_VCOM_MAX_uV;
-	return -(reg_setting * TPS65185_VCOM_STEP_uV);
+	return (reg_setting * TPS65185_VCOM_STEP_uV);
 }
 
 
@@ -686,7 +682,7 @@ static int vcom_uV_to_rs(int uV)
 		return TPS65180_VCOM_MIN_SET;
 	if (uV >= TPS65180_VCOM_MAX_uV)
 		return TPS65180_VCOM_MAX_SET;
-	return (-uV) / TPS65180_VCOM_STEP_uV;
+	return uV / TPS65180_VCOM_STEP_uV;
 }
 
 static int vcom2_uV_to_rs(int uV)
@@ -695,7 +691,7 @@ static int vcom2_uV_to_rs(int uV)
 		return TPS65185_VCOM_MIN_SET;
 	if (uV >= TPS65185_VCOM_MAX_uV)
 		return TPS65185_VCOM_MAX_SET;
-	return (-uV) / TPS65185_VCOM_STEP_uV;
+	return (uV) / TPS65185_VCOM_STEP_uV;
 }
 
 static int epdc_pwr0_enable(struct regulator_dev *reg)
@@ -1760,7 +1756,7 @@ static int __init tps6518x_setup(char *options)
 			tps6518x_vcom = (int) ulResult;
 			if (ret < 0)
 				return ret;
-			tps6518x_vcom = -tps6518x_vcom;
+			tps6518x_vcom = tps6518x_vcom;
 		}
 	}
 
@@ -1791,7 +1787,7 @@ static int __init tps65182_setup(char *options)
 			tps6518x_vcom = (int) ulResult;
 			if (ret < 0)
 				return ret;
-			tps6518x_vcom = -tps6518x_vcom;
+			tps6518x_vcom = tps6518x_vcom;
 		}
 	}
 
