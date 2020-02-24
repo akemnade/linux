@@ -250,14 +250,14 @@ enum {
  * The register fields accept voltages in the range 0V to -2.75V, but the
  * VCOM parametric performance is only guaranteed from -0.3V to -2.5V.
  */
-#define TPS65180_VCOM_MIN_uV   -2750000
-#define TPS65180_VCOM_MAX_uV          0
+#define TPS65180_VCOM_MAX_uV   2750000
+#define TPS65180_VCOM_MIN_uV          0
 #define TPS65180_VCOM_MIN_SET         0
 #define TPS65180_VCOM_MAX_SET       255
 #define TPS65180_VCOM_BASE_uV     10740
 #define TPS65180_VCOM_STEP_uV     10740
-#define TPS65185_VCOM_MIN_uV   -5110000
-#define TPS65185_VCOM_MAX_uV          0
+#define TPS65185_VCOM_MAX_uV   5110000
+#define TPS65185_VCOM_MIN_uV          0
 #define TPS65185_VCOM_MIN_SET         0
 #define TPS65185_VCOM_MAX_SET       511
 #define TPS65185_VCOM_BASE_uV     10000
