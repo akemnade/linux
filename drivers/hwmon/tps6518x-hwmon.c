@@ -216,13 +216,7 @@ int tps6518x_set_vcom(struct tps6518x *tps6518x,int iVCOMmV,int iIsWriteToFlash)
 		return -1;
 	}
 
-	if(iVCOMmV>0) {
-		printk(KERN_ERR"%s(),VCOMmV cannot <=0 !!\n",__FUNCTION__);
-		return -2;
-	}
-
-
-	wVCOM_val = (unsigned short)((-iVCOMmV)/10);
+	wVCOM_val = (unsigned short)((iVCOMmV)/10);
 	dev_dbg(tps6518x->dev, "vcom=>%dmV,wVCOM_val=0x%x,6518x regID=0x%x\n",
 			iVCOMmV,wVCOM_val,tps6518x->revID);
 
@@ -426,7 +420,7 @@ int tps6518x_get_vcom(struct tps6518x *tps6518x,int *O_piVCOMmV)
 	}
 
 	if(O_piVCOMmV) {
-		*O_piVCOMmV = -vcom_reg_val*10;
+		*O_piVCOMmV = vcom_reg_val*10;
 	}
 	
 	return 0;
@@ -451,7 +445,7 @@ static ssize_t set_vcom(struct device *dev,
 	long vcom_reg_val = simple_strtol(buf,NULL,10);
 	struct tps6518x_data *data = dev_get_drvdata(dev);
 
-	tps6518x_set_vcom(data->tps6518x,-vcom_reg_val,0);
+	tps6518x_set_vcom(data->tps6518x,vcom_reg_val,0);
 	return count;
 }
 
