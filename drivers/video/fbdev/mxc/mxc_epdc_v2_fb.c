@@ -25,6 +25,7 @@
  */
 
 // #include <linux/busfreq-imx.h>
+#define DEBUG
 #define BUS_FREQ_HIGH 1
 #define request_bus_freq(FREQ)	/*empty*/
 #define release_bus_freq(FREQ)	/*empty*/
