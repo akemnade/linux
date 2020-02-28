@@ -1633,6 +1633,7 @@ static DEVICE_ATTR(block_size, S_IWUSR | S_IRUGO,
 
 static const struct of_device_id imx_pxpdma_dt_ids[] = {
 	{ .compatible = "fsl,imx6dl-pxp-dma", },
+	{ .compatible = "fsl,imx6sl-pxp", },
 	{ /* sentinel */ }
 };
 MODULE_DEVICE_TABLE(of, imx_pxpdma_dt_ids);
