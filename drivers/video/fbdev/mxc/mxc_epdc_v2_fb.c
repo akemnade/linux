@@ -6134,6 +6134,49 @@ static int mxc_epdc_fb_probe(struct platform_device *pdev)
 		goto out_fbdata;
 	}
 
+	/* get pmic regulators */
+	fb_data->display_regulator = devm_regulator_get(&pdev->dev, "DISPLAY");
+	if (IS_ERR(fb_data->display_regulator)) {
+		if (PTR_ERR(fb_data->display_regulator) == -EPROBE_DEFER) {
+			ret = -EPROBE_DEFER;
+			goto out_fbdata;
+		}
+
+		dev_err(&pdev->dev, "Unable to get display PMIC regulator."
+			"err = 0x%x\n", (int)fb_data->display_regulator);
+		ret = -ENODEV;
+		goto out_fbdata;
+	}
+	fb_data->vcom_regulator = devm_regulator_get(&pdev->dev, "VCOM");
+	if (IS_ERR(fb_data->vcom_regulator)) {
+		if (PTR_ERR(fb_data->vcom_regulator) == -EPROBE_DEFER) {
+			ret = -EPROBE_DEFER;
+			goto out_fbdata;
+		}
+
+		dev_err(&pdev->dev, "Unable to get VCOM regulator."
+			"err = 0x%x\n", (int)fb_data->vcom_regulator);
+		ret = -ENODEV;
+		goto out_fbdata;
+	}
+	fb_data->v3p3_regulator = devm_regulator_get(&pdev->dev, "V3P3");
+	if (IS_ERR(fb_data->v3p3_regulator)) {
+		if (PTR_ERR(fb_data->v3p3_regulator) == -EPROBE_DEFER) {
+			ret = -EPROBE_DEFER;
+			goto out_fbdata;
+		}
+
+		dev_err(&pdev->dev, "Unable to get V3P3 regulator."
+			"err = 0x%x\n", (int)fb_data->vcom_regulator);
+		ret = -ENODEV;
+		goto out_fbdata;
+	}
+	fb_data->tmst_regulator = devm_regulator_get(&pdev->dev, "TMST");
+	if (IS_ERR(fb_data->tmst_regulator)) {
+		dev_info(&pdev->dev, "Unable to get TMST regulator."
+			"err = 0x%x\n", (int)fb_data->tmst_regulator);
+	}
+
 	fb_data->epdc_wb_mode = 1;
 	fb_data->tce_prevent = 0;
 
@@ -6621,33 +6664,6 @@ static int mxc_epdc_fb_probe(struct platform_device *pdev)
 	fb_deferred_io_init(info);
 #endif
 
-	/* get pmic regulators */
-	fb_data->display_regulator = devm_regulator_get(&pdev->dev, "DISPLAY");
-	if (IS_ERR(fb_data->display_regulator)) {
-		dev_err(&pdev->dev, "Unable to get display PMIC regulator."
-			"err = 0x%x\n", (int)fb_data->display_regulator);
-		ret = -ENODEV;
-		goto out_dma_work_buf;
-	}
-	fb_data->vcom_regulator = devm_regulator_get(&pdev->dev, "VCOM");
-	if (IS_ERR(fb_data->vcom_regulator)) {
-		dev_err(&pdev->dev, "Unable to get VCOM regulator."
-			"err = 0x%x\n", (int)fb_data->vcom_regulator);
-		ret = -ENODEV;
-		goto out_dma_work_buf;
-	}
-	fb_data->v3p3_regulator = devm_regulator_get(&pdev->dev, "V3P3");
-	if (IS_ERR(fb_data->v3p3_regulator)) {
-		dev_err(&pdev->dev, "Unable to get V3P3 regulator."
-			"err = 0x%x\n", (int)fb_data->vcom_regulator);
-		ret = -ENODEV;
-		goto out_dma_work_buf;
-	}
-	fb_data->tmst_regulator = devm_regulator_get(&pdev->dev, "TMST");
-	if (IS_ERR(fb_data->tmst_regulator)) {
-		dev_info(&pdev->dev, "Unable to get TMST regulator."
-			"err = 0x%x\n", (int)fb_data->tmst_regulator);
-	}
 
 	vcom_nominal = regulator_get_voltage(fb_data->vcom_regulator); /* save the vcom_nominal value in uV */
 
