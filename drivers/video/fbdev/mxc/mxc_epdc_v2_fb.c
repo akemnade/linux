@@ -25,7 +25,6 @@
  */
 
 // #include <linux/busfreq-imx.h>
-#define DEBUG
 #define BUS_FREQ_HIGH 1
 #define request_bus_freq(FREQ)	/*empty*/
 #define release_bus_freq(FREQ)	/*empty*/
@@ -2185,6 +2184,10 @@ static void epdc_powerup(struct mxc_epdc_fb_data *fb_data)
 		return;
 	}
 
+	fb_data->power_state = POWER_STATE_ON;
+
+	mutex_unlock(&fb_data->power_mutex);
+
 	if (!IS_ERR(fb_data->tmst_regulator)) {
 		int temp = regulator_get_voltage(fb_data->tmst_regulator);
 		if (temp != 0xFF) {
@@ -2192,9 +2195,6 @@ static void epdc_powerup(struct mxc_epdc_fb_data *fb_data)
 		}
 	}
 
-	fb_data->power_state = POWER_STATE_ON;
-
-	mutex_unlock(&fb_data->power_mutex);
 }
 
 static void epdc_powerdown(struct mxc_epdc_fb_data *fb_data)
