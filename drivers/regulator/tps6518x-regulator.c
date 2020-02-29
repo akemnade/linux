@@ -1416,58 +1416,6 @@ static int tps6518x_pmic_dt_parse_pdata(struct platform_device *pdev,
 	tps6518x->gpio_pmic_v3p3 = -1;
 #endif //]TPS65185_V3P3_ENABLE
 
-	tps6518x->gpio_pmic_wakeup = of_get_named_gpio(pmic_np,
-					"gpio_pmic_wakeup", 0);
-	if (!gpio_is_valid(tps6518x->gpio_pmic_wakeup)) {
-		dev_err(&pdev->dev, "no epdc pmic wakeup pin available\n");
-		goto err;
-	}
-	else {
-		DBG_MSG("%s():gpio_pmic_wakeup=%d\n",__FUNCTION__,tps6518x->gpio_pmic_wakeup);
-	}
-	ret = devm_gpio_request_one(&pdev->dev, tps6518x->gpio_pmic_wakeup,
-				GPIOF_OUT_INIT_LOW, "epdc-pmic-wake");
-	if (ret < 0) {
-		//dev_err(&pdev->dev, "request wakeup gpio failed (%d)!\n",ret);
-		//goto err;
-	}
-
-
-
-	tps6518x->gpio_pmic_vcom_ctrl = of_get_named_gpio(pmic_np,
-					"gpio_pmic_vcom_ctrl", 0);
-	if (!gpio_is_valid(tps6518x->gpio_pmic_vcom_ctrl)) {
-		dev_err(&pdev->dev, "no epdc pmic vcom_ctrl pin available\n");
-		goto err;
-	}
-	ret = devm_gpio_request_one(&pdev->dev, tps6518x->gpio_pmic_vcom_ctrl,
-				GPIOF_OUT_INIT_LOW, "epdc-vcom");
-	if (ret < 0) {
-		dev_err(&pdev->dev, "request vcom gpio failed (%d)!\n",ret);
-		//goto err;
-	}
-
-	tps6518x->gpio_pmic_powerup = of_get_named_gpio(pmic_np,
-					"gpio_pmic_powerup", 0);
-	if (!gpio_is_valid(tps6518x->gpio_pmic_powerup)) {
-		dev_err(&pdev->dev, "no epdc pmic powerup pin available\n");
-		goto err;
-	}
-	else {
-		DBG_MSG("%s():gpio_pmic_powerup=%d\n",__FUNCTION__,tps6518x->gpio_pmic_powerup);
-	}
-#if 0
-	ret = devm_gpio_request_one(&pdev->dev, tps6518x->gpio_pmic_powerup,
-				GPIOF_IN, "epdc-powerup");
-#else 
-	ret = devm_gpio_request_one(&pdev->dev, tps6518x->gpio_pmic_powerup,
-				GPIOF_OUT_INIT_LOW, "epdc-powerup");
-#endif
-	if (ret < 0) {
-		dev_err(&pdev->dev, "request powerup gpio failed (%d)!\n",ret);
-		//goto err;
-	}
-
 	tps6518x->gpio_pmic_intr = of_get_named_gpio(pmic_np,
 					"gpio_pmic_intr", 0);
 	if (!gpio_is_valid(tps6518x->gpio_pmic_intr)) {
