@@ -1725,7 +1725,7 @@ static int pxp_probe(struct platform_device *pdev)
 	pxp->clk_disp_axi = devm_clk_get(&pdev->dev, "disp-axi");
 	if (IS_ERR(pxp->clk_disp_axi))
 		pxp->clk_disp_axi = NULL;
-	pxp->clk = devm_clk_get(&pdev->dev, "pxp-axi");
+	pxp->clk = devm_clk_get(&pdev->dev, "axi");
 
 	err = devm_request_irq(&pdev->dev, pxp->irq, pxp_irq, 0,
 				"pxp-dmaengine", pxp);
