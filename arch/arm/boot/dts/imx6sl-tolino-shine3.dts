@@ -26,6 +26,11 @@
 	compatible = "kobo,tolino-shine3", "fsl,imx6sl";
 };
 
+&epdc {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_epdc0>;
+};
+
 &gpio_keys {
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_gpio_keys>;
