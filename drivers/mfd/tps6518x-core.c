@@ -180,14 +180,14 @@ int tps6518x_reg_read(struct tps6518x *tps6518x,int reg_num, unsigned int *reg_v
 			"tps6518x wakeup gpio not avalible !!\n");
 	}
 	else {
-		if(0==gpio_get_value(tps6518x->gpio_pmic_wakeup)) 
+		if(0==gpiod_get_value_cansleep(tps6518x->gpio_pmic_wakeup)) 
 		{
 
 			dev_warn(&tps6518x_client->dev,
 				"%s(%d, ) with wakeup=0 !!!\n",__FUNCTION__,reg_num);
 			tps6518x_chip_power(tps6518x,1,1,-1);
 			printk("%s(%d): 6518x wakeup=%d\n",__FUNCTION__,__LINE__,
-					gpio_get_value(tps6518x->gpio_pmic_wakeup));
+					gpiod_get_value_cansleep(tps6518x->gpio_pmic_wakeup));
 		}
 	}
 #endif //]PULLUP_WAKEPIN_IF_LOW	
@@ -228,7 +228,7 @@ int tps6518x_reg_write(struct tps6518x *tps6518x,int reg_num, const unsigned int
 			"tps6518x wakeup gpio not avalible !!\n");
 	}
 	else {
-		if(0==gpio_get_value(tps6518x->gpio_pmic_wakeup)) 
+		if(0==gpiod_get_value_cansleep(tps6518x->gpio_pmic_wakeup)) 
 		{
 			dev_warn(&tps6518x_client->dev,
 				"%s(%d,0x%x): with wakeup=0 !!!\n",
@@ -237,7 +237,7 @@ int tps6518x_reg_write(struct tps6518x *tps6518x,int reg_num, const unsigned int
 			tps6518x_chip_power(tps6518x,1,1,-1);
 
 			printk("%s(%d): 6518x wakeup=%d\n",__FUNCTION__,__LINE__,
-					gpio_get_value(tps6518x->gpio_pmic_wakeup));
+					gpiod_get_value_cansleep(tps6518x->gpio_pmic_wakeup));
 		}
 	}
 #endif //]PULLUP_WAKEPIN_IF_LOW
@@ -335,18 +335,18 @@ int tps6518x_chip_power(struct tps6518x *tps6518x,int iIsON,int iIsWakeup,int iI
 		return -1;
 	}
 
-	if (!gpio_is_valid(tps6518x->gpio_pmic_pwrall)) {
+	if (!tps6518x->gpio_pmic_pwrall) {
 		printk(KERN_ERR"%s(): no epdc pmic pwrall pin available\n",__FUNCTION__);
 		return -2;
 	}
 
 
-	iPwrallCurrentStat = gpio_get_value(tps6518x->gpio_pmic_pwrall);
-	iWakeupCurrentStat = gpio_get_value(tps6518x->gpio_pmic_wakeup);
-	iRailsCurrentStat = gpio_get_value(tps6518x->gpio_pmic_powerup);
+	iPwrallCurrentStat = gpiod_get_value_cansleep(tps6518x->gpio_pmic_pwrall);
+	iWakeupCurrentStat = gpiod_get_value_cansleep(tps6518x->gpio_pmic_wakeup);
+	iRailsCurrentStat = gpiod_get_value_cansleep(tps6518x->gpio_pmic_powerup);
 
 	if(1==iIsON) {
-		gpio_set_value(tps6518x->gpio_pmic_pwrall,1);
+		gpiod_set_value(tps6518x->gpio_pmic_pwrall,1);
 		if(iPwrallCurrentStat!=1) {
 			msleep(4);
 		}
@@ -356,7 +356,7 @@ int tps6518x_chip_power(struct tps6518x *tps6518x,int iIsON,int iIsWakeup,int iI
 
 				//printk("%s(%d),wakeup set 1\n",__FUNCTION__,__LINE__);
 		//		i2c_lock_adapter (tps6518x->i2c_client->adapter);
-				gpio_set_value(tps6518x->gpio_pmic_wakeup,1);
+				gpiod_set_value(tps6518x->gpio_pmic_wakeup,1);
 		//		i2c_unlock_adapter (tps6518x->i2c_client->adapter);
 				//msleep(4);
 
@@ -405,7 +405,7 @@ int tps6518x_chip_power(struct tps6518x *tps6518x,int iIsON,int iIsWakeup,int iI
 				tps6518x_reg_write(tps6518x,REG_TPS65180_ENABLE, new_reg_val);
 				*/
 
-				gpio_set_value(tps6518x->gpio_pmic_powerup,1);
+				gpiod_set_value(tps6518x->gpio_pmic_powerup,1);
 			}
 			else if(0==iIsRailsON){
 				if(1==iRailsCurrentStat) {
@@ -417,12 +417,12 @@ int tps6518x_chip_power(struct tps6518x *tps6518x,int iIsON,int iIsWakeup,int iI
 					tps6518x_reg_write(tps6518x,REG_TPS65180_ENABLE, new_reg_val);
 					*/
 
-					gpio_set_value(tps6518x->gpio_pmic_powerup,0);
+					gpiod_set_value(tps6518x->gpio_pmic_powerup,0);
 					tps6518x_reg_read(tps6518x,REG_TPS65180_INT1,&dwDummy);
 					tps6518x_reg_read(tps6518x,REG_TPS65180_INT2,&dwDummy);
 				}
 			}
-			//printk("%s(%d),%d->%d\n",__FUNCTION__,__LINE__,iWakeupCurrentStat,gpio_get_value(tps6518x->gpio_pmic_wakeup));
+			//printk("%s(%d),%d->%d\n",__FUNCTION__,__LINE__,iWakeupCurrentStat,gpiod_get_value_cansleep(tps6518x->gpio_pmic_wakeup));
 
 		}
 		else {
@@ -436,7 +436,7 @@ int tps6518x_chip_power(struct tps6518x *tps6518x,int iIsON,int iIsWakeup,int iI
 				tps6518x_reg_write(tps6518x,REG_TPS65180_ENABLE, new_reg_val);
 			}
 			*/
-			gpio_set_value(tps6518x->gpio_pmic_powerup,0);
+			gpiod_set_value(tps6518x->gpio_pmic_powerup,0);
 
 
 			/*
@@ -452,7 +452,7 @@ int tps6518x_chip_power(struct tps6518x *tps6518x,int iIsON,int iIsWakeup,int iI
 			}
 			*/
 
-			gpio_set_value(tps6518x->gpio_pmic_wakeup,0);
+			gpiod_set_value(tps6518x->gpio_pmic_wakeup,0);
 
 			tps6518x->timing_need_restore = 1;//need restore regs .
 			tps6518x->vcom_setup = 0;//need setup vcom again .
@@ -471,7 +471,7 @@ int tps6518x_chip_power(struct tps6518x *tps6518x,int iIsON,int iIsWakeup,int iI
 			tps6518x_reg_write(tps6518x,REG_TPS65180_ENABLE, new_reg_val);
 		}
 		*/
-		gpio_set_value(tps6518x->gpio_pmic_powerup,0);
+		gpiod_set_value(tps6518x->gpio_pmic_powerup,0);
 
 		
 		if(1==iWakeupCurrentStat) {
@@ -486,12 +486,12 @@ int tps6518x_chip_power(struct tps6518x *tps6518x,int iIsON,int iIsWakeup,int iI
 			tps6518x_reg_write(tps6518x,REG_TPS65180_ENABLE, new_reg_val);
 			*/
 		}
-		gpio_set_value(tps6518x->gpio_pmic_wakeup,0);
+		gpiod_set_value(tps6518x->gpio_pmic_wakeup,0);
 		tps6518x->timing_need_restore = 1;//need restore regs .
 		tps6518x->vcom_setup = 0;//need setup vcom again .
 		tps6518x->iRegEnable = 0;
 
-		gpio_set_value(tps6518x->gpio_pmic_pwrall,0);
+		gpiod_set_value(tps6518x->gpio_pmic_pwrall,0);
 
 		iRet = 0;
 	}
@@ -502,96 +502,58 @@ int tps6518x_chip_power(struct tps6518x *tps6518x,int iIsON,int iIsWakeup,int iI
 EXPORT_SYMBOL(tps6518x_chip_power);
 
 #ifdef CONFIG_OF
-static struct tps6518x_platform_data *tps6518x_i2c_parse_dt_pdata(
-					struct device *dev)
+static int tps6518x_i2c_parse_dt_pdata(struct device *dev)
 {
 	struct tps6518x_platform_data *pdata;
 	struct device_node *pmic_np;
 	struct tps6518x *tps6518x = dev_get_drvdata(dev);
 	int ret;
 
-	pdata = devm_kzalloc(dev, sizeof(*pdata), GFP_KERNEL);
-	if (!pdata) {
-		dev_err(dev, "could not allocate memory for pdata\n");
-		return ERR_PTR(-ENOMEM);
-	}
-
 	pmic_np = of_node_get(dev->of_node);
 	if (!pmic_np) {
 		dev_err(dev, "could not find pmic sub-node\n");
-		return ERR_PTR(-ENODEV);
+		return -ENODEV;
 	}
 
-	tps6518x->gpio_pmic_pwrall = of_get_named_gpio(pmic_np,
-					"gpio_pmic_pwrall", 0);
-	if (!gpio_is_valid(tps6518x->gpio_pmic_pwrall)) {
+	tps6518x->gpio_pmic_pwrall = devm_gpiod_get(dev, "pwrall", GPIOD_OUT_HIGH);
+	if (IS_ERR(tps6518x->gpio_pmic_pwrall)) {
 		dev_err(dev, "no epdc pmic pwrall pin available\n");
-		return ERR_PTR(-ENODEV);
-	}
-	else {
-		printk("%s():gpio_pmic_pwrall=%d\n",__FUNCTION__,tps6518x->gpio_pmic_pwrall);
-	}
-	ret = devm_gpio_request_one(dev, tps6518x->gpio_pmic_pwrall,
-				GPIOF_OUT_INIT_HIGH, "epdc-pmic-pwrall");
-	if (ret < 0) {
-		dev_err(dev, "request pwrall gpio failed (%d)!\n",ret);
-		//goto err;
-	}
-	else {
-		printk("%s():gpio_pmic_pwrall init set 1\n",__FUNCTION__);
+		return PTR_ERR(tps6518x->gpio_pmic_pwrall);
 	}
 
-	
-
-	tps6518x->gpio_pmic_wakeup = of_get_named_gpio(pmic_np,
-					"gpio_pmic_wakeup", 0);
-	if (!gpio_is_valid(tps6518x->gpio_pmic_wakeup)) {
+	tps6518x->gpio_pmic_wakeup = devm_gpiod_get(dev, "wakeup", GPIOD_OUT_HIGH);
+	if (IS_ERR(tps6518x->gpio_pmic_wakeup)) {
 		dev_err(dev, "no epdc pmic wakeup pin available\n");
-		return ERR_PTR(-ENODEV);
-	}
-	else {
-		printk("%s():gpio_pmic_wakeup=%d\n",__FUNCTION__,tps6518x->gpio_pmic_wakeup);
-	}
-	ret = devm_gpio_request_one(dev, tps6518x->gpio_pmic_wakeup,
-				GPIOF_OUT_INIT_HIGH, "epdc-pmic-wake");
-	if (ret < 0) {
-		dev_err(dev, "request wakeup gpio failed (%d)!\n",ret);
-		//goto err;
-	}
-	else {
-		printk("%s():gpio_pmic_wakeup init set 1\n",__FUNCTION__);
-		tps6518x->dwSafeTickToCommunication = jiffies+TPS6518X_WAKEUP_WAIT_TICKS;
+		return PTR_ERR(tps6518x->gpio_pmic_pwrall);
 	}
 
-	tps6518x->gpio_pmic_vcom_ctrl = of_get_named_gpio(pmic_np,
-					"gpio_pmic_vcom_ctrl", 0);
-	if (!gpio_is_valid(tps6518x->gpio_pmic_vcom_ctrl)) {
-		dev_err(dev, "no epdc pmic vcom_ctrl pin available\n");
-	}
-	ret = devm_gpio_request_one(dev, tps6518x->gpio_pmic_vcom_ctrl,
-				GPIOF_OUT_INIT_LOW, "epdc-vcom");
-	if (ret < 0) {
-		dev_err(dev, "request vcom gpio failed (%d)!\n",ret);
+	tps6518x->dwSafeTickToCommunication = jiffies+TPS6518X_WAKEUP_WAIT_TICKS;
+
+	tps6518x->gpio_pmic_vcom_ctrl = devm_gpiod_get(dev, "vcom-ctrl", GPIOD_OUT_LOW);
+	if (IS_ERR(tps6518x->gpio_pmic_vcom_ctrl)) {
+		dev_err(dev, "no vcom gpio pin available\n");
+		return PTR_ERR(tps6518x->gpio_pmic_vcom_ctrl);
 	}
 
-	tps6518x->gpio_pmic_powerup = of_get_named_gpio(pmic_np,
-					"gpio_pmic_powerup", 0);
-	if (!gpio_is_valid(tps6518x->gpio_pmic_powerup)) {
-		dev_err(dev, "no epdc pmic powerup pin available\n");
-	}
-	else {
-		printk("%s():gpio_pmic_powerup=%d\n",__FUNCTION__,tps6518x->gpio_pmic_powerup);
-	}
-	ret = devm_gpio_request_one(dev, tps6518x->gpio_pmic_powerup,
-				GPIOF_OUT_INIT_LOW, "epdc-powerup");
-	if (ret < 0) {
-		dev_err(dev, "request powerup gpio failed (%d)!\n",ret);
-	}
-	else {
+	tps6518x->gpio_pmic_powerup = devm_gpiod_get(dev, "powerup", GPIOD_OUT_LOW);
+	if (IS_ERR(tps6518x->gpio_pmic_vcom_ctrl)) {
+		dev_err(dev, "no pmic_powerup pin available\n");
+		return PTR_ERR(tps6518x->gpio_pmic_powerup);
 	}
 
+	tps6518x->gpio_pmic_intr = devm_gpiod_get(dev, "intr", GPIOD_IN);
+	if (IS_ERR(tps6518x->gpio_pmic_intr)) {
+		dev_err(dev, "request int gpio failed!\n",ret);
+		return PTR_ERR(tps6518x->gpio_pmic_intr);
+	}
 
-	return pdata;
+	tps6518x->gpio_pmic_pwrgood = devm_gpiod_get(dev,
+					"pwrgood", 0);
+	if (IS_ERR(tps6518x->gpio_pmic_pwrgood)) {
+		dev_err(dev, "request pwrgood gpio failed (%d)!\n",ret);
+		return PTR_ERR(tps6518x->gpio_pmic_pwrgood);
+	}
+	return 0;
 }
 #else
 static struct tps6518x_platform_data *tps6518x_i2c_parse_dt_pdata(
@@ -628,9 +590,8 @@ static int tps6518x_probe(struct i2c_client *client,
 
 
 	/* Create the PMIC data structure */
-	tps6518x = kzalloc(sizeof(struct tps6518x), GFP_KERNEL);
+	tps6518x = devm_kzalloc(&client->dev, sizeof(struct tps6518x), GFP_KERNEL);
 	if (tps6518x == NULL) {
-		kfree(client);
 		return -ENOMEM;
 	}
 
@@ -641,41 +602,25 @@ static int tps6518x_probe(struct i2c_client *client,
 	i2c_set_clientdata(client, tps6518x);
 	tps6518x->dev = &client->dev;
 	tps6518x->i2c_client = client;
+	pdata = devm_kzalloc(tps6518x->dev, sizeof(*pdata), GFP_KERNEL);
+	if (!pdata) {
+		dev_err(tps6518x->dev, "could not allocate memory for pdata\n");
+		return -ENOMEM;
+        }
+
 
 
 	if (tps6518x->dev->of_node) {
-		pdata = tps6518x_i2c_parse_dt_pdata(tps6518x->dev);
-		if (IS_ERR(pdata)) {
-			ret = PTR_ERR(pdata);
+		ret = tps6518x_i2c_parse_dt_pdata(tps6518x->dev);
+		if (ret)
 			goto err1;
-		}
-
 	}
 
 
-	if (!gpio_is_valid(tps6518x->gpio_pmic_pwrall)) {
-		dev_err(&client->dev, "pwrall gpio not available !!\n");
-		goto err1;
-	}
+	/* some wakeup wait */
+	mdelay(2);
 
-	if(1!=gpio_get_value(tps6518x->gpio_pmic_pwrall)) {
-		dev_info(&client->dev, "turning on the PMIC chip power ...\n");
-		gpio_set_value(tps6518x->gpio_pmic_pwrall,1);
-		mdelay(2);
-	}
-
-	if (!gpio_is_valid(tps6518x->gpio_pmic_wakeup)) {
-		dev_err(&client->dev, "wakeup gpio not available !!\n");
-		goto err1;
-	}
-
-	if (!gpio_get_value(tps6518x->gpio_pmic_wakeup)) 
-	{
-		dev_info(&client->dev, "wake on PMIC ...\n");
-		gpio_set_value(tps6518x->gpio_pmic_wakeup,1);
-		tps6518x->dwSafeTickToCommunication = jiffies+TPS6518X_WAKEUP_WAIT_TICKS;
-		//mdelay(TPS6518X_WAKEUP_MS);
-	}
+	tps6518x->dwSafeTickToCommunication = jiffies+TPS6518X_WAKEUP_WAIT_TICKS;
 
 	ret = tps6518x_detect(client, NULL);
 	if (ret)
@@ -696,8 +641,6 @@ static int tps6518x_probe(struct i2c_client *client,
 err2:
 	mfd_remove_devices(tps6518x->dev);
 err1:
-	kfree(tps6518x);
-
 	return ret;
 }
 
@@ -720,20 +663,20 @@ static int tps6518x_suspend(struct device *dev)
 
 	//printk("%s()\n",__FUNCTION__);
 
-	if(gpio_get_value(tps6518x->gpio_pmic_powerup))
+	if(gpiod_get_value_cansleep(tps6518x->gpio_pmic_powerup))
 	{
 		dev_warn(dev,"suspend skipped ! rails power must be powered off !!\n");
 		return -1;
 	}
 
-	gpio_set_value(tps6518x->gpio_pmic_vcom_ctrl,0);
+	gpiod_set_value(tps6518x->gpio_pmic_vcom_ctrl,0);
 
 
 	if (gSleep_Mode_Suspend) {
 		tps6518x_chip_power(tps6518x,0,0,0);
 		
-		if (gpio_is_valid(tps6518x->gpio_pmic_v3p3)) {
-			gpio_set_value(tps6518x->gpio_pmic_v3p3,0);
+		if (tps6518x->gpio_pmic_v3p3) {
+			gpiod_set_value(tps6518x->gpio_pmic_v3p3,0);
 		}
 
 	}
@@ -753,8 +696,8 @@ static int tps6518x_resume(struct device *dev)
 	
 	//printk("%s()\n",__FUNCTION__);
 
-	if (gpio_is_valid(tps6518x->gpio_pmic_v3p3)) {
-		gpio_set_value(tps6518x->gpio_pmic_v3p3, 1);
+	if (tps6518x->gpio_pmic_v3p3) {
+		gpiod_set_value(tps6518x->gpio_pmic_v3p3, 1);
 	}
 
 	iChk = tps6518x_chip_power(tps6518x,1,1,0);
@@ -778,7 +721,7 @@ static int tps6518x_resume(struct device *dev)
 #endif
 
 #if 0
-	gpio_set_value(tps6518x->gpio_pmic_powerup,1);
+	gpiod_set_value(tps6518x->gpio_pmic_powerup,1);
 #endif
 
 	return 0;

@@ -444,7 +444,7 @@ do { \
 	
 	#define dbgENTER()		
 	#define dbgLEAVE()		
-	#define DBG_MSG(fmt,args...)					
+	#define DBG_MSG(fmt,args...)					GALLEN_PRINT(fmt,##args)
 	#define DBG_MSG_FLUSH(fmt,args...)		
 	#define ERR_MSG(fmt,args...)					GALLEN_ERR_PRINT(fmt,##args)
 	#define WARNNING_MSG(fmt,args...)			GALLEN_WARNING_PRINT(fmt,##args)
@@ -570,7 +570,7 @@ static ssize_t tps6518x_wakeup_read(struct device *dev, struct device_attribute 
 	struct tps6518x *tps6518x = dev_get_drvdata(dev);
 	//struct tps6518x_platform_data *pdata = tps6518x->pdata;
 
-	sprintf(buf,"%d\n",(int)gpio_get_value(tps6518x->gpio_pmic_wakeup));
+	sprintf(buf,"%d\n",(int)gpiod_get_value_cansleep(tps6518x->gpio_pmic_wakeup));
 	return strlen(buf);
 }
 static ssize_t tps6518x_wakeup_write(struct device *dev, struct device_attribute *attr,
@@ -597,7 +597,7 @@ static ssize_t tps6518x_powerup_read(struct device *dev, struct device_attribute
 	struct tps6518x *tps6518x = dev_get_drvdata(dev);
 	//struct tps6518x_platform_data *pdata = tps6518x->pdata;
 
-	sprintf(buf,"%d\n",(int)gpio_get_value(tps6518x->gpio_pmic_powerup));
+	sprintf(buf,"%d\n",(int)gpiod_get_value_cansleep(tps6518x->gpio_pmic_powerup));
 	return strlen(buf);
 }
 static ssize_t tps6518x_powerup_write(struct device *dev, struct device_attribute *attr,
@@ -722,8 +722,8 @@ static int tps6518x_v3p3_enable(struct regulator_dev *reg)
 	struct tps6518x *tps6518x = rdev_get_drvdata(reg);
 	dbgENTER();
 #ifdef TPS65185_V3P3_ENABLE//[
-	if(gpio_is_valid(tps6518x->gpio_pmic_v3p3)) {
-		gpio_set_value(tps6518x->gpio_pmic_v3p3, 1);
+	if(tps6518x->gpio_pmic_v3p3) {
+		gpiod_set_value_cansleep(tps6518x->gpio_pmic_v3p3, 1);
 	}
 	else {
 		ERR_MSG("epdc pmic v3p3 pin not available\n");
@@ -742,7 +742,7 @@ static int tps6518x_v3p3_disable(struct regulator_dev *reg)
 
 #ifdef TPS65185_V3P3_ENABLE//[
 	if(gpio_is_valid(tps6518x->gpio_pmic_v3p3)) {
-		gpio_set_value(tps6518x->gpio_pmic_v3p3, 0);
+		gpiod_set_value_cansleep(tps6518x->gpio_pmic_v3p3, 0);
 	}
 	else {
 		ERR_MSG("epdc pmic v3p3 pin not available\n");
@@ -756,7 +756,7 @@ static int tps6518x_v3p3_disable(struct regulator_dev *reg)
 static int tps6518x_v3p3_is_enabled(struct regulator_dev *reg)
 {
 	struct tps6518x *tps6518x = rdev_get_drvdata(reg);
-	int gpio = gpio_get_value(tps6518x->gpio_pmic_powerup);
+	int gpio = gpiod_get_value_cansleep(tps6518x->gpio_pmic_powerup);
 
 #if 0
 	dbgENTER();
@@ -814,7 +814,7 @@ static int _tps6518x_vcom_set_voltage(struct tps6518x *tps6518x,int uV)
 			}
 
 #else 
-			gpio_set_value(tps6518x->gpio_pmic_wakeup,1);
+			gpiod_set_value_cansleep(tps6518x->gpio_pmic_wakeup,1);
 			retval = tps6518x_reg_write(tps6518x,REG_TPS65185_VCOM1,
 					vcom2_uV_to_rs(uV) & 255);
 			tps6518x_reg_read(tps6518x, REG_TPS65185_VCOM2,&cur_reg_val);
@@ -921,7 +921,7 @@ static int tps6518x_vcom_enable(struct regulator_dev *reg)
 	 */
 	if (tps6518x->revID == 65182)
 	{
-		gpio_set_value(tps6518x->gpio_pmic_vcom_ctrl,vcomEnable);
+		gpiod_set_value_cansleep(tps6518x->gpio_pmic_vcom_ctrl,vcomEnable);
 		dbgLEAVE();
 		return 0;
 	}
@@ -959,7 +959,7 @@ static int tps6518x_vcom_enable(struct regulator_dev *reg)
 		default:
 			vcomEnable = 0;
 	}
-	gpio_set_value(tps6518x->gpio_pmic_vcom_ctrl,vcomEnable);
+	gpiod_set_value_cansleep(tps6518x->gpio_pmic_vcom_ctrl,vcomEnable);
 
 	dbgLEAVE();
 	return 0;
@@ -970,7 +970,7 @@ static int tps6518x_vcom_disable(struct regulator_dev *reg)
 	struct tps6518x *tps6518x = rdev_get_drvdata(reg);
 	dbgENTER();
 
-	gpio_set_value(tps6518x->gpio_pmic_vcom_ctrl,0);
+	gpiod_set_value_cansleep(tps6518x->gpio_pmic_vcom_ctrl,0);
 	dbgLEAVE();
 	return 0;
 }
@@ -979,7 +979,7 @@ static int tps6518x_vcom_is_enabled(struct regulator_dev *reg)
 {
 	struct tps6518x *tps6518x = rdev_get_drvdata(reg);
 
-	int gpio = gpio_get_value(tps6518x->gpio_pmic_vcom_ctrl);
+	int gpio = gpiod_get_value_cansleep(tps6518x->gpio_pmic_vcom_ctrl);
 	if (gpio == 0)
 		return 0;
 	else
@@ -993,7 +993,7 @@ static int tps6518x_is_power_good(struct tps6518x *tps6518x)
 	 * XOR of polarity (starting value) and current
 	 * value yields whether power is good.
 	 */
-	return gpio_get_value(tps6518x->gpio_pmic_pwrgood) ^
+	return gpiod_get_value_cansleep(tps6518x->gpio_pmic_pwrgood) ^
 		tps6518x->pwrgood_polarity;
 }
 
@@ -1116,18 +1116,18 @@ static int tps6518x_wait_power_good(struct tps6518x *tps6518x)
 	for (i = 0; i < tps6518x->max_wait * 3; i++) 
 	//for (i = 0; i < tps6518x->max_wait * 300; i++) 
 	{
-		if(0==gpio_get_value(tps6518x->gpio_pmic_intr)) {
+		if(0==gpiod_get_value_cansleep(tps6518x->gpio_pmic_intr)) {
 			//tps6518x_int_func(&tps6518x->int_work);
 			queue_work(tps6518x->int_workqueue,&tps6518x->int_work);
 		}
 		if (tps6518x_is_power_good(tps6518x)) {
-			DBG_MSG("%s():cnt=%d,PG=%d\n",__FUNCTION__,i,gpio_get_value(tps6518x->gpio_pmic_pwrgood));
+			DBG_MSG("%s():cnt=%d,PG=%d\n",__FUNCTION__,i,gpiod_get_value_cansleep(tps6518x->gpio_pmic_pwrgood));
 			return 0;
 		}
 
 		msleep(1);
 	}
-	printk(KERN_ERR"%s():waiting(%d) for PG(%d) timeout\n",__FUNCTION__,i,gpio_get_value(tps6518x->gpio_pmic_pwrgood));
+	printk(KERN_ERR"%s():waiting(%d) for PG(%d) timeout\n",__FUNCTION__,i,gpiod_get_value_cansleep(tps6518x->gpio_pmic_pwrgood));
 	return -ETIMEDOUT;
 }
 
@@ -1147,7 +1147,7 @@ static int tps6518x_display_enable(struct regulator_dev *reg)
 	}
 	else
 	{
-		if(0==gpio_get_value(tps6518x->gpio_pmic_wakeup)) {
+		if(0==gpiod_get_value_cansleep(tps6518x->gpio_pmic_wakeup)) {
 			printk("%s():wakeup ...\n",__FUNCTION__);
 			tps6518x_chip_power(tps6518x,1,1,-1);
 		}
@@ -1162,8 +1162,8 @@ static int tps6518x_display_enable(struct regulator_dev *reg)
 		/* enable display regulators */
 		cur_reg_val = tps6518x->iRegEnable & 0x3f;
 		DBG_MSG("%s(%d):wakeup=%d,powerup=%d,enREG=0x%x,cur=0x%x\n",__FUNCTION__,__LINE__,
-				gpio_get_value(tps6518x->gpio_pmic_wakeup),
-				gpio_get_value(tps6518x->gpio_pmic_powerup),
+				gpiod_get_value_cansleep(tps6518x->gpio_pmic_wakeup),
+				gpiod_get_value_cansleep(tps6518x->gpio_pmic_powerup),
 				cur_reg,
 				cur_reg_val);
 
@@ -1210,7 +1210,7 @@ static int tps6518x_display_disable(struct regulator_dev *reg)
 	{
 		/* turn off display regulators */
 		DBG_MSG("%s(%d):wakeup=%d\n",__FUNCTION__,__LINE__,
-				gpio_get_value(tps6518x->gpio_pmic_wakeup));
+				gpiod_get_value_cansleep(tps6518x->gpio_pmic_wakeup));
 
 		cur_reg_val = tps6518x->iRegEnable & 0x3f;
 		fld_mask = BITFMASK(VCOM_EN) | BITFMASK(STANDBY);
@@ -1233,7 +1233,7 @@ static int tps6518x_display_is_enabled(struct regulator_dev *reg)
 	struct tps6518x *tps6518x = rdev_get_drvdata(reg);
 
 	if (tps6518x->revID == 65182)
-		return gpio_get_value(tps6518x->gpio_pmic_powerup) ? 1:0;
+		return gpiod_get_value_cansleep(tps6518x->gpio_pmic_powerup) ? 1:0;
 	else
 		return tps6518x->iRegEnable & BITFMASK(ACTIVE);
 }
@@ -1329,7 +1329,7 @@ static int tps6518x_pmic_dt_parse_pdata(struct platform_device *pdev,
 	struct tps6518x *tps6518x = dev_get_drvdata(pdev->dev.parent);
 	struct device_node *pmic_np, *regulators_np, *reg_np,*tmp_np;
 	struct tps6518x_regulator_data *rdata;
-	int i, ret;
+	int i, ret = 0;
 
 	GALLEN_DBGLOCAL_BEGIN();
 
@@ -1398,53 +1398,20 @@ static int tps6518x_pmic_dt_parse_pdata(struct platform_device *pdev,
 	tps6518x->max_wait = (6 + 6 + 6 + 6);
 
 #ifdef TPS65185_V3P3_ENABLE //[
-	tps6518x->gpio_pmic_v3p3 = of_get_named_gpio(pmic_np,
-					"gpio_pmic_v3p3", 0);
-	if (!gpio_is_valid(tps6518x->gpio_pmic_v3p3)) {
+	tps6518x->gpio_pmic_v3p3 = devm_gpiod_get(&pdev->dev, "v3p3", GPIOD_OUT_HIGH);
+	if (IS_ERR(tps6518x->gpio_pmic_v3p3)) {
 		dev_err(&pdev->dev, "no epdc pmic v3p3 pin available\n");
-		//goto err;
-	}
-	else {
-		ret = devm_gpio_request_one(&pdev->dev, tps6518x->gpio_pmic_v3p3,
-				GPIOF_OUT_INIT_HIGH, "epdc-pmic-v3p3");
-		if (ret < 0) {
-			dev_err(&pdev->dev, "request v3p3 gpio failed (%d)!\n",ret);
-			//goto err;
-		}
+		ret = PTR_ERR(tps6518x->gpio_pmic_v3p3);
+		goto err;
 	}
 #else
-	tps6518x->gpio_pmic_v3p3 = -1;
+	tps6518x->gpio_pmic_v3p3 = NULL;
 #endif //]TPS65185_V3P3_ENABLE
 
-	tps6518x->gpio_pmic_intr = of_get_named_gpio(pmic_np,
-					"gpio_pmic_intr", 0);
-	if (!gpio_is_valid(tps6518x->gpio_pmic_intr)) {
-		dev_err(&pdev->dev, "no epdc pmic intr pin available\n");
-		goto err;
-	}
-	ret = devm_gpio_request_one(&pdev->dev, tps6518x->gpio_pmic_intr,
-				GPIOF_IN, "epdc-pmic-int");
-	if (ret < 0) {
-		dev_err(&pdev->dev, "request int gpio failed (%d)!\n",ret);
-		//goto err;
-	}
-
-	tps6518x->gpio_pmic_pwrgood = of_get_named_gpio(pmic_np,
-					"gpio_pmic_pwrgood", 0);
-	if (!gpio_is_valid(tps6518x->gpio_pmic_pwrgood)) {
-		dev_err(&pdev->dev, "no epdc pmic pwrgood pin available\n");
-		goto err;
-	}
-	ret = devm_gpio_request_one(&pdev->dev, tps6518x->gpio_pmic_pwrgood,
-				GPIOF_IN, "epdc-pwrstat");
-	if (ret < 0) {
-		dev_err(&pdev->dev, "request pwrstat gpio failed (%d)!\n",ret);
-		//goto err;
-	}
 
 err:
 	GALLEN_DBGLOCAL_END();
-	return 0;
+	return ret;
 
 }
 #else
@@ -1467,6 +1434,7 @@ static int tps6518x_regulator_probe(struct platform_device *pdev)
 	struct regulator_config config = { };
 	int size, i, ret = 0;
 
+	printk("reg probe\n");
     DBG_MSG("tps6518x_regulator_probe starting , of_node=%p\n",
 				tps6518x->dev->of_node);
 
@@ -1491,7 +1459,7 @@ static int tps6518x_regulator_probe(struct platform_device *pdev)
 
 	printk("%s(%d): revID=%d,6518x@%p wakeup gpio%d=%d\n",__FUNCTION__,__LINE__,
 			tps6518x->revID,tps6518x,tps6518x->gpio_pmic_wakeup,
-			gpio_get_value(tps6518x->gpio_pmic_wakeup));
+			gpiod_get_value_cansleep(tps6518x->gpio_pmic_wakeup));
 
 	rdev = priv->rdev;
 	priv->num_regulators = pdata->num_regulators;
@@ -1564,7 +1532,7 @@ static int tps6518x_regulator_probe(struct platform_device *pdev)
 	if(tps6518x->int_workqueue) {
 		dev_err(tps6518x->dev, "tps6518x int workqueue creating failed !\n");
 	}
-
+	printk("reg probe finished");
 
 	DBG_MSG("tps6518x_regulator_probe success\n");
 	return 0;
