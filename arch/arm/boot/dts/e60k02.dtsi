@@ -132,14 +132,14 @@
                 dwnseq0 = <0x1e>;
                 dwnseq1 = <0xe0>;
 
-		gpio_pmic_pwrgood = <&gpio2 13 0>;
-		gpio_pmic_vcom_ctrl = <&gpio2 3 GPIO_ACTIVE_HIGH>;
-		gpio_pmic_wakeup = <&gpio2 7 0>;
-		gpio_pmic_powerup = <&gpio2 8 GPIO_ACTIVE_HIGH>;
-		gpio_pmic_intr = <&gpio2 9 0>;
+		pwrgood-gpios = <&gpio2 13 0>;
+		vcom-ctrl-gpios = <&gpio2 3 GPIO_ACTIVE_HIGH>;
+		wakeup-gpios = <&gpio2 7 0>;
+		powerup-gpios = <&gpio2 8 GPIO_ACTIVE_HIGH>;
+		intr-gpios = <&gpio2 9 0>;
 
 		/* gpio_pmic_v3p3 = <&gpio2 14 GPIO_ACTIVE_HIGH>; */
-		gpio_pmic_pwrall = <&gpio2 14 GPIO_ACTIVE_HIGH>;
+		pwrall-gpios = <&gpio2 14 GPIO_ACTIVE_HIGH>;
 
 		regulators {
 			DISPLAY_reg: DISPLAY {
