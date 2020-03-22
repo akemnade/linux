@@ -296,13 +296,13 @@ struct tps6518x {
 	unsigned int dwnseq1;
 
 	/* GPIOs */
-	int gpio_pmic_pwrgood;
-	int gpio_pmic_vcom_ctrl;
-	int gpio_pmic_wakeup;
-	int gpio_pmic_intr;
-	int gpio_pmic_powerup;
-	int gpio_pmic_v3p3;
-	int gpio_pmic_pwrall;
+	struct gpio_desc * gpio_pmic_pwrgood;
+	struct gpio_desc * gpio_pmic_vcom_ctrl;
+	struct gpio_desc * gpio_pmic_wakeup;
+	struct gpio_desc * gpio_pmic_intr;
+	struct gpio_desc * gpio_pmic_powerup;
+	struct gpio_desc * gpio_pmic_v3p3;
+	struct gpio_desc * gpio_pmic_pwrall;
 
 	/* TPS6518x part variables */
 	int pass_num;
@@ -359,12 +359,12 @@ struct tps6518x_platform_data {
 	unsigned int upseq1;
 	unsigned int dwnseq0;
 	unsigned int dwnseq1;
-	int gpio_pmic_pwrgood;
-	int gpio_pmic_vcom_ctrl;
-	int gpio_pmic_wakeup;
-	int gpio_pmic_intr;
-	int gpio_pmic_powerup;
-	int gpio_pmic_pwrall;
+	struct gpio_desc * gpio_pmic_pwrgood;
+	struct gpio_desc * gpio_pmic_vcom_ctrl;
+	struct gpio_desc * gpio_pmic_wakeup;
+	struct gpio_desc * gpio_pmic_intr;
+	struct gpio_desc * gpio_pmic_powerup;
+	struct gpio_desc * gpio_pmic_pwrall;
 	int pass_num;
 	int vcom_uV;
 
