@@ -110,14 +110,14 @@
 		pinctrl-names = "default","sleep";
 		pinctrl-0 = <&pinctrl_cyttsp5_gpio>;
 		pinctrl-1 = <&pinctrl_cyttsp5_gpio_sleep>;
+		interrupt-parent = <&gpio5>;
+		interrupts = <6 IRQ_TYPE_EDGE_FALLING>;
+		reset-gpios = <&gpio5 13 GPIO_ACTIVE_LOW>;
 
 		cy,adapter_id = "cyttsp5_i2c_adapter";
 
 		cy,core {
 			cy,name = "cyttsp5_core";
-
-			cy,irq_gpio = <134>;	/* <&gpio5 6 0>; */
-			cy,rst_gpio = <141>;	/* <&gpio5 13 0>; */
 
 			cy,hid_desc_register = <1>;
 			/*CY_CORE_FLAG_RESTORE_PARAMETERS */
