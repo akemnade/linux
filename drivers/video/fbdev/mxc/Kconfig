@@ -19,3 +19,7 @@ config FB_MXC_EINK_V2_PANEL
 	depends on DMA_ENGINE
 	select FB_DEFERRED_IO
 	tristate "E-Ink Panel Framebuffer based on EPDC V2"
+
+config FB_MXC_EINK_AUTO_UPDATE_MODE
+	bool "E-Ink Auto-update Mode Support"
+	depends on FB_MXC_EINK_V2_PANEL
