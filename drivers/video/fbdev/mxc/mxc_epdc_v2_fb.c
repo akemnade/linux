@@ -6226,7 +6226,7 @@ static int mxc_epdc_fb_probe(struct platform_device *pdev)
 	if (ret)
 		goto out_fbdata;
 
-	dev_dbg(&pdev->dev, "resolution %dx%d, bpp %d\n",
+	dev_info(&pdev->dev, "resolution %dx%d, bpp %d\n",
 		vmode->xres, vmode->yres, fb_data->default_bpp);
 
 	/*
@@ -6408,7 +6408,7 @@ static int mxc_epdc_fb_probe(struct platform_device *pdev)
 				EPDC_VERSION_MAJOR_OFFSET) * 10
 			+ ((val & EPDC_VERSION_MINOR_MASK) >>
 				EPDC_VERSION_MINOR_OFFSET);
-	dev_dbg(&pdev->dev, "EPDC version = %d\n", fb_data->rev);
+	dev_info(&pdev->dev, "EPDC version = %d\n", fb_data->rev);
 
 	if (fb_data->rev < 20) {
 		fb_data->num_luts = EPDC_V1_NUM_LUTS;
