@@ -75,6 +75,7 @@
 	VCOM-supply = <&VCOM_reg>;      
 	DISPLAY-supply = <&DISPLAY_reg>; 
 	TMST-supply = <&TMST_reg>; 
+	panel-name = "PENG060D";
 	status = "okay";
 };
 
