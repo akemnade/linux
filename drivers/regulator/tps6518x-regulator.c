@@ -808,13 +808,9 @@ static int _tps6518x_vcom_set_voltage(struct tps6518x *tps6518x,int uV)
 			break;
 		case 5 : /* TPS65185 */
 		case 6 : /* TPS65186 */
-#if 1
-			if(tps6518x_set_vcom(tps6518x,uV/1000,0)<0) {
-				retval = -1;
-			}
 
-#else 
 			gpiod_set_value_cansleep(tps6518x->gpio_pmic_wakeup,1);
+			msleep(2);
 			retval = tps6518x_reg_write(tps6518x,REG_TPS65185_VCOM1,
 					vcom2_uV_to_rs(uV) & 255);
 			tps6518x_reg_read(tps6518x, REG_TPS65185_VCOM2,&cur_reg_val);
@@ -824,7 +820,6 @@ static int _tps6518x_vcom_set_voltage(struct tps6518x *tps6518x,int uV)
 
 			retval = tps6518x_reg_write(tps6518x,REG_TPS65185_VCOM2,
 					new_reg_val);
-#endif
 
 			break;
 		default :
@@ -879,7 +874,7 @@ static int _tps6518x_vcom_get_voltage(struct tps6518x *tps6518x)
 		case 6 : /* TPS65186 */
 			tps6518x_reg_read(tps6518x,REG_TPS65185_VCOM1,&cur_reg_val);
 			tps6518x_reg_read(tps6518x,REG_TPS65185_VCOM2,&cur_reg2_val);
-			cur_reg_val |= cur_reg2_val << 8;
+			cur_reg_val |= (cur_reg2_val & 1) << 8;
 			vcomValue = cur_reg_val * 10 * 1000;
 			printk("%s() : vcom=%duV\n",__FUNCTION__,vcomValue);
 			break;
@@ -915,20 +910,6 @@ static int tps6518x_vcom_enable(struct regulator_dev *reg)
 		gpiod_set_value_cansleep(tps6518x->gpio_pmic_vcom_ctrl,vcomEnable);
 		dbgLEAVE();
 		return 0;
-	}
-
-	/*
-	 * Check to see if we need to set the VCOM voltage.
-	 * Should only be done one time. And, we can
-	 * only change vcom voltage if we have been enabled.
-	 */
-	if (!tps6518x->vcom_setup )// && tps6518x_is_power_good(tps6518x)
-	{
-		printk("%s():initial vcom=%duV\n ",__FUNCTION__,tps6518x->vcom_uV);
-		if(tps6518x_vcom_set_voltage(reg,tps6518x->vcom_uV,tps6518x->vcom_uV,NULL)>=0)
-		{
-			tps6518x->vcom_setup = true;
-		}
 	}
 
 	switch (tps6518x->revID & 15)
