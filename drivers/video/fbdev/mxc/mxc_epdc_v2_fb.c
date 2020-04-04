@@ -2848,9 +2848,9 @@ static int mxc_epdc_fb_set_temperature(int temperature, struct fb_info *info)
 		(struct mxc_epdc_fb_data *)info:g_fb_data;
 
 	/* Store temp index. Used later when configuring updates. */
-	mutex_lock(&fb_data->queue_mutex);
+//	mutex_lock(&fb_data->queue_mutex);
 	fb_data->temp_index = mxc_epdc_fb_get_temp_index(fb_data, temperature);
-	mutex_unlock(&fb_data->queue_mutex);
+//	mutex_unlock(&fb_data->queue_mutex);
 
 	return 0;
 }
