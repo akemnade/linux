@@ -877,19 +877,10 @@ static int _tps6518x_vcom_get_voltage(struct tps6518x *tps6518x)
 			break;
 		case 5 : /* TPS65185 */
 		case 6 : /* TPS65186 */
-#if 1
-			{
-				int iVCOMmV;
-				tps6518x_get_vcom(tps6518x,&iVCOMmV);
-
-				vcomValue = iVCOMmV*1000;
-			}
-#else 
 			tps6518x_reg_read(tps6518x,REG_TPS65185_VCOM1,&cur_reg_val);
 			tps6518x_reg_read(tps6518x,REG_TPS65185_VCOM2,&cur_reg2_val);
-			cur_reg_val |= 256 * (1 & cur_reg2_val);
-			vcomValue = vcom2_rs_to_uV(cur_reg_val);
-#endif
+			cur_reg_val |= cur_reg2_val << 8;
+			vcomValue = cur_reg_val * 10 * 1000;
 			printk("%s() : vcom=%duV\n",__FUNCTION__,vcomValue);
 			break;
 		default:
@@ -1466,17 +1457,7 @@ static int tps6518x_regulator_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, priv);
 
 	tps6518x->pass_num = tps6518x_pass_num;
-
-	if (0!=tps6518x_vcom)
-	{
-		tps6518x->vcom_uV = tps6518x_vcom;
-		tps6518x->vcom_setup = false;
-		_tps6518x_vcom_set_voltage(tps6518x,tps6518x->vcom_uV);
-	}
-	else {
-		tps6518x->vcom_setup = true;
-		tps6518x->vcom_uV = _tps6518x_vcom_get_voltage(tps6518x);
-	}
+	tps6518x->vcom_uV = _tps6518x_vcom_get_voltage(tps6518x);
 
 	for (i = 0; i < pdata->num_regulators; i++) {
 		int id = pdata->regulators[i].id;
@@ -1588,75 +1569,6 @@ static void __exit tps6518x_regulator_exit(void)
 	platform_driver_unregister(&tps6518x_regulator_driver);
 }
 module_exit(tps6518x_regulator_exit);
-
-
-/*
- * Parse user specified options (`tps6518x:')
- * example:
- *   tps6518x:pass=2,vcom=-1250000
- */
-static int __init tps6518x_setup(char *options)
-{
-	int ret;
-	char *opt;
-	unsigned long ulResult;
-	while ((opt = strsep(&options, ",")) != NULL) {
-		if (!*opt)
-			continue;
-		if (!strncmp(opt, "pass=", 5)) {
-			ret = kstrtoul((const char *)(opt + 5), 0, &ulResult);
-			tps6518x_pass_num = ulResult;
-			if (ret < 0)
-				return ret;
-		}
-		if (!strncmp(opt, "vcom=", 5)) {
-			int offs = 5;
-			if (opt[5] == '-')
-				offs = 6;
-			ret = kstrtoul((const char *)(opt + offs), 0, &ulResult);
-			tps6518x_vcom = (int) ulResult;
-			if (ret < 0)
-				return ret;
-			tps6518x_vcom = tps6518x_vcom;
-		}
-	}
-
-	return 1;
-}
-
-__setup("tps6518x:", tps6518x_setup);
-
-static int __init tps65182_setup(char *options)
-{
-	int ret;
-	char *opt;
-	unsigned long ulResult;
-	while ((opt = strsep(&options, ",")) != NULL) {
-		if (!*opt)
-			continue;
-		if (!strncmp(opt, "pass=", 5)) {
-			ret = kstrtoul((const char *)(opt + 5), 0, &ulResult);
-			tps6518x_pass_num = ulResult;
-			if (ret < 0)
-				return ret;
-		}
-		if (!strncmp(opt, "vcom=", 5)) {
-			int offs = 5;
-			if (opt[5] == '-')
-				offs = 6;
-			ret = kstrtoul((const char *)(opt + offs), 0, &ulResult);
-			tps6518x_vcom = (int) ulResult;
-			if (ret < 0)
-				return ret;
-			tps6518x_vcom = tps6518x_vcom;
-		}
-	}
-
-	return 1;
-}
-
-__setup("tps65182:", tps65182_setup);
-
 
 /* Module information */
 MODULE_DESCRIPTION("TPS6518x regulator driver");
