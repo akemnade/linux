@@ -6028,7 +6028,7 @@ static int mxc_epdc_fb_probe(struct platform_device *pdev)
 	struct resource *res;
 	struct fb_info *info;
 	char *options, *opt;
-	char *panel_str = NULL;
+	const char *panel_str = NULL;
 	char name[] = "mxcepdcfb";
 	struct fb_videomode *vmode;
 	int xres_virt, yres_virt, buf_size;
@@ -6196,70 +6196,16 @@ static int mxc_epdc_fb_probe(struct platform_device *pdev)
 				panel_str = opt;
 		}
 
+	if (!panel_str)
+		of_property_read_string(np, "panel-name", &panel_str);
+
 	fb_data->dev = &pdev->dev;
 
 	if (!fb_data->default_bpp)
 		fb_data->default_bpp = 16;
 
 	/* Set default (first defined mode) before searching for a match */
-#if 1
-	if(1==DISPLAY_RESOLUTION) {
-		printk("%s(%d):EPD 1024x758 \n",__FILE__,__LINE__);
-		fb_data->cur_mode = &fb_data->pdata->epdc_mode[2];//
-		fb_data->dwSafeTicksEP3V3 = 400;
-	}
-	else if(3==DISPLAY_RESOLUTION) {
-		printk("%s(%d):EPD 1440x1080 \n",__FILE__,__LINE__);
-		fb_data->cur_mode = &fb_data->pdata->epdc_mode[5];//
-		fb_data->dwSafeTicksEP3V3 = 200;
-	}
-	else if(5==DISPLAY_RESOLUTION) {
-		printk("%s(%d):EPD 1448x1072 \n",__FILE__,__LINE__);
-		fb_data->cur_mode = &fb_data->pdata->epdc_mode[6];//
-		fb_data->dwSafeTicksEP3V3 = 800;
-	}
-	else if(6==DISPLAY_RESOLUTION) {
-		printk("%s(%d):EPD 1600x1200 \n",__FILE__,__LINE__);
-		switch (DISPLAY_BUS_WIDTH) {
-		case 1: // 16 bits .
-		case 3:
-			fb_data->cur_mode = &fb_data->pdata->epdc_mode[7];//
-			break;
-		case 0:
-		case 2: // 8 bits mirror 
-		default: // PENG060D  
-			fb_data->cur_mode = &fb_data->pdata->epdc_mode[11];//
-			break;
-		}
-		fb_data->dwSafeTicksEP3V3 = 400;
-	}
-	else if(8==DISPLAY_RESOLUTION) {
-#ifdef ED078KH1_75HZ //[
-		printk("%s(%d):EPD 1872x1404 75Hz\n",__FILE__,__LINE__);
-		fb_data->cur_mode = &fb_data->pdata->epdc_mode[12];//
-#else //][ED078KH1_75HZ
-		printk("%s(%d):EPD 1872x1404 \n",__FILE__,__LINE__);
-		fb_data->cur_mode = &fb_data->pdata->epdc_mode[9];//
-#endif //]ED078KH1_75HZ
-		fb_data->dwSafeTicksEP3V3 = 900;
-	}
-	else if(2==DISPLAY_RESOLUTION) {
-		printk("%s(%d):EPD 1024x768 \n",__FILE__,__LINE__);
-		fb_data->cur_mode = &fb_data->pdata->epdc_mode[3];//
-		fb_data->dwSafeTicksEP3V3 = 400;
-	}
-	else if(14==DISPLAY_RESOLUTION) {
-		printk("%s(%d):EPD 1920x1440 \n",__FILE__,__LINE__);
-		fb_data->cur_mode = &fb_data->pdata->epdc_mode[13];//
-		fb_data->dwSafeTicksEP3V3 = 900;
-	}
-	else {
-		fb_data->cur_mode = &fb_data->pdata->epdc_mode[8];
-		fb_data->dwSafeTicksEP3V3 = 400;
-	}
-#else
 	fb_data->cur_mode = &fb_data->pdata->epdc_mode[0];
-#endif
 
 	if (panel_str)
 		for (i = 0; i < fb_data->pdata->num_modes; i++)
