@@ -56,7 +56,7 @@ static const struct regmap_config tps6518x_regmap_config = {
 };
 
 static struct mfd_cell tps6518x_devs[] = {
-	{ .name = "tps6518x-pmic", },
+	{ .name = "tps6518x-regulator", },
 	{ .name = "tps6518x-sns", },
 };
 

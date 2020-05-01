@@ -57,61 +57,12 @@
  * @ingroup PMIC_CORE
  */
 
-/*!
- * @enum PMIC_STATUS
- * @brief Define return values for all PMIC APIs.
- *
- * These return values are used by all of the PMIC APIs.
- *
- * @ingroup PMIC
- */
-typedef enum {
-	PMIC_SUCCESS = 0,	/*!< The requested operation was successfully
-				   completed.                                     */
-	PMIC_ERROR = -1,	/*!< The requested operation could not be completed
-				   due to an error.                               */
-	PMIC_PARAMETER_ERROR = -2,	/*!< The requested operation failed because
-					   one or more of the parameters was
-					   invalid.                             */
-	PMIC_NOT_SUPPORTED = -3,	/*!< The requested operation could not be
-					   completed because the PMIC hardware
-					   does not support it. */
-	PMIC_SYSTEM_ERROR_EINTR = -EINTR,
-
-	PMIC_MALLOC_ERROR = -5,	/*!< Error in malloc function             */
-	PMIC_UNSUBSCRIBE_ERROR = -6,	/*!< Error in un-subscribe event          */
-	PMIC_EVENT_NOT_SUBSCRIBED = -7,	/*!< Event occur and not subscribed       */
-	PMIC_EVENT_CALL_BACK = -8,	/*!< Error - bad call back                */
-	PMIC_CLIENT_NBOVERFLOW = -9,	/*!< The requested operation could not be
-					   completed because there are too many
-					   PMIC client requests */
-} PMIC_STATUS;
-
 /*
  * Bitfield macros that use rely on bitfield width/shift information.
  */
 #define BITFMASK(field) (((1U << (field ## _WID)) - 1) << (field ## _LSH))
 #define BITFVAL(field, val) ((val) << (field ## _LSH))
 #define BITFEXT(var, bit) ((var & BITFMASK(bit)) >> (bit ## _LSH))
-
-/*
- * Macros implementing error handling
- */
-#define CHECK_ERROR(a)			\
-do {					\
-		int ret = (a); 			\
-		if (ret != PMIC_SUCCESS)	\
-	return ret; 			\
-} while (0)
-
-#define CHECK_ERROR_KFREE(func, freeptrs) \
-do { \
-	int ret = (func); \
-	if (ret != PMIC_SUCCESS) { \
-		freeptrs;	\
-		return ret;	\
-	}	\
-} while (0);
 
 #endif				/* __ASM_ARCH_MXC_PMIC_STATUS_H__ */
 
@@ -122,399 +73,6 @@ do { \
 #include <linux/input.h>
 
 #define GDEBUG 0
-// #include <linux/gallen_dbg.h>
-/****** start include/linux/gallen_dbg.h *******/
-#ifndef _GALLEN_DBG__H//[
-#define _GALLEN_DBG__H
-
-
-/*****************************************************************
-1. include ¶π¿…´eΩ–•˝©w∏q GDEBUG .
-	¶p #define GDEBUG			1000
-	
-2. Ω–•˝include¨€√ˆ¿… .
-	¶p kernel.h , assert.h ....
-	
-3. Ω–©w∏q§@≠”GLOBAL≈‹º∆,ßÔ≈‹¶π≈‹º∆™∫≠»ßY•i≈‹§∆∞£ø˘∞TÆß™∫øÈ•X¶h©Œ§÷.
-	int giDbgLvl;
-	
-******************************************************************/
-
-//#ifdef __KERNEL__ //[ 
-	//#define GALLEN_PRINT		printk
-//#else //][!__KERNEL__
-	//#define GALLEN_PRINT		printf
-//#endif //] __KERNEL__
-
-#ifdef __KERNEL__ //[ 
-	#define GALLEN_PRINT(fmt,args...)		printk(fmt,##args)
-	#define GALLEN_ERR_PRINT(fmt,args...)		printk(KERN_ERR fmt,##args)
-	#define GALLEN_WARNING_PRINT(fmt,args...)		printk(KERN_WARNING fmt,##args)
-	#define GET_CURRENT_TICK()									(unsigned int)(jiffies)
-#else //][!__KERNEL__
-
-	#include <sys/times.h>
-	#include <stdio.h>
-	
-	#define GALLEN_PRINT(fmt,args...)		printf(fmt,##args)
-	#define GALLEN_ERR_PRINT(fmt,args...)		fprintf(stderr,fmt,##args)
-	#define GALLEN_WARNING_PRINT(fmt,args...)		fprintf(stderr,fmt,##args)
-	#define GET_CURRENT_TICK()									(unsigned int)(times(0))
-#endif //] __KERNEL__
-
-#if 0
-	extern int giDbgLvl; // µ{¶°•≤∂∑¥£®—≥o≠”≈‹º∆.
-#else
-	#ifndef giDbgLvl //[
-		#define giDbgLvl 	0
-	#endif //]
-#endif
-
-
-#define GALLEN_DBGLVL_MAX			100 // •N™ÌµL∞TÆßøÈ•X.
-#define GALLEN_DBGLVL_HALF			50 // .
-#define GALLEN_DBGLVL_MIN			0 // •N™Ì©“¶≥∞TÆß≥£∑|øÈ•X.
-
-
-//
-//common MACRO
-//
-#define BUF_SETBIT(pbBuf,iSetbit)	\
-{\
-	int _iBit=iSetbit&0x7,_iByte=iSetbit>>3;\
-	pbBuf[_iByte] |=0x80>>_iBit;\
-}
-
-#define BUF_CLRBIT(pbBuf,iClrbit)	\
-{\
-	int _iBit=iClrbit&0x7,_iByte=iClrbit>>3;\
-	pbBuf[_iByte] &= ~((unsigned char)(0x80>>_iBit));\
-}
-
-#define BUF_PRINT_ONBITS(pbBuf,iTotalBits)	\
-{\
-	int _iBit=0,_iByte=0,_iTestBits=0;\
-	unsigned char bTemp;\
-	GALLEN_PRINT("%s(%d): %s() %s bits on of %d bits =\n[",__FILE__,__LINE__,__FUNCTION__,#pbBuf,iTotalBits);\
-	for(_iByte=0;_iTestBits<iTotalBits;_iByte++) {\
-		for(_iBit=0;_iBit<8 && _iTestBits<iTotalBits;_iBit++) {\
-			bTemp=0x80>>_iBit;\
-			if(bTemp&pbBuf[_iByte]) {\
-				GALLEN_PRINT("%d,",_iTestBits);\
-			}\
-			_iTestBits++;\
-		}\
-	}\
-	GALLEN_PRINT("]\n\n");\
-}
-
-#if (GDEBUG >= 10) 
-	
-	#define GALLEN_DECLARE_INT(name)	volatile int i##name=0
-	#define GALLEN_DECLARE_EXTINT(name)	extern volatile int i##name
-	#define GALLEN_SET_INT(name,a)	i##name=(a)
-	#define GALLEN_GET_INT(name)		i##name
-	
-
-
-	#define GALLEN_DBGLOCAL_MUTEBEGIN()	GALLEN_DBGLOCAL_MUTEBEGIN_EX(32)
-	#define GALLEN_DBGLOCAL_MUTEBEGIN_EX(_bits)	\
-		{	\
-			const int _iRunlogBits=_bits;\
-			const int _iRunlogBytes=((_bits/8)+1);\
-			volatile unsigned char bRunLogsA[((_bits/8)+1)] = {0,},bLastLocalLogsA[((_bits/8)+1)] = {0,}; \
-			int __iLocalDbgLvl = GALLEN_DBGLVL_MAX;\
-			volatile unsigned int uiWaitTickWarning=10,uiLastTick = GET_CURRENT_TICK();\
-
-
-
-	#define GALLEN_DBGLOCAL_BEGIN()	\
-		GALLEN_DBGLOCAL_MUTEBEGIN();\
-		if(giDbgLvl<=__iLocalDbgLvl){\
-			GALLEN_PRINT("%s(%d):%s() Enter (t=%d)...\n",__FILE__,__LINE__,__FUNCTION__,GET_CURRENT_TICK());\
-		}
-	#define GALLEN_DBGLOCAL_BEGIN_EX(_bits)	\
-		GALLEN_DBGLOCAL_MUTEBEGIN_EX(_bits);\
-		if(giDbgLvl<=__iLocalDbgLvl){\
-			GALLEN_PRINT("%s(%d):%s() Enter (t=%d)...\n",__FILE__,__LINE__,__FUNCTION__,GET_CURRENT_TICK());\
-		}
-	#define GALLEN_DBGLOCAL_BEGIN_EX2(_bits,localdbglvl)	\
-		GALLEN_DBGLOCAL_MUTEBEGIN_EX(_bits);\
-		__iLocalDbgLvl=localdbglvl;\
-		if(giDbgLvl<=__iLocalDbgLvl){\
-			GALLEN_PRINT("%s(%d):%s() Enter (t=%d)...\n",__FILE__,__LINE__,__FUNCTION__,GET_CURRENT_TICK());\
-		}
-	
-	#define GALLEN_DBGLOCAL_END() GALLEN_DBGLOCAL_PRINTLOG_EX(Leave,1,0)		}
-	#define GALLEN_DBGLOCAL_MUTEEND() \
-		uiLastTick=uiLastTick;uiWaitTickWarning=uiWaitTickWarning;bLastLocalLogsA[0]=bLastLocalLogsA[0];}
-
-		
-	#define GALLEN_DBGLOCAL_ESC() GALLEN_DBGLOCAL_PRINTLOG_EX(escape,1,0)
-
-		
-	#define GALLEN_DBGLOCAL_PRINTLOG() GALLEN_DBGLOCAL_PRINTLOG_EX(show,0,0)
-
-	#define GALLEN_DBGLOCAL_PRINTLOG_EX(msg,_is_show_tick,_iRepeatCnt) \
-		if(giDbgLvl<=__iLocalDbgLvl) \
-		{ \
-			int _iBit=0,_iByte=0,_iTestBits=0;\
-			GALLEN_PRINT("%s(%d):%s() %s RunLog@%d=\n[",__FILE__,__LINE__,__FUNCTION__,#msg,_iRepeatCnt);\
-			for(_iByte=0;_iByte<_iRunlogBytes && _iTestBits<_iRunlogBits;_iByte++) {\
-				for(_iBit=0;_iBit<8 && _iTestBits<_iRunlogBits;_iBit++) {\
-					if(bRunLogsA[_iByte]&(0x80>>_iBit)) \
-						GALLEN_PRINT("%d,",_iTestBits);\
-					_iTestBits++;\
-				}\
-			}\
-			if(_is_show_tick) {\
-				GALLEN_PRINT("],(t=%d) \n\n",GET_CURRENT_TICK());\
-			}\
-			else {\
-				GALLEN_PRINT("]\n\n");\
-			}\
-		}
-		
-	#define GALLEN_DBGLOCAL_PRINTDIFFLOG() \
-		if(giDbgLvl<=__iLocalDbgLvl) \
-		{ \
-			int _iByte,iCompPass=1;\
-			for(_iByte=0;_iByte<_iRunlogBytes;_iByte++) {\
-				if(bRunLogsA[_iByte]!=bLastLocalLogsA[_iByte]) {\
-					iCompPass=0;\
-				}\
-				bLastLocalLogsA[_iByte]=bRunLogsA[_iByte];\
-			}\
-			if(!iCompPass) {\
-				GALLEN_DBGLOCAL_PRINTLOG_EX(ShowDiff,1,0);\
-			}\
-		}
-		
-	#define GALLEN_DBGLOCAL_PRINTMSG(fmt,args...) \
-		if(giDbgLvl<=__iLocalDbgLvl) \
-		{ \
-			GALLEN_PRINT(fmt,##args);\
-		}
-		
-
-	#define GALLEN_DBGLOCAL_RUNLOG(b)	\
-		{	\
-			if((b)<_iRunlogBits) {\
-				BUF_SETBIT(bRunLogsA,b);\
-			}\
-			else {\
-				GALLEN_PRINT("%s(%d):[ERROR]DBG RunLog %d cannot >= %d\n",__FILE__,__LINE__,b,_iRunlogBits);\
-			}\
-		}
-		
-	#define GALLEN_DBGLOCAL_SAVELOGS()	{ulLastLocalLogs = ulRunLogs;}
-		
-	#define GALLEN_DBGLOCAL_DBGLVL_INC()	++__iLocalDbgLvl
-	#define GALLEN_DBGLOCAL_DBGLVL_DEC()	--__iLocalDbgLvl
-	#define GALLEN_DBGLOCAL_DBGLVL_ADD(addval)	__iLocalDbgLvl+=(int)(addval)
-	#define GALLEN_DBGLOCAL_DBGLVL_SET(lvl)	__iLocalDbgLvl = lvl
-
-
-	#define GALLEN_GDBGLVL_INC()	{++giDbgLvl;}
-	#define GALLEN_GDBGLVL_DEC()	{--giDbgLvl;}
-	#define GALLEN_GDBGLVL_SET(lvl)	{giDbgLvl=(lvl);}
-	#define GALLEN_GDBGLVL_GET()	(giDbgLvl)
-	#define GALLEN_GDBGLVL_ADD(addval)	{giDbgLvl+=(int)(addval);}
-	
-	#define GALLEN_DBGLOCAL_DIFF_BEGIN(name)	GALLEN_DBGLOCAL_DIFF_BEGIN_EX(name,32)
-	#define GALLEN_DBGLOCAL_DIFF_BEGIN_EX(name,_bits)	\
-		GALLEN_DBGLOCAL_MUTEBEGIN_EX(_bits);\
-		static volatile unsigned char gbLastRunLogsA##name[(_bits/8)+1];\
-		static volatile int giNoChgCnt##name;\
-			
-	#define GALLEN_DBGLOCAL_DIFF_END(name) GALLEN_DBGLOCAL_DIFF_PRINT(name,Leave_LogChanged);}
-	#define GALLEN_DBGLOCAL_DIFF_PRINT(name,msg) \
-			if(giDbgLvl<=__iLocalDbgLvl) \
-			{\
-				int _iByte,iCompPass=1;\
-				++giNoChgCnt##name;\
-				for(_iByte=0;_iByte<_iRunlogBytes;_iByte++) {\
-					if(bRunLogsA[_iByte]!=gbLastRunLogsA##name[_iByte]) {\
-						iCompPass=0;\
-					}\
-					gbLastRunLogsA##name[_iByte]=bRunLogsA[_iByte];\
-				}\
-				if(!iCompPass){\
-					GALLEN_DBGLOCAL_PRINTLOG_EX(msg,1,giNoChgCnt##name);\
-				}else {\
-					giNoChgCnt##name=0;\
-				}\
-			}
-		
-		
-	#define GALLEN_DBGLOCAL_DIFF_ESC(name) GALLEN_DBGLOCAL_DIFF_PRINT(name,ESC_LogChanged)
-			
-	#define GALLEN_DBGLOCAL_DIFF_RUNLOG(name,b)	GALLEN_DBGLOCAL_RUNLOG(b)
-
-		
-	#define GALLEN_DBGLOCAL_L0_BEGIN()	
-	#define GALLEN_DBGLOCAL_L0_END() 
-	#define GALLEN_DBGLOCAL_L0_RUNLOG(b)	
-	
-	#define dbgENTER()		GALLEN_PRINT("%s(%d) : Enter %s\n",__FILE__,__LINE__,__FUNCTION__) 
-	#define dbgLEAVE()		GALLEN_PRINT("%s(%d) : Leave %s\n",__FILE__,__LINE__,__FUNCTION__)
-	#define DBG_MSG(fmt,args...)					GALLEN_PRINT(fmt,##args)
-	#define DBG_MSG_FLUSH(fmt,args...)		GALLEN_PRINT(fmt,##args)
-	#define ERR_MSG(fmt,args...)					GALLEN_ERR_PRINT(fmt,##args)
-	#define WARNNING_MSG(fmt,args...)			GALLEN_WARNING_PRINT(fmt,##args)
-	#define WARNING_MSG(fmt,args...)			GALLEN_WARNING_PRINT(fmt,##args)
-#elif (GDEBUG >= 1)
-	#define GALLEN_DECLARE_INT(name)	
-	#define GALLEN_DECLARE_EXTINT(name)	
-	#define GALLEN_SET_INT(name,a)	
-	#define GALLEN_GET_INT(name)		
-	
-	#define GALLEN_DBGLOCAL_BEGIN()	
-	#define GALLEN_DBGLOCAL_BEGIN_EX(bits)	
-	#define GALLEN_DBGLOCAL_BEGIN_EX2(bits,localdbglvl)	
-	#define GALLEN_DBGLOCAL_MUTEBEGIN()	
-	#define GALLEN_DBGLOCAL_MUTEBEGIN_EX(bits)	
-	#define GALLEN_DBGLOCAL_END() 
-	#define GALLEN_DBGLOCAL_MUTEEND()
-	#define GALLEN_DBGLOCAL_ESC() 
-	#define GALLEN_DBGLOCAL_RUNLOG(b)	
-	#define GALLEN_DBGLOCAL_SAVELOGS()
-	#define GALLEN_DBGLOCAL_PRINTLOG() 
-	#define GALLEN_DBGLOCAL_PRINTMSG(fmt,args...)
-	#define GALLEN_DBGLOCAL_PRINTDIFFLOG()	
-	#define GALLEN_DBGLOCAL_DBGLVL_INC()	
-	#define GALLEN_DBGLOCAL_DBGLVL_DEC()	
-	#define GALLEN_DBGLOCAL_DBGLVL_ADD(addval)
-	#define GALLEN_DBGLOCAL_DBGLVL_SET(lvl)	
-	#define GALLEN_GDBGLVL_INC()	
-	#define GALLEN_GDBGLVL_DEC()	
-	#define GALLEN_GDBGLVL_SET(lvl)	
-	#define GALLEN_GDBGLVL_GET()	0
-	#define GALLEN_GDBGLVL_ADD(addval)	
-	#define GALLEN_DBGLOCAL_L0_BEGIN()	
-	#define GALLEN_DBGLOCAL_L0_END() 
-	#define GALLEN_DBGLOCAL_L0_RUNLOG(b)	
-	#define GALLEN_DBGLOCAL_DIFF_BEGIN(name)	
-	#define GALLEN_DBGLOCAL_DIFF_BEGIN_EX(name,bits)	
-	#define GALLEN_DBGLOCAL_DIFF_ESC(name)	
-	#define GALLEN_DBGLOCAL_DIFF_END(name) 
-	#define GALLEN_DBGLOCAL_DIFF_RUNLOG(name,b)	
-	#define dbgENTER()			GALLEN_PRINT("%s(%d) : Enter %s\n",__FILE__,__LINE__,__FUNCTION__)
-	#define dbgLEAVE()			GALLEN_PRINT("%s(%d) : Leave %s\n",__FILE__,__LINE__,__FUNCTION__)
-	#define DBG_MSG(fmt,args...)					GALLEN_PRINT(fmt,##args)
-	#define DBG_MSG_FLUSH(fmt,args...)		GALLEN_PRINT(fmt,##args)
-	#define ERR_MSG(fmt,args...)					GALLEN_ERR_PRINT(fmt,##args)
-	#define WARNNING_MSG(fmt,args...)			GALLEN_WARNING_PRINT(fmt,##args)
-	#define WARNING_MSG(fmt,args...)			GALLEN_WARNING_PRINT(fmt,##args)
-#else
-	#define GALLEN_DECLARE_INT(name)	
-	#define GALLEN_DECLARE_EXTINT(name)	
-	#define GALLEN_SET_INT(name,a)	
-	#define GALLEN_GET_INT(name)		
-	#define GALLEN_DBGLOCAL_BEGIN()	
-	#define GALLEN_DBGLOCAL_BEGIN_EX(bits)	
-	#define GALLEN_DBGLOCAL_BEGIN_EX2(bits,localdbglvl)	
-	#define GALLEN_DBGLOCAL_MUTEBEGIN()	
-	#define GALLEN_DBGLOCAL_MUTEBEGIN_EX(bits)	
-	#define GALLEN_DBGLOCAL_END() 
-	#define GALLEN_DBGLOCAL_MUTEEND()	
-	#define GALLEN_DBGLOCAL_ESC() 
-	#define GALLEN_DBGLOCAL_RUNLOG(b)	
-	#define GALLEN_DBGLOCAL_SAVELOGS()	
-	#define GALLEN_DBGLOCAL_PRINTLOG() 
-	#define GALLEN_DBGLOCAL_PRINTMSG(fmt,args...)
-	#define GALLEN_DBGLOCAL_PRINTDIFFLOG()	
-	#define GALLEN_DBGLOCAL_DBGLVL_INC()	
-	#define GALLEN_DBGLOCAL_DBGLVL_DEC()	
-	#define GALLEN_DBGLOCAL_DBGLVL_ADD(addval)
-	#define GALLEN_DBGLOCAL_DBGLVL_SET(lvl)	
-	#define GALLEN_GDBGLVL_INC()	
-	#define GALLEN_GDBGLVL_DEC()	
-	#define GALLEN_GDBGLVL_SET(lvl)	
-	#define GALLEN_GDBGLVL_GET()	0
-	#define GALLEN_GDBGLVL_ADD(addval)	
-	#define GALLEN_DBGLOCAL_L0_BEGIN()	
-	#define GALLEN_DBGLOCAL_L0_END() 
-	#define GALLEN_DBGLOCAL_L0_RUNLOG(b)	
-	#define GALLEN_DBGLOCAL_DIFF_BEGIN(name)	
-	#define GALLEN_DBGLOCAL_DIFF_BEGIN_EX(name,bits)	
-	#define GALLEN_DBGLOCAL_DIFF_END(name) 
-	#define GALLEN_DBGLOCAL_DIFF_ESC(name)	
-	#define GALLEN_DBGLOCAL_DIFF_RUNLOG(name,b)	
-	
-	#define dbgENTER()		
-	#define dbgLEAVE()		
-	#define DBG_MSG(fmt,args...)					GALLEN_PRINT(fmt,##args)
-	#define DBG_MSG_FLUSH(fmt,args...)		
-	#define ERR_MSG(fmt,args...)					GALLEN_ERR_PRINT(fmt,##args)
-	#define WARNNING_MSG(fmt,args...)			GALLEN_WARNING_PRINT(fmt,##args)
-	#define WARNING_MSG(fmt,args...)			GALLEN_WARNING_PRINT(fmt,##args)
-#endif
-
-#define DBG0_MSG(fmt,args...)					GALLEN_PRINT(fmt,##args)
-#define DBG0_ENTRY_TAG() printk("%s(%d):%s\n",__FILE__,__LINE__,__FUNCTION__)
-
-#define ASSERT(p)	assert(p)
-
-#ifdef __KERNEL__//[
-#ifdef CONFIG_KERNEL_ASSERTS//[
-	/* kgdb stuff */
-	#define assert(p) KERNEL_ASSERT(#p, p)
-#else//][!CONFIG_KERNEL_ASSERTS
-	#define assert(p) do {  \
-		if (!(p)) {     \
-			GALLEN_PRINT(KERN_CRIT "BUG at %s:%d assert(%s)\n",   \
-				__FILE__, __LINE__, #p);                 \
-				BUG();  \
-		}               \
-	} while (0)
-#endif//] CONFIG_KERNEL_ASSERTS
-#else //][!__KERNEL__
-	#include <assert.h>
-#endif //]__KERNEL__
-
-
-
-
-#if (GDEBUG >= 1) //[
-#define DBGVAR_DECLARE(__name)	DBGVAR_DECLARE_EX(__name,32)
-#define DBGVAR_DECLARE_EX(__name,_bits)	\
-	const int gi##__name##RunlogBits=_bits;\
-	const int gi##__name##RunlogBytes=((_bits/8)+1);\
-	volatile unsigned char gb##__name##RunLogsA[((_bits/8)+1)] = {0,}
-	
-#define DBGVAR_SETBIT(__name,bit)	\
-	if((bit)<gi##__name##RunlogBits) {\
-		BUF_SETBIT(gb##__name##RunLogsA,bit);\
-	}\
-	else {\
-		GALLEN_PRINT("%s(%d):[ERROR]DBGVAR_SETBIT %s cannot >= %d\n",__FILE__,__LINE__,#__name,gi##__name##RunlogBits);\
-	}\
-	
-#define DBGVAR_CLRBIT(__name,bit)	\
-	if((bit)<gi##__name##RunlogBits) {\
-		BUF_CLRBIT(gb##__name##RunLogsA,bit);\
-	}\
-	else {\
-		GALLEN_PRINT("%s(%d):[ERROR]DBGVAR_CLRBIT %s cannot >= %d\n",__FILE__,__LINE__,#__name,gi##__name##RunlogBits);\
-	}\
-
-#define DBGVAR_PRINT(__name)		BUF_PRINT_ONBITS(gb##__name##RunLogsA,gi##__name##RunlogBits)
-	
-#else //][!(GDEBUG >= 1)
-
-#define DBGVAR_DECLARE(__name)	
-#define DBGVAR_DECLARE_EX(__name,bits)	
-#define DBGVAR_SETBIT(__name,bit)	
-#define DBGVAR_CLRBIT(__name,bit)	
-#define DBGVAR_PRINT(__name)		
-
-#endif //] (GDEBUG >= 1)
-
-
-
-#endif //]_GALLEN_DBG__H
-/****** end include/linux/gallen_dbg.h *******/
 
 /****** start partial include/uapi/linux/input.h *******/
 
@@ -559,7 +117,9 @@ struct tps6518x_data {
 
 
 static int tps6518x_pass_num = { 2 };
+#if 0
 static int tps6518x_vcom = { 0 };
+#endif
 //static int tps65180_current_Enable_Register = 0;
 
 static int tps6518x_is_power_good(struct tps6518x *tps6518x);
@@ -668,12 +228,14 @@ static int vcom_rs_to_uV(unsigned int reg_setting)
 		return TPS65180_VCOM_MAX_uV;
 	return (reg_setting * TPS65180_VCOM_STEP_uV);
 }
+#if 0
 static int vcom2_rs_to_uV(unsigned int reg_setting)
 {
 	if (reg_setting >= TPS65185_VCOM_MAX_SET)
 		return TPS65185_VCOM_MAX_uV;
 	return (reg_setting * TPS65185_VCOM_STEP_uV);
 }
+#endif
 
 
 static int vcom_uV_to_rs(int uV)
@@ -697,11 +259,9 @@ static int vcom2_uV_to_rs(int uV)
 static int epdc_pwr0_enable(struct regulator_dev *reg)
 {
 	struct tps6518x *tps6518x = rdev_get_drvdata(reg);
-	dbgENTER();
 
 	tps6518x_chip_power(tps6518x,1,1,1);
 
-	dbgLEAVE();
 	return 0;
 
 }
@@ -709,19 +269,17 @@ static int epdc_pwr0_enable(struct regulator_dev *reg)
 static int epdc_pwr0_disable(struct regulator_dev *reg)
 {
 	struct tps6518x *tps6518x = rdev_get_drvdata(reg);
-	dbgENTER();
 	
 	tps6518x_chip_power(tps6518x,1,1,0);
 
-	dbgLEAVE();
 	return 0;
 
 }
 static int tps6518x_v3p3_enable(struct regulator_dev *reg)
 {
-	struct tps6518x *tps6518x = rdev_get_drvdata(reg);
-	dbgENTER();
 #ifdef TPS65185_V3P3_ENABLE//[
+	struct tps6518x *tps6518x = rdev_get_drvdata(reg);
+
 	if(tps6518x->gpio_pmic_v3p3) {
 		gpiod_set_value_cansleep(tps6518x->gpio_pmic_v3p3, 1);
 	}
@@ -730,17 +288,14 @@ static int tps6518x_v3p3_enable(struct regulator_dev *reg)
 	}
 #endif //]TPS65185_V3P3_ENABLE
 
-	dbgLEAVE();
 	return 0;
 }
 
 static int tps6518x_v3p3_disable(struct regulator_dev *reg)
 {
+#ifdef TPS65185_V3P3_ENABLE//[
 	struct tps6518x *tps6518x = rdev_get_drvdata(reg);
 
-	dbgENTER();
-
-#ifdef TPS65185_V3P3_ENABLE//[
 	if(gpio_is_valid(tps6518x->gpio_pmic_v3p3)) {
 		gpiod_set_value_cansleep(tps6518x->gpio_pmic_v3p3, 0);
 	}
@@ -749,7 +304,6 @@ static int tps6518x_v3p3_disable(struct regulator_dev *reg)
 	}
 #endif //]TPS65185_V3P3_ENABLE
 
-	dbgLEAVE();
 	return 0;
 
 }
@@ -758,17 +312,10 @@ static int tps6518x_v3p3_is_enabled(struct regulator_dev *reg)
 	struct tps6518x *tps6518x = rdev_get_drvdata(reg);
 	int gpio = gpiod_get_value_cansleep(tps6518x->gpio_pmic_powerup);
 
-#if 0
-	dbgENTER();
-
-	dbgLEAVE();
-	return gpio;
-#else
 	if (gpio == 0)
 		return 0;
 	else
 		return 1;
-#endif
 }
 
 
@@ -778,21 +325,13 @@ static int _tps6518x_vcom_set_voltage(struct tps6518x *tps6518x,int uV)
 	unsigned int new_reg_val; /* new register value to write */
 	int retval=0;
 
-	dbgENTER();
-
 	/*
 	 * this will not work on tps65182
 	 */
 	if (tps6518x->revID == 65182) {
-		dbgLEAVE();
 		return 0;
 	}
 	
-#if 0
-	if (uV < 200000)
-		return 0;
-#endif
-
 	switch (tps6518x->revID & 15)
 	{
 		case 0 : /* TPS65180 */
@@ -830,7 +369,6 @@ static int _tps6518x_vcom_set_voltage(struct tps6518x *tps6518x,int uV)
 		tps6518x->vcom_uV = uV;
 	}
 
-	dbgLEAVE();
 	return retval;
 
 }
@@ -850,14 +388,10 @@ static int _tps6518x_vcom_get_voltage(struct tps6518x *tps6518x)
 	unsigned int cur_fld_val; /* current bitfield value*/
 	int vcomValue;
 
-
-	dbgENTER();
-
 	/*
 	 * this will not work on tps65182
 	 */
 	if (tps6518x->revID == 65182) {
-		dbgLEAVE();
 		return 0;
 	}
 	
@@ -886,7 +420,6 @@ static int _tps6518x_vcom_get_voltage(struct tps6518x *tps6518x)
 		tps6518x->vcom_uV = vcomValue;
 	}
 	
-	dbgLEAVE();
 	return vcomValue;
 }
 static int tps6518x_vcom_get_voltage(struct regulator_dev *reg)
@@ -901,14 +434,12 @@ static int tps6518x_vcom_enable(struct regulator_dev *reg)
 	unsigned int cur_reg_val; /* current register value */
 	int vcomEnable = 0;
 
-	dbgENTER();
 	/*
 	 * check for the TPS65182 device
 	 */
 	if (tps6518x->revID == 65182)
 	{
 		gpiod_set_value_cansleep(tps6518x->gpio_pmic_vcom_ctrl,vcomEnable);
-		dbgLEAVE();
 		return 0;
 	}
 
@@ -933,17 +464,14 @@ static int tps6518x_vcom_enable(struct regulator_dev *reg)
 	}
 	gpiod_set_value_cansleep(tps6518x->gpio_pmic_vcom_ctrl,vcomEnable);
 
-	dbgLEAVE();
 	return 0;
 }
 
 static int tps6518x_vcom_disable(struct regulator_dev *reg)
 {
 	struct tps6518x *tps6518x = rdev_get_drvdata(reg);
-	dbgENTER();
 
 	gpiod_set_value_cansleep(tps6518x->gpio_pmic_vcom_ctrl,0);
-	dbgLEAVE();
 	return 0;
 }
 
@@ -978,71 +506,53 @@ static void tps6518x_int_func(struct work_struct *work)
 	int iForceStanbyState = 0;
 	tps6518x_reg_read(tps6518x,REG_TPS65180_INT1,&dwReg);
 	tps6518x_reg_read(tps6518x,REG_TPS65180_INT2,&dwReg2);
-	printk(KERN_ERR"TPS6518X intr occured !!,INT1=0x%x,INT2=0x%x\n",dwReg,dwReg2);
+	dev_err(tps6518x->dev, "TPS6518X intr occured !!,INT1=0x%x,INT2=0x%x\n",dwReg,dwReg2);
 
 	if(BITFEXT(dwReg,UVLO)) {
 		printk(KERN_ERR"%s(%d): %s input voltage is below UVLO threshold !\n",
 			__FILE__,__LINE__,__FUNCTION__);
-		tps6518x->int_state=MSC_RAW_EPD_UNKOWN_ERROR;
 	}
 	if(BITFEXT(dwReg,TSDN)) {
 		printk(KERN_ERR"%s(%d): %s chip is over-temperature shutdown !\n",
 			__FILE__,__LINE__,__FUNCTION__);
-		tps6518x->int_state=MSC_RAW_EPD_OVT_ERROR;
 		iForceStanbyState = 1;
 	}
 	if(BITFEXT(dwReg,TMST_HOT)) {
 		printk(KERN_ERR"%s(%d): %s chip is apporoaching over-temperature shutdown !\n",
 			__FILE__,__LINE__,__FUNCTION__);
-		tps6518x->int_state=MSC_RAW_EPD_OVT_ERROR;
 	}
 	if(BITFEXT(dwReg2,VB_UV)) {
 		printk(KERN_ERR"%s(%d): %s under-voltage on DCDC1 detected !\n",
 			__FILE__,__LINE__,__FUNCTION__);
-		tps6518x->int_state=MSC_RAW_EPD_DCDC1_ERROR;
 		iForceStanbyState = 1;
 	}
 	if(BITFEXT(dwReg2,VDDH_UV)) {
 		printk(KERN_ERR"%s(%d): %s under-voltage on VDDH charge pump detected !\n",
 			__FILE__,__LINE__,__FUNCTION__);
-		tps6518x->int_state=MSC_RAW_EPD_VDDH_ERROR;
 	}
 	if(BITFEXT(dwReg2,VN_UV)) {
 		printk(KERN_ERR"%s(%d): %s under-voltage on DCDC2 detected !\n",
 			__FILE__,__LINE__,__FUNCTION__);
-		tps6518x->int_state=MSC_RAW_EPD_DCDC2_ERROR;
 		iForceStanbyState = 1;
 	}
 	if(BITFEXT(dwReg2,VPOS_UV)) {
 		printk(KERN_ERR"%s(%d): %s under-voltage on LDO1(VPOS) detected !\n",
 			__FILE__,__LINE__,__FUNCTION__);
-		tps6518x->int_state=MSC_RAW_EPD_VPOS_ERROR;
 	}
 	if(BITFEXT(dwReg2,VEE_UV)) {
 		printk(KERN_ERR"%s(%d): %s under-voltage on VEE charge pump detected !\n",
 			__FILE__,__LINE__,__FUNCTION__);
-		tps6518x->int_state=MSC_RAW_EPD_VEE_ERROR;
 	}
 	if(BITFEXT(dwReg2,VCOMF)) {
 		printk(KERN_ERR"%s(%d): %s fault on VCOM detected !\n",
 			__FILE__,__LINE__,__FUNCTION__);
-		tps6518x->int_state=MSC_RAW_EPD_VCOM_ERROR;
 	}
 	if(BITFEXT(dwReg2,VNEG_UV)) {
 		printk(KERN_ERR"%s(%d): %s under-voltage on LDO2(VNEG) detected !\n",
 			__FILE__,__LINE__,__FUNCTION__);
-		tps6518x->int_state=MSC_RAW_EPD_VNEG_ERROR;
 		iForceStanbyState = 1;
 	}
 
-#ifdef TPS65185_VDROP_PROC_IN_KERNEL//[
-#else //][!TPS65185_VDROP_PROC_IN_KERNEL
-	if(dwReg || dwReg2) {
-		ntx_report_event(EV_MSC,MSC_RAW,tps6518x->int_state);
-	}
-#endif //]TPS65185_VDROP_PROC_IN_KERNEL
-
-	
 	if(iForceStanbyState) {
 		tps6518x_chip_power(tps6518x,1,1,0);
 		tps6518x_chip_power(tps6518x,1,1,1);
@@ -1093,13 +603,13 @@ static int tps6518x_wait_power_good(struct tps6518x *tps6518x)
 			queue_work(tps6518x->int_workqueue,&tps6518x->int_work);
 		}
 		if (tps6518x_is_power_good(tps6518x)) {
-			DBG_MSG("%s():cnt=%d,PG=%d\n",__FUNCTION__,i,gpiod_get_value_cansleep(tps6518x->gpio_pmic_pwrgood));
+			dev_dbg(tps6518x->dev, "%s():cnt=%d,PG=%d\n",__FUNCTION__,i,gpiod_get_value_cansleep(tps6518x->gpio_pmic_pwrgood));
 			return 0;
 		}
 
 		msleep(1);
 	}
-	printk(KERN_ERR"%s():waiting(%d) for PG(%d) timeout\n",__FUNCTION__,i,gpiod_get_value_cansleep(tps6518x->gpio_pmic_pwrgood));
+	dev_err(tps6518x->dev,"%s():waiting(%d) for PG(%d) timeout\n",__FUNCTION__,i,gpiod_get_value_cansleep(tps6518x->gpio_pmic_pwrgood));
 	return -ETIMEDOUT;
 }
 
@@ -1110,8 +620,6 @@ static int tps6518x_display_enable(struct regulator_dev *reg)
 	unsigned int fld_mask;	  /* register mask for bitfield to modify */
 	unsigned int fld_val;	  /* new bitfield value to write */
 	unsigned int new_reg_val; /* new register value to write */
-
-	dbgENTER();
 
 	if (tps6518x->revID == 65182)
 	{
@@ -1133,7 +641,7 @@ static int tps6518x_display_enable(struct regulator_dev *reg)
 		tps6518x_reg_read(tps6518x,REG_TPS65180_ENABLE,&cur_reg);
 		/* enable display regulators */
 		cur_reg_val = tps6518x->iRegEnable & 0x3f;
-		DBG_MSG("%s(%d):wakeup=%d,powerup=%d,enREG=0x%x,cur=0x%x\n",__FUNCTION__,__LINE__,
+		dev_dbg(tps6518x->dev, "%s(%d):wakeup=%d,powerup=%d,enREG=0x%x,cur=0x%x\n",__FUNCTION__,__LINE__,
 				gpiod_get_value_cansleep(tps6518x->gpio_pmic_wakeup),
 				gpiod_get_value_cansleep(tps6518x->gpio_pmic_powerup),
 				cur_reg,
@@ -1157,7 +665,6 @@ static int tps6518x_display_enable(struct regulator_dev *reg)
 		tps6518x_reg_write(tps6518x,REG_TPS65180_ENABLE, new_reg_val);
 	}
 
-	dbgLEAVE();
 	return tps6518x_wait_power_good(tps6518x);
 }
 
@@ -1173,7 +680,6 @@ static int tps6518x_display_disable(struct regulator_dev *reg)
 	unsigned int fld_val;	  /* new bitfield value to write */
 	unsigned int new_reg_val; /* new register value to write */
 
-	dbgENTER();
 	if (tps6518x->revID == 65182)
 	{
 		epdc_pwr0_disable(reg);
@@ -1181,7 +687,7 @@ static int tps6518x_display_disable(struct regulator_dev *reg)
 	else
 	{
 		/* turn off display regulators */
-		DBG_MSG("%s(%d):wakeup=%d\n",__FUNCTION__,__LINE__,
+		dev_dbg(tps6518x->dev, "%s(%d):wakeup=%d\n",__FUNCTION__,__LINE__,
 				gpiod_get_value_cansleep(tps6518x->gpio_pmic_wakeup));
 
 		cur_reg_val = tps6518x->iRegEnable & 0x3f;
@@ -1195,7 +701,6 @@ static int tps6518x_display_disable(struct regulator_dev *reg)
 
 	//msleep(tps6518x->max_wait);
 
-	dbgLEAVE();
 	return 0;
 #endif
 }
@@ -1299,11 +804,9 @@ static int tps6518x_pmic_dt_parse_pdata(struct platform_device *pdev,
 					struct tps6518x_platform_data *pdata)
 {
 	struct tps6518x *tps6518x = dev_get_drvdata(pdev->dev.parent);
-	struct device_node *pmic_np, *regulators_np, *reg_np,*tmp_np;
+	struct device_node *pmic_np, *regulators_np, *reg_np;
 	struct tps6518x_regulator_data *rdata;
 	int i, ret = 0;
-
-	GALLEN_DBGLOCAL_BEGIN();
 
 	pmic_np = of_node_get(tps6518x->dev->of_node);
 	if (!pmic_np) {
@@ -1374,17 +877,13 @@ static int tps6518x_pmic_dt_parse_pdata(struct platform_device *pdev,
 	if (IS_ERR(tps6518x->gpio_pmic_v3p3)) {
 		dev_err(&pdev->dev, "no epdc pmic v3p3 pin available\n");
 		ret = PTR_ERR(tps6518x->gpio_pmic_v3p3);
-		goto err;
+		return err;
 	}
 #else
 	tps6518x->gpio_pmic_v3p3 = NULL;
 #endif //]TPS65185_V3P3_ENABLE
 
-
-err:
-	GALLEN_DBGLOCAL_END();
 	return ret;
-
 }
 #else
 static int tps6518x_pmic_dt_parse_pdata(struct platform_device *pdev,
@@ -1406,8 +905,7 @@ static int tps6518x_regulator_probe(struct platform_device *pdev)
 	struct regulator_config config = { };
 	int size, i, ret = 0;
 
-	printk("reg probe\n");
-    DBG_MSG("tps6518x_regulator_probe starting , of_node=%p\n",
+	dev_dbg(tps6518x->dev, "tps6518x_regulator_probe starting , of_node=%p\n",
 				tps6518x->dev->of_node);
 
 	//tps6518x->pwrgood_polarity = 1;
@@ -1428,9 +926,8 @@ static int tps6518x_regulator_probe(struct platform_device *pdev)
 	if (!priv->rdev)
 		return -ENOMEM;
 
-
-	printk("%s(%d): revID=%d,6518x@%p wakeup gpio%d=%d\n",__FUNCTION__,__LINE__,
-			tps6518x->revID,tps6518x,tps6518x->gpio_pmic_wakeup,
+	dev_info(&pdev->dev, "%s(%d): revID=%d,6518x@%p wakeup gpio%p=%d\n",__FUNCTION__,__LINE__,
+			tps6518x->revID, tps6518x,tps6518x->gpio_pmic_wakeup,
 			gpiod_get_value_cansleep(tps6518x->gpio_pmic_wakeup));
 
 	rdev = priv->rdev;
@@ -1494,9 +991,8 @@ static int tps6518x_regulator_probe(struct platform_device *pdev)
 	if(tps6518x->int_workqueue) {
 		dev_err(tps6518x->dev, "tps6518x int workqueue creating failed !\n");
 	}
-	printk("reg probe finished");
 
-	DBG_MSG("tps6518x_regulator_probe success\n");
+	dev_dbg(tps6518x->dev, "tps6518x_regulator_probe success\n");
 	return 0;
 err:
 	while (--i >= 0)
@@ -1515,42 +1011,17 @@ static int tps6518x_regulator_remove(struct platform_device *pdev)
 	return 0;
 }
 
-static const struct platform_device_id tps6518x_pmic_id[] = {
-	{ "tps6518x-pmic", 0},
-	{ /* sentinel */ },
-};
-MODULE_DEVICE_TABLE(platform, tps6518x_pmic_id);
-
-static const struct of_device_id tps6518x_of_match[] = {
-	{ .compatible = "ti,tps65180", },
-	{ .compatible = "ti,tps65181", },
-	{ .compatible = "ti,tps65182", },
-	{ /* sentinel */ }
-};
-MODULE_DEVICE_TABLE(of, tps6518x_of_match);
-
 static struct platform_driver tps6518x_regulator_driver = {
 	.probe = tps6518x_regulator_probe,
 	.remove = tps6518x_regulator_remove,
-	.id_table = tps6518x_pmic_id,
 	.driver = {
-		.name = "tps6518x-pmic",
-		.of_match_table = of_match_ptr(tps6518x_of_match),
+		.name = "tps6518x-regulator",
 	},
 };
 
-static int __init tps6518x_regulator_init(void)
-{
-	return platform_driver_register(&tps6518x_regulator_driver);
-}
-subsys_initcall_sync(tps6518x_regulator_init);
-
-static void __exit tps6518x_regulator_exit(void)
-{
-	platform_driver_unregister(&tps6518x_regulator_driver);
-}
-module_exit(tps6518x_regulator_exit);
+module_platform_driver(tps6518x_regulator_driver);
 
 /* Module information */
+MODULE_ALIAS("platform:tps6518x-regulator");
 MODULE_DESCRIPTION("TPS6518x regulator driver");
 MODULE_LICENSE("GPL");
