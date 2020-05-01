@@ -41,149 +41,41 @@
 #include <linux/of_device.h>
 #include <linux/of_gpio.h>
 #include <linux/gpio.h>
+#include <linux/regmap.h>
 
 #include <linux/platform_device.h>
 #include <linux/regulator/machine.h>
-// #include <linux/pmic_status.h>
-/****** start include/linux/pmic_status.h *******/
-
-/*
- * Copyright 2004-2015 Freescale Semiconductor, Inc. All Rights Reserved.
- */
-
-/*
- * The code contained herein is licensed under the GNU Lesser General
- * Public License.  You may obtain a copy of the GNU Lesser General
- * Public License Version 2.1 or later at the following locations:
- *
- * http://www.opensource.org/licenses/lgpl-license.html
- * http://www.gnu.org/copyleft/lgpl.html
- */
-#ifndef __ASM_ARCH_MXC_PMIC_STATUS_H__
-#define __ASM_ARCH_MXC_PMIC_STATUS_H__
-#include <asm-generic/errno-base.h>
-#ifdef __KERNEL__
-#include <asm/uaccess.h>	/* copy_{from,to}_user() */
-#endif
-/*!
- * @file arch-mxc/pmic_status.h
- * @brief PMIC APIs return code definition.
- *
- * @ingroup PMIC_CORE
- */
-
-/*!
- * @enum PMIC_STATUS
- * @brief Define return values for all PMIC APIs.
- *
- * These return values are used by all of the PMIC APIs.
- *
- * @ingroup PMIC
- */
-typedef enum {
-	PMIC_SUCCESS = 0,	/*!< The requested operation was successfully
-				   completed.                                     */
-	PMIC_ERROR = -1,	/*!< The requested operation could not be completed
-				   due to an error.                               */
-	PMIC_PARAMETER_ERROR = -2,	/*!< The requested operation failed because
-					   one or more of the parameters was
-					   invalid.                             */
-	PMIC_NOT_SUPPORTED = -3,	/*!< The requested operation could not be
-					   completed because the PMIC hardware
-					   does not support it. */
-	PMIC_SYSTEM_ERROR_EINTR = -EINTR,
-
-	PMIC_MALLOC_ERROR = -5,	/*!< Error in malloc function             */
-	PMIC_UNSUBSCRIBE_ERROR = -6,	/*!< Error in un-subscribe event          */
-	PMIC_EVENT_NOT_SUBSCRIBED = -7,	/*!< Event occur and not subscribed       */
-	PMIC_EVENT_CALL_BACK = -8,	/*!< Error - bad call back                */
-	PMIC_CLIENT_NBOVERFLOW = -9,	/*!< The requested operation could not be
-					   completed because there are too many
-					   PMIC client requests */
-} PMIC_STATUS;
-
-/*
- * Bitfield macros that use rely on bitfield width/shift information.
- */
-#define BITFMASK(field) (((1U << (field ## _WID)) - 1) << (field ## _LSH))
-#define BITFVAL(field, val) ((val) << (field ## _LSH))
-#define BITFEXT(var, bit) ((var & BITFMASK(bit)) >> (bit ## _LSH))
-
-/*
- * Macros implementing error handling
- */
-#define CHECK_ERROR(a)			\
-do {					\
-		int ret = (a); 			\
-		if (ret != PMIC_SUCCESS)	\
-	return ret; 			\
-} while (0)
-
-#define CHECK_ERROR_KFREE(func, freeptrs) \
-do { \
-	int ret = (func); \
-	if (ret != PMIC_SUCCESS) { \
-		freeptrs;	\
-		return ret;	\
-	}	\
-} while (0);
-
-#endif				/* __ASM_ARCH_MXC_PMIC_STATUS_H__ */
-
-/****** end include/linux/pmic_status.h *******/
 #include <linux/mfd/core.h>
 #include <linux/mfd/tps6518x.h>
-#include <asm/mach-types.h>
 
-
-
-
-/*
- * EPDC PMIC I2C address
- */
-#define EPDC_PMIC_I2C_ADDR 0x48
-
-//unsigned long gdwSafeTick_To_TurnON_RailPower;
-
-
-static int tps6518x_detect(struct i2c_client *client, struct i2c_board_info *info);
-static struct regulator *gpio_regulator;
+static int tps6518x_detect(struct tps6518x *tps6518x);
+static const struct regmap_config tps6518x_regmap_config = {
+	.reg_bits	= 8,
+	.val_bits	= 8,
+	.max_register	= TPS6518X_MAX_REG,
+};
 
 static struct mfd_cell tps6518x_devs[] = {
 	{ .name = "tps6518x-pmic", },
 	{ .name = "tps6518x-sns", },
 };
 
-static const unsigned short normal_i2c[] = {EPDC_PMIC_I2C_ADDR, I2C_CLIENT_END};
-
-
-
-
 #define PULLUP_WAKEPIN_IF_LOW	1
-
 
 int tps6518x_reg_read(struct tps6518x *tps6518x,int reg_num, unsigned int *reg_val)
 {
 	int result;
-	struct i2c_client *tps6518x_client = tps6518x->i2c_client;
-
-
-	if (tps6518x_client == NULL) {
-		dev_err(&tps6518x_client->dev,
-			"tps6518x I2C adaptor not ready !\n");
-		return PMIC_ERROR;
-	}
 
 #ifdef PULLUP_WAKEPIN_IF_LOW//[
 	if(0==tps6518x->gpio_pmic_wakeup) {
-		dev_warn(&tps6518x_client->dev,
+		dev_warn(tps6518x->dev,
 			"tps6518x wakeup gpio not avalible !!\n");
 	}
 	else {
 		if(0==gpiod_get_value_cansleep(tps6518x->gpio_pmic_wakeup)) 
 		{
 
-			dev_warn(&tps6518x_client->dev,
+			dev_warn(tps6518x->dev,
 				"%s(%d, ) with wakeup=0 !!!\n",__FUNCTION__,reg_num);
 			tps6518x_chip_power(tps6518x,1,1,-1);
 			printk("%s(%d): 6518x wakeup=%d\n",__FUNCTION__,__LINE__,
@@ -192,21 +84,19 @@ int tps6518x_reg_read(struct tps6518x *tps6518x,int reg_num, unsigned int *reg_v
 	}
 #endif //]PULLUP_WAKEPIN_IF_LOW	
 	
-
 	if(tps6518x->dwSafeTickToCommunication && time_before(jiffies,tps6518x->dwSafeTickToCommunication)) {
 		unsigned long dwTicks = tps6518x->dwSafeTickToCommunication-jiffies;	
 		msleep(jiffies_to_msecs(dwTicks));
-		dev_info(&tps6518x_client->dev,"msleep %ld ticks for resume times\n",dwTicks);
+		dev_info(tps6518x->dev,"msleep %ld ticks for resume times\n",dwTicks);
 	}
-	result = i2c_smbus_read_byte_data(tps6518x_client, reg_num);
+	result = regmap_read(tps6518x->regmap, reg_num, reg_val);
 	if (result < 0) {
-		dev_err(&tps6518x_client->dev,
+		dev_err(tps6518x->dev,
 			"Unable to read tps6518x register%d via I2C\n",reg_num);
-		return PMIC_ERROR;
+		return result;
 	}
 
-	*reg_val = result;
-	return PMIC_SUCCESS;
+	return 0;
 }
 
 EXPORT_SYMBOL(tps6518x_reg_read);
@@ -214,23 +104,16 @@ EXPORT_SYMBOL(tps6518x_reg_read);
 int tps6518x_reg_write(struct tps6518x *tps6518x,int reg_num, const unsigned int reg_val)
 {
 	int result;
-	struct i2c_client *tps6518x_client=tps6518x->i2c_client;
-
-	if (tps6518x_client == NULL) {
-		dev_err(&tps6518x_client->dev,
-			"tps6518x I2C adaptor not ready !\n");
-		return PMIC_ERROR;
-	}
 
 #ifdef PULLUP_WAKEPIN_IF_LOW//[
 	if(0==tps6518x->gpio_pmic_wakeup) {
-		dev_warn(&tps6518x_client->dev,
+		dev_warn(tps6518x->dev,
 			"tps6518x wakeup gpio not avalible !!\n");
 	}
 	else {
 		if(0==gpiod_get_value_cansleep(tps6518x->gpio_pmic_wakeup)) 
 		{
-			dev_warn(&tps6518x_client->dev,
+			dev_warn(tps6518x->dev,
 				"%s(%d,0x%x): with wakeup=0 !!!\n",
 				__FUNCTION__,reg_num,reg_val);
 
@@ -245,16 +128,16 @@ int tps6518x_reg_write(struct tps6518x *tps6518x,int reg_num, const unsigned int
 	if(tps6518x->dwSafeTickToCommunication && time_before(jiffies,tps6518x->dwSafeTickToCommunication)) {
 		unsigned long dwTicks = tps6518x->dwSafeTickToCommunication-jiffies;	
 		msleep(jiffies_to_msecs(dwTicks));
-		dev_info(&tps6518x_client->dev,"msleep %ld ticks for resume times\n",dwTicks);
+		dev_info(tps6518x->dev,"msleep %ld ticks for resume times\n",dwTicks);
 	}
-	result = i2c_smbus_write_byte_data(tps6518x_client, reg_num, reg_val);
+	result = regmap_write(tps6518x->regmap, reg_num, reg_val);
 	if (result < 0) {
-		dev_err(&tps6518x_client->dev,
+		dev_err(tps6518x->dev,
 			"Unable to write TPS6518x register%d via I2C\n",reg_num);
-		return PMIC_ERROR;
+		return result;
 	}
 
-	return PMIC_SUCCESS;
+	return 0;
 }
 
 EXPORT_SYMBOL(tps6518x_reg_write);
@@ -263,7 +146,7 @@ int tps6518x_setup_timings(struct tps6518x *tps6518x)
 {
 
 	int temp0, temp1, temp2, temp3;
-	int iChk;
+	int ret = 0;
 
 	/* read the current setting in the PMIC */
 	if ((tps6518x->revID == TPS65180_PASS1) || (tps6518x->revID == TPS65181_PASS1) ||
@@ -297,16 +180,23 @@ int tps6518x_setup_timings(struct tps6518x *tps6518x)
 		(temp3 != tps6518x->dwnseq1)) 
 		{
 
-		 iChk = PMIC_SUCCESS;
 			printk("%s():upseq=>0x%x,0x%x,dwnseq=>0x%x,0x%x\n",__FUNCTION__,
 				tps6518x->upseq0,tps6518x->upseq1,tps6518x->dwnseq0,tps6518x->dwnseq1);
-			iChk |= tps6518x_reg_write(tps6518x,REG_TPS65185_UPSEQ0, tps6518x->upseq0);
-			iChk |= tps6518x_reg_write(tps6518x,REG_TPS65185_UPSEQ1, tps6518x->upseq1);
-			iChk |= tps6518x_reg_write(tps6518x,REG_TPS65185_DWNSEQ0, tps6518x->dwnseq0);
-			iChk |= tps6518x_reg_write(tps6518x,REG_TPS65185_DWNSEQ1, tps6518x->dwnseq1);
-			if(iChk!=PMIC_SUCCESS) {
-				return -1;
-			}
+			ret = tps6518x_reg_write(tps6518x,REG_TPS65185_UPSEQ0, tps6518x->upseq0);
+			if (ret)
+				return ret;
+
+			ret = tps6518x_reg_write(tps6518x,REG_TPS65185_UPSEQ1, tps6518x->upseq1);
+			if (ret)
+				return ret;
+
+			ret = tps6518x_reg_write(tps6518x,REG_TPS65185_DWNSEQ0, tps6518x->dwnseq0);
+			if (ret)
+				return ret;
+
+			ret = tps6518x_reg_write(tps6518x,REG_TPS65185_DWNSEQ1, tps6518x->dwnseq1);
+			if (ret)
+				return ret;
 		}
 	}
 	return 0;
@@ -373,7 +263,7 @@ int tps6518x_chip_power(struct tps6518x *tps6518x,int iIsON,int iIsWakeup,int iI
 				iRetryCnt = 0;
 				for (iRetryCnt=0;iRetryCnt<=iRetryCntMax;iRetryCnt++) {
 					iChk = tps6518x_reg_read(tps6518x,REG_TPS65180_INT1,&dwDummy);
-					if(PMIC_ERROR == iChk) {
+					if(iChk) {
 						printk(KERN_WARNING"%s(): i2c communication error !retry %d/%d\n",
 							__FUNCTION__,iRetryCnt,iRetryCntMax);
 						msleep(2);
@@ -543,7 +433,7 @@ static int tps6518x_i2c_parse_dt_pdata(struct device *dev)
 
 	tps6518x->gpio_pmic_intr = devm_gpiod_get(dev, "intr", GPIOD_IN);
 	if (IS_ERR(tps6518x->gpio_pmic_intr)) {
-		dev_err(dev, "request int gpio failed!\n",ret);
+		dev_err(dev, "request int gpio failed: %d!\n",ret);
 		return PTR_ERR(tps6518x->gpio_pmic_intr);
 	}
 
@@ -563,8 +453,7 @@ static struct tps6518x_platform_data *tps6518x_i2c_parse_dt_pdata(
 }
 #endif	/* !CONFIG_OF */
 
-static int tps6518x_probe(struct i2c_client *client,
-			    const struct i2c_device_id *id)
+static int tps6518x_probe(struct i2c_client *client)
 {
 	struct tps6518x *tps6518x;
 	struct tps6518x_platform_data *pdata = client->dev.platform_data;
@@ -575,19 +464,6 @@ static int tps6518x_probe(struct i2c_client *client,
 
 	if (!np)
 		return -ENODEV;
-
-
-/*	
-	gpio_regulator = devm_regulator_get(&client->dev, "SENSOR");
-	if (!IS_ERR(gpio_regulator)) {
-		ret = regulator_enable(gpio_regulator);
-		if (ret) {
-			dev_err(&client->dev, "PMIC power on failed !\n");
-			return ret;
-		}
-	}
-*/
-
 
 	/* Create the PMIC data structure */
 	tps6518x = devm_kzalloc(&client->dev, sizeof(struct tps6518x), GFP_KERNEL);
@@ -601,7 +477,13 @@ static int tps6518x_probe(struct i2c_client *client,
 	/* Initialize the PMIC data structure */
 	i2c_set_clientdata(client, tps6518x);
 	tps6518x->dev = &client->dev;
-	tps6518x->i2c_client = client;
+	tps6518x->regmap = devm_regmap_init_i2c(client, &tps6518x_regmap_config);
+	if (IS_ERR(tps6518x->regmap)) {
+		ret = PTR_ERR(tps6518x->regmap);
+		dev_err(tps6518x->dev, "regmap init failed: %d\n", ret);
+		return ret;
+	}
+
 	pdata = devm_kzalloc(tps6518x->dev, sizeof(*pdata), GFP_KERNEL);
 	if (!pdata) {
 		dev_err(tps6518x->dev, "could not allocate memory for pdata\n");
@@ -613,7 +495,7 @@ static int tps6518x_probe(struct i2c_client *client,
 	if (tps6518x->dev->of_node) {
 		ret = tps6518x_i2c_parse_dt_pdata(tps6518x->dev);
 		if (ret)
-			goto err1;
+			return ret;
 	}
 
 
@@ -622,11 +504,11 @@ static int tps6518x_probe(struct i2c_client *client,
 
 	tps6518x->dwSafeTickToCommunication = jiffies+TPS6518X_WAKEUP_WAIT_TICKS;
 
-	ret = tps6518x_detect(client, NULL);
+	ret = tps6518x_detect(tps6518x);
 	if (ret)
-		goto err1;
+		return ret;
 
-	mfd_add_devices(tps6518x->dev, -1, tps6518x_devs,
+	devm_mfd_add_devices(tps6518x->dev, -1, tps6518x_devs,
 			ARRAY_SIZE(tps6518x_devs),
 			NULL, 0, NULL);
 
@@ -637,21 +519,6 @@ static int tps6518x_probe(struct i2c_client *client,
 	printk("tps6518x_probe success\n");
 
 	return ret;
-
-err2:
-	mfd_remove_devices(tps6518x->dev);
-err1:
-	return ret;
-}
-
-
-static int tps6518x_remove(struct i2c_client *i2c)
-{
-	struct tps6518x *tps6518x = i2c_get_clientdata(i2c);
-
-	mfd_remove_devices(tps6518x->dev);
-
-	return 0;
 }
 
 static int gSleep_Mode_Suspend = 0;
@@ -741,49 +608,18 @@ static int tps6518x_resume_early(struct device *dev)
 
 
 /* Return 0 if detection is successful, -ENODEV otherwise */
-static int tps6518x_detect(struct i2c_client *client,
-			  struct i2c_board_info *info)
+static int tps6518x_detect(struct tps6518x *tps6518x)
 {
-	//struct tps6518x_platform_data *pdata = client->dev.platform_data;
-	struct i2c_adapter *adapter = client->adapter;
-	struct tps6518x *tps6518x = i2c_get_clientdata(client);
-	u8 revId;
-
-	const int iMaxRetryCnt = 10;
-	int iRetryN;
-	int iIsDeviceReady;
-
-	int iStatus ;
+	unsigned int rev_id;
+	int ret;
 
 	printk("tps6518x_detect calling\n");
 
-	if (!i2c_check_functionality(adapter, I2C_FUNC_SMBUS_BYTE_DATA)) {
-		dev_err(&adapter->dev,"I2C adapter error! \n");
-		return -ENODEV;
-	}
+	ret = regmap_read(tps6518x->regmap, REG_TPS6518x_REVID, &rev_id);
+	if (ret) 
+		return ret;
 
-	for (iIsDeviceReady=0,iRetryN=1;iRetryN<=iMaxRetryCnt;iRetryN++)
-	{
-		/* identification */
-		iStatus = i2c_smbus_read_byte_data(client,REG_TPS6518x_REVID);
-		if(iStatus>=0) {
-			iIsDeviceReady = 1;
-			tps6518x->revID = revId = (u8)iStatus;
-			break;
-		}
-		else {
-			msleep(2);
-			dev_err(&adapter->dev,
-					"Device probe no ACK , retry %d/%d ... \n",iRetryN,iMaxRetryCnt);
-		}
-	}
-
-	if(!iIsDeviceReady) {
-		dev_err(&adapter->dev,
-		    "Device no ACK and retry %d times failed \n",iMaxRetryCnt);
-		return -ENODEV;
-	}
-
+	tps6518x->revID = rev_id;
 	printk("%s():revId=0x%x\n",__FUNCTION__,tps6518x->revID);
 
 	
@@ -794,40 +630,29 @@ static int tps6518x_detect(struct i2c_client *client,
 	 * tps65182, 
 	 * tps65185 pass0 = 0x45, tps65186 pass0 0x46, tps65185 pass1 = 0x55, tps65186 pass1 0x56, tps65185 pass2 = 0x65, tps65186 pass2 0x66
 	 */
-	if (!((revId == TPS65180_PASS1) ||
-		 (revId == TPS65181_PASS1) ||
-		 (revId == TPS65180_PASS2) ||
-		 (revId == TPS65181_PASS2) ||
-		 (revId == TPS65185_PASS0) ||
-		 (revId == TPS65186_PASS0) ||
-		 (revId == TPS65185_PASS1) ||
-		 (revId == TPS65186_PASS1) ||
-		 (revId == TPS65185_PASS2) ||
-		 (revId == TPS65186_PASS2)))
+	if (!((rev_id == TPS65180_PASS1) ||
+		 (rev_id == TPS65181_PASS1) ||
+		 (rev_id == TPS65180_PASS2) ||
+		 (rev_id == TPS65181_PASS2) ||
+		 (rev_id == TPS65185_PASS0) ||
+		 (rev_id == TPS65186_PASS0) ||
+		 (rev_id == TPS65185_PASS1) ||
+		 (rev_id == TPS65186_PASS1) ||
+		 (rev_id == TPS65185_PASS2) ||
+		 (rev_id == TPS65186_PASS2)))
 	{
-		dev_info(&adapter->dev,
-		    "Unsupported chip (Revision ID=0x%02X).\n",  revId);
+		dev_info(tps6518x->dev,
+		    "Unsupported chip (Revision ID=0x%02X).\n",  rev_id);
 		return -ENODEV;
-	}
-
-	if (info) {
-		strlcpy(info->type, "tps6518x_sensor", I2C_NAME_SIZE);
 	}
 
 	printk("tps6518x_detect success\n");
 	return 0;
 }
 
-static const struct i2c_device_id tps6518x_id[] = {
-	{ "tps6518x", 0 },
-	{ }
-};
-MODULE_DEVICE_TABLE(i2c, tps6518x_id);
-
 static const struct of_device_id tps6518x_dt_ids[] = {
 	{
 		.compatible = "ti,tps6518x",
-		.data = (void *) &tps6518x_id[0],
 	}, {
 		/* sentinel */
 	}
@@ -835,7 +660,7 @@ static const struct of_device_id tps6518x_dt_ids[] = {
 MODULE_DEVICE_TABLE(of, tps6518x_dt_ids);
 
 //#define LOWLEVEL_SUSPEND		1
-static const struct dev_pm_ops tps6518x_dev_pm= {
+static const struct dev_pm_ops tps6518x_dev_pm_ops= {
 	.suspend = tps6518x_suspend,
 	.resume = tps6518x_resume,
 #ifdef LOWLEVEL_SUSPEND //[
@@ -845,38 +670,19 @@ static const struct dev_pm_ops tps6518x_dev_pm= {
 };
 
 
-static struct i2c_driver tps6518x_driver = {
+static struct i2c_driver tps6518x_i2c_driver = {
 	.driver = {
 		   .name = "tps6518x",
-		   .owner = THIS_MODULE,
 		   .of_match_table = tps6518x_dt_ids,
-		   .pm = (&tps6518x_dev_pm),
+		   .pm = &tps6518x_dev_pm_ops,
 	},
-	.probe = tps6518x_probe,
-	.remove = tps6518x_remove,
-	.id_table = tps6518x_id,
-	.detect = tps6518x_detect,
-	.address_list = &normal_i2c[0],
+	.probe_new = tps6518x_probe,
 };
 
-static int __init tps6518x_init(void)
-{
-	return i2c_add_driver(&tps6518x_driver);
-}
-
-static void __exit tps6518x_exit(void)
-{
-	i2c_del_driver(&tps6518x_driver);
-}
-
-
+module_i2c_driver(tps6518x_i2c_driver);
 
 /*
  * Module entry points
  */
-subsys_initcall(tps6518x_init);
-module_exit(tps6518x_exit);
-
-MODULE_AUTHOR("???");
 MODULE_DESCRIPTION("TPS6518xx PMIC for Electronic Paper Display driver");
 MODULE_LICENSE("GPL");

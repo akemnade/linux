@@ -85,7 +85,7 @@ enum {
     TPS65180_REG_NUM,
 };
 
-#define TPS6518x_MAX_REGISTER   0xFF
+#define TPS6518X_MAX_REG 0x12
 
 /*
  * Bitfield macros that use rely on bitfield width/shift information.
@@ -284,7 +284,8 @@ struct tps6518x {
 	struct tps6518x_platform_data *pdata;
 
 	/* Platform connection */
-	struct i2c_client *i2c_client;
+	struct regmap *regmap;
+	/* struct i2c_client *i2c_client; */
 
 	/* Timings */
 	unsigned int pwr_seq0;
