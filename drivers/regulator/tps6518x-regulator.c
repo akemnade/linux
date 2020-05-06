@@ -70,43 +70,6 @@
 
 #include <linux/of_gpio.h>
 
-#include <linux/input.h>
-
-#define GDEBUG 0
-
-/****** start partial include/uapi/linux/input.h *******/
-
-/*
- * Netronix Misc RAW event values .
- * 0x0X - EPD
- * 0x1X - ALS
- */ 
-#define MSC_RAW_EPD_DCDC1_ERROR		0x01
-#define MSC_RAW_EPD_DCDC2_ERROR		0x02
-#define MSC_RAW_EPD_VEE_ERROR		0x03
-#define MSC_RAW_EPD_VCOM_ERROR		0x04
-#define MSC_RAW_EPD_VPOS_ERROR		0x05
-#define MSC_RAW_EPD_VNEG_ERROR		0x06
-#define MSC_RAW_EPD_VDDH_ERROR		0x07
-#define MSC_RAW_EPD_OVT_ERROR		0x08 // over-temperature .
-#define MSC_RAW_EPD_UNKOWN_ERROR	0x09 // .
-
-#define MSC_RAW_ALS_EXIT_WINDOW		0x11
-#define MSC_RAW_ALS_ENTER_WINDOW	0x12
-#define MSC_RAW_ALS_PS1			0x13
-#define MSC_RAW_ALS_PS2			0x14
-#define MSC_RAW_ALS_PS3			0x15
-#define MSC_RAW_ALS_CMD			0x16
-#define MSC_RAW_GSENSOR_PORTRAIT_DOWN	0x17
-#define MSC_RAW_GSENSOR_PORTRAIT_UP		0x18
-#define MSC_RAW_GSENSOR_LANDSCAPE_RIGHT	0x19
-#define MSC_RAW_GSENSOR_LANDSCAPE_LEFT	0x1a
-#define MSC_RAW_GSENSOR_BACK			0x1b
-#define MSC_RAW_GSENSOR_FRONT			0x1c
-
-/****** end partial include/uapi/linux/input.h *******/
-
-
 //#define TPS65185_V3P3_ENABLE		1
 
 struct tps6518x_data {
