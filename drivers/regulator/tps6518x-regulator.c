@@ -951,7 +951,7 @@ static int tps6518x_regulator_probe(struct platform_device *pdev)
 
 	INIT_WORK(&tps6518x->int_work, tps6518x_int_func);
 	tps6518x->int_workqueue = create_singlethread_workqueue("tps6518x_INT");
-	if(tps6518x->int_workqueue) {
+	if(!tps6518x->int_workqueue) {
 		dev_err(tps6518x->dev, "tps6518x int workqueue creating failed !\n");
 	}
 
