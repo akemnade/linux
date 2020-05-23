@@ -22,7 +22,11 @@
  * Copyright 2008 Embedded Alley Solutions, Inc All Rights Reserved.
  */
 
-#include <linux/busfreq-imx.h>
+// #include <linux/busfreq-imx.h>
+#define BUS_FREQ_HIGH 1
+#define request_bus_freq(FREQ)  /*empty*/
+#define release_bus_freq(FREQ)  /*empty*/
+
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/device.h>
