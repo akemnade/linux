@@ -94,6 +94,8 @@
 #define MERGE_FAIL	1
 #define MERGE_BLOCK	2
 
+/* #define EPD_SUSPEND_BLANK	1 */
+
 static unsigned long default_bpp = 16;
 static DEFINE_MUTEX(hard_lock);
 
@@ -5176,22 +5178,25 @@ static int mxc_epdc_fb_remove(struct platform_device *pdev)
 static int mxc_epdc_fb_suspend(struct device *dev)
 {
 	struct mxc_epdc_fb_data *data = dev_get_drvdata(dev);
-	int ret;
+	int ret = 0;
 
+#ifdef EPD_SUSPEND_BLANK
 	data->pwrdown_delay = FB_POWERDOWN_DISABLE;
 	ret = mxc_epdc_fb_blank(FB_BLANK_POWERDOWN, &data->info);
 	if (ret)
 		goto out;
 
 out:
+#endif
 	return ret;
 }
 
 static int mxc_epdc_fb_resume(struct device *dev)
 {
 	struct mxc_epdc_fb_data *data = dev_get_drvdata(dev);
-
+#ifdef EPD_SUSPEND_BLANK
 	mxc_epdc_fb_blank(FB_BLANK_UNBLANK, &data->info);
+#endif
 	epdc_init_settings(data);
 	data->updates_active = false;
 
