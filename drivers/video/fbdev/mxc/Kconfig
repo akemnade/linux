@@ -14,6 +14,12 @@ config FB_MXC
 	  If you plan to use the LCD display with your MXC system, say
 	  Y here.
 
+config FB_MXC_EINK_PANEL
+        depends on FB_MXC
+        depends on DMA_ENGINE
+        select FB_DEFERRED_IO
+        tristate "E-Ink Panel Framebuffer"
+
 config FB_MXC_EINK_V2_PANEL
 	depends on FB_MXC
 	depends on DMA_ENGINE
