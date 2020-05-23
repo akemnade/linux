@@ -4879,7 +4879,7 @@ int mxc_epdc_fb_probe(struct platform_device *pdev)
 	struct resource *res;
 	struct fb_info *info;
 	char *options, *opt;
-	char *panel_str = NULL;
+	const char *panel_str = NULL;
 	char name[] = "mxcepdcfb";
 	struct fb_videomode *vmode;
 	int xres_virt, yres_virt, buf_size;
@@ -4969,6 +4969,9 @@ int mxc_epdc_fb_probe(struct platform_device *pdev)
 			else
 				panel_str = opt;
 		}
+
+	if (!panel_str)
+		of_property_read_string(np, "panel-name", &panel_str);
 
 	fb_data->dev = &pdev->dev;
 
