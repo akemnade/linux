@@ -4895,6 +4895,7 @@ int mxc_epdc_fb_probe(struct platform_device *pdev)
 	unsigned long x_mem_size = 0;
 	u32 val;
 	int irq;
+	struct device_node *np = pdev->dev.of_node;
 
 	fb_data = (struct mxc_epdc_fb_data *)framebuffer_alloc(
 			sizeof(struct mxc_epdc_fb_data), &pdev->dev);
@@ -4970,7 +4971,7 @@ int mxc_epdc_fb_probe(struct platform_device *pdev)
 				panel_str = opt;
 		}
 
-	if (!panel_str)
+	if (!panel_str && np)
 		of_property_read_string(np, "panel-name", &panel_str);
 
 	fb_data->dev = &pdev->dev;
