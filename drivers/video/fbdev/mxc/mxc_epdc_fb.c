@@ -5332,8 +5332,8 @@ int mxc_epdc_fb_probe(struct platform_device *pdev)
 		goto out_dma_work_buf;
 	}
 
-	info->fbdefio = &mxc_epdc_fb_defio;
 #ifdef CONFIG_FB_MXC_EINK_AUTO_UPDATE_MODE
+	info->fbdefio = &mxc_epdc_fb_defio;
 	fb_deferred_io_init(info);
 #endif
 
