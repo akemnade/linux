@@ -6196,7 +6196,7 @@ static int mxc_epdc_fb_probe(struct platform_device *pdev)
 				panel_str = opt;
 		}
 
-	if (!panel_str)
+	if (!panel_str && np)
 		of_property_read_string(np, "panel-name", &panel_str);
 
 	fb_data->dev = &pdev->dev;
