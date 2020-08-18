@@ -223,13 +223,13 @@ struct mxc_epdc_fb_data {
 	bool wv_modes_update;
 	bool waveform_is_advanced;
 	u32 *waveform_buffer_virt;
-	u32 waveform_buffer_phys;
+	dma_addr_t waveform_buffer_phys;
 	u32 waveform_buffer_size;
 	u32 *working_buffer_virt;
-	u32 working_buffer_phys;
+	dma_addr_t working_buffer_phys;
 	u32 working_buffer_size;
 	u32 *tmp_working_buffer_virt;
-	u32 tmp_working_buffer_phys;
+	dma_addr_t tmp_working_buffer_phys;
 	dma_addr_t *phys_addr_updbuf;
 	void **virt_addr_updbuf;
 	u32 upd_buffer_num;
