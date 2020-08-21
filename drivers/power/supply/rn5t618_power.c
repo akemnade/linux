@@ -49,11 +49,15 @@ struct rn5t618_power_info {
 };
 
 static enum power_supply_property rn5t618_usb_props[] = {
+	/* input current limit is not very accurate */
+	POWER_SUPPLY_PROP_INPUT_CURRENT_LIMIT,
 	POWER_SUPPLY_PROP_STATUS,
 	POWER_SUPPLY_PROP_ONLINE,
 };
 
 static enum power_supply_property rn5t618_adp_props[] = {
+	/* input current limit is not very accurate */
+	POWER_SUPPLY_PROP_INPUT_CURRENT_LIMIT,
 	POWER_SUPPLY_PROP_STATUS,
 	POWER_SUPPLY_PROP_ONLINE,
 };
@@ -342,6 +346,7 @@ static int rn5t618_adp_get_property(struct power_supply *psy,
 {
 	struct rn5t618_power_info *info = power_supply_get_drvdata(psy);
 	unsigned int chgstate;
+	unsigned int regval;
 	bool online;
 	int ret;
 
@@ -365,6 +370,47 @@ static int rn5t618_adp_get_property(struct power_supply *psy,
 			val->intval = POWER_SUPPLY_STATUS_NOT_CHARGING;
 
 		break;
+	case POWER_SUPPLY_PROP_INPUT_CURRENT_LIMIT:
+		ret = regmap_read(info->rn5t618->regmap,
+				  RN5T618_REGISET1, &regval);
+		if (ret < 0)
+			return ret;
+
+		val->intval = 1000 * 100 * (1 + (regval & CHG_STATE_MASK));
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+static int rn5t618_adp_set_property(struct power_supply *psy,
+				    enum power_supply_property psp,
+				    const union power_supply_propval *val)
+{
+	struct rn5t618_power_info *info = power_supply_get_drvdata(psy);
+	int ret;
+
+	switch (psp) {
+	case POWER_SUPPLY_PROP_INPUT_CURRENT_LIMIT:
+		if ((val->intval < 100000) || (val->intval > 1500000))
+			return -EINVAL;
+
+		/* input limit */
+		ret = regmap_write(info->rn5t618->regmap, RN5T618_REGISET1,
+				   0x00 | ((val->intval - 1) / 100000));
+		if (ret < 0)
+			return ret;
+
+		/* charge limit */
+		ret = regmap_update_bits(info->rn5t618->regmap,
+					 RN5T618_CHGISET,
+					 0x1F, ((val->intval - 1) / 100000));
+		if (ret < 0)
+			return ret;
+
+		break;
 	default:
 		return -EINVAL;
 	}
@@ -378,6 +424,7 @@ static int rn5t618_usb_get_property(struct power_supply *psy,
 {
 	struct rn5t618_power_info *info = power_supply_get_drvdata(psy);
 	unsigned int chgstate;
+	unsigned int regval;
 	bool online;
 	int ret;
 
@@ -401,11 +448,63 @@ static int rn5t618_usb_get_property(struct power_supply *psy,
 			val->intval = POWER_SUPPLY_STATUS_NOT_CHARGING;
 
 		break;
+	case POWER_SUPPLY_PROP_INPUT_CURRENT_LIMIT:
+		ret = regmap_read(info->rn5t618->regmap, RN5T618_REGISET2,
+				  &regval);
+		if (ret < 0)
+			return ret;
+
+		val->intval = 1000 * 100 * (1 + (regval & CHG_STATE_MASK));
+		break;
 	default:
 		return -EINVAL;
 	}
 
 	return 0;
+}
+
+static int rn5t618_usb_set_property(struct power_supply *psy,
+				    enum power_supply_property psp,
+				    const union power_supply_propval *val)
+{
+	struct rn5t618_power_info *info = power_supply_get_drvdata(psy);
+	int ret;
+
+	switch (psp) {
+	case POWER_SUPPLY_PROP_INPUT_CURRENT_LIMIT:
+		if ((val->intval < 100000) || (val->intval > 1500000))
+			return -EINVAL;
+
+		/* input limit */
+		ret = regmap_write(info->rn5t618->regmap, RN5T618_REGISET2,
+				   0xE0 | ((val->intval - 1) / 100000));
+		if (ret < 0)
+			return ret;
+
+		/* charge limit */
+		ret = regmap_update_bits(info->rn5t618->regmap,
+					 RN5T618_CHGISET,
+					 0x1F, ((val->intval - 1) / 100000));
+		if (ret < 0)
+			return ret;
+
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+static int rn5t618_usb_property_is_writeable(struct power_supply *psy,
+					     enum power_supply_property psp)
+{
+	switch (psp) {
+	case POWER_SUPPLY_PROP_INPUT_CURRENT_LIMIT:
+		return true;
+	default:
+		return false;
+	}
 }
 
 static const struct power_supply_desc rn5t618_battery_desc = {
@@ -422,6 +521,8 @@ static const struct power_supply_desc rn5t618_adp_desc = {
 	.properties             = rn5t618_adp_props,
 	.num_properties         = ARRAY_SIZE(rn5t618_adp_props),
 	.get_property           = rn5t618_adp_get_property,
+	.set_property           = rn5t618_adp_set_property,
+	.property_is_writeable  = rn5t618_usb_property_is_writeable,
 };
 
 static const struct power_supply_desc rn5t618_usb_desc = {
@@ -430,6 +531,8 @@ static const struct power_supply_desc rn5t618_usb_desc = {
 	.properties             = rn5t618_usb_props,
 	.num_properties         = ARRAY_SIZE(rn5t618_usb_props),
 	.get_property           = rn5t618_usb_get_property,
+	.set_property           = rn5t618_usb_set_property,
+	.property_is_writeable  = rn5t618_usb_property_is_writeable,
 };
 
 static irqreturn_t rn5t618_charger_irq(int irq, void *data)
