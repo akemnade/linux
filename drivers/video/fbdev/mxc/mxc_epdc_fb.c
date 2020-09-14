@@ -1352,7 +1352,7 @@ static inline bool epdc_is_collision(void)
 
 static inline u64 epdc_get_colliding_luts(int rev)
 {
-	u32 val = __raw_readl(EPDC_STATUS_COL);
+	u64 val = (u64)(__raw_readl(EPDC_STATUS_COL));
 	if (rev >= 20)
 		val |= (u64)__raw_readl(EPDC_STATUS_COL2) << 32;
 	return val;
