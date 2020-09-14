@@ -180,6 +180,7 @@ struct mxc_epdc_fb_data {
 	int trt_entries;
 	int temp_index;
 	u8 *temp_range_bounds;
+	int buf_pix_fmt;
 	struct mxcfb_waveform_modes wv_modes;
 	bool wv_modes_update;
 	u32 *waveform_buffer_virt;
@@ -1420,9 +1421,9 @@ static void epdc_init_settings(struct mxc_epdc_fb_data *fb_data)
 	reg_val |= EPDC_CTRL_LUT_DATA_SWIZZLE_NO_SWAP;
 	__raw_writel(reg_val, EPDC_CTRL_SET);
 
-	/* EPDC_FORMAT - 2bit TFT and 4bit Buf pixel format */
+	/* EPDC_FORMAT - 2bit TFT and buf_pix_fmt Buf pixel format */
 	reg_val = EPDC_FORMAT_TFT_PIXEL_FORMAT_2BIT
-	    | EPDC_FORMAT_BUF_PIXEL_FORMAT_P4N
+		| fb_data->buf_pix_fmt
 	    | ((0x0 << EPDC_FORMAT_DEFAULT_TFT_PIXEL_OFFSET) &
 	       EPDC_FORMAT_DEFAULT_TFT_PIXEL_MASK);
 	__raw_writel(reg_val, EPDC_FORMAT);
@@ -4729,6 +4730,14 @@ static void mxc_epdc_fb_fw_handler(const struct firmware *fw,
 
 	memcpy(fb_data->waveform_buffer_virt, (u8 *)(fw->data) + wv_data_offs,
 		fb_data->waveform_buffer_size);
+
+	/* Read field to determine if 4-bit or 5-bit mode */
+	if ((wv_file->wdh.luts & 0xC) == 0x4)
+		fb_data->buf_pix_fmt = EPDC_FORMAT_BUF_PIXEL_FORMAT_P5N;
+	else
+		fb_data->buf_pix_fmt = EPDC_FORMAT_BUF_PIXEL_FORMAT_P4N;
+
+	printk("EPDC pix format: %x\n", fb_data->buf_pix_fmt);
 
 	release_firmware(fw);
 
