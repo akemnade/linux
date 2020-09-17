@@ -2777,6 +2777,23 @@ static int epdc_submit_merge(struct update_desc_list *upd_desc_list,
 	return MERGE_OK;
 }
 
+static void epdc_clear_lower_nibble(u8 *buf, int x, int y, int w, int h, int stride)
+{
+	flush_cache_all();
+	if (stride == 0)
+		stride = w;
+
+	buf += y *stride;
+	buf += x;
+	for(y = 0; y < h; y++) {
+		for(x = 0; x < w; x++) {
+			buf[x] &= 0xF0;
+		}
+		buf += stride;
+	}
+	flush_cache_all();
+}
+
 static void epdc_submit_work_func(struct work_struct *work)
 {
 	int temp_index;
@@ -2790,6 +2807,7 @@ static void epdc_submit_work_func(struct work_struct *work)
 	bool end_merge = false;
 	bool is_transform;
 	u32 update_addr;
+	uint8_t *update_addr_virt;
 	int *err_dist;
 	int ret;
 
@@ -2959,6 +2977,9 @@ static void epdc_submit_work_func(struct work_struct *work)
 		update_addr = fb_data->info.fix.smem_start +
 			((upd_region->top * fb_data->info.var.xres_virtual) +
 			upd_region->left) * fb_data->info.var.bits_per_pixel/8;
+		update_addr_virt = (u8 *)(fb_data->info.screen_base) +
+			((upd_region->top * fb_data->info.var.xres_virtual) +
+			upd_region->left) * fb_data->info.var.bits_per_pixel/8;
 		upd_data_list->update_desc->epdc_stride =
 					fb_data->info.var.xres_virtual *
 					fb_data->info.var.bits_per_pixel/8;
@@ -2995,6 +3016,8 @@ static void epdc_submit_work_func(struct work_struct *work)
 		mutex_lock(&fb_data->queue_mutex);
 
 		update_addr = upd_data_list->phys_addr
+				+ upd_data_list->update_desc->epdc_offs;
+		update_addr_virt = ((u8 *) upd_data_list->virt_addr)
 				+ upd_data_list->update_desc->epdc_offs;
 	}
 
@@ -3158,6 +3181,13 @@ static void epdc_submit_work_func(struct work_struct *work)
 		epdc_set_temp(temp_index);
 	} else
 		epdc_set_temp(fb_data->temp_index);
+
+	epdc_clear_lower_nibble(update_addr_virt,
+			        0,
+				0,
+				adj_update_region.width,
+				adj_update_region.height,
+				upd_data_list->update_desc->epdc_stride);
 	epdc_set_update_addr(update_addr);
 	epdc_set_update_coord(adj_update_region.left, adj_update_region.top);
 	epdc_set_update_dimensions(adj_update_region.width,
@@ -3453,6 +3483,11 @@ static int mxc_epdc_fb_send_single_update(struct mxcfb_update_data *upd_data,
 	/* Clear status and Enable LUT complete and WB complete IRQs */
 	epdc_working_buf_intr(true);
 
+	epdc_clear_lower_nibble(((u8 *)upd_data_list->virt_addr) + upd_desc->epdc_offs,
+				0, 0,
+				screen_upd_region->width,
+		                screen_upd_region->height,
+				upd_desc->epdc_stride);
 	/* Program EPDC update to process buffer */
 	epdc_set_update_addr(upd_data_list->phys_addr + upd_desc->epdc_offs);
 	epdc_set_update_coord(screen_upd_region->left, screen_upd_region->top);
@@ -4590,6 +4625,11 @@ static void epdc_intr_work_func(struct work_struct *work)
 		epdc_set_temp(temp_index);
 	} else
 		epdc_set_temp(fb_data->temp_index);
+	epdc_clear_lower_nibble(((u8 *)fb_data->cur_update->virt_addr) +
+				fb_data->cur_update->update_desc->epdc_offs,
+				0, 0,
+				next_upd_region->width, next_upd_region->height,
+				fb_data->cur_update->update_desc->epdc_stride);
 	epdc_set_update_addr(fb_data->cur_update->phys_addr +
 				fb_data->cur_update->update_desc->epdc_offs);
 	epdc_set_update_coord(next_upd_region->left, next_upd_region->top);
@@ -4637,6 +4677,7 @@ static void draw_mode0(struct mxc_epdc_fb_data *fb_data)
 		yres = screeninfo->yres;
 	}
 
+	epdc_clear_lower_nibble((u8 *)upd_buf_ptr, 0, 0, xres, yres, 0);
 	/* Program EPDC update to process buffer */
 	epdc_set_update_addr(fb_data->phys_start);
 	epdc_set_update_coord(0, 0);
