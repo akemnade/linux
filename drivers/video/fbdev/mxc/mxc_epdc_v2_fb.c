@@ -4716,6 +4716,21 @@ static int mxc_epdc_fb_blank(int blank, struct fb_info *info)
 	case FB_BLANK_NORMAL:
 		mxc_epdc_fb_flush_updates(fb_data);
 		break;
+	case FB_BLANK_UNBLANK:
+		{
+			struct mxcfb_update_data update;
+			update.update_region.left = 0;
+			update.update_region.width = fb_data->epdc_fb_var.xres;
+			update.update_region.top = 0;
+			update.update_region.height = fb_data->epdc_fb_var.yres;
+			update.update_mode = UPDATE_MODE_FULL;
+			update.temp = TEMP_USE_AMBIENT;
+			update.update_marker = 0;
+			update.waveform_mode = WAVEFORM_MODE_AUTO;
+			update.flags = 0;
+			mxc_epdc_fb_send_update(&update, info);
+		}
+		break;
 	}
 	return 0;
 }
