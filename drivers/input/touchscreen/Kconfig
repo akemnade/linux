@@ -1413,28 +1413,4 @@ config TOUCHSCREEN_CYPRESS_CYTTSP5_I2C
           To compile this driver as a module, choose M here: the
           module will be called cyttsp5_i2c.
 
-choice
-        bool "Parade TrueTouch Gen5 MultiTouch Protocol"
-        depends on TOUCHSCREEN_CYPRESS_CYTTSP5
-        default TOUCHSCREEN_CYPRESS_CYTTSP5_MT_B
-        help
-          This option controls which MultiTouch protocol will be used to
-          report the touch events.
-
-config TOUCHSCREEN_CYPRESS_CYTTSP5_MT_A
-        bool "Protocol A"
-        help
-          Select to enable MultiTouch touch reporting using protocol A
-          on Parade TrueTouch(tm) Standard Product Generation4 touchscreen
-          controller.
-
-config TOUCHSCREEN_CYPRESS_CYTTSP5_MT_B
-        bool "Protocol B"
-        help
-          Select to enable MultiTouch touch reporting using protocol B
-          on Parade TrueTouch(tm) Standard Product Generation4 touchscreen
-          controller.
-
-endchoice
-
 endif
