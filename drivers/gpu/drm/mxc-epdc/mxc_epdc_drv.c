@@ -25,6 +25,8 @@
 #include <drm/drm_prime.h>
 #include <drm/drm_probe_helper.h>
 #include "mxc_epdc.h"
+#include "epdc_hw.h"
+#include "epdc_waveform.h"
 
 #define DRIVER_NAME "mxc_epdc"
 #define DRIVER_DESC "IMX EPDC"
@@ -142,8 +144,57 @@ int mxc_epdc_output(struct drm_device *drm)
 				 DRM_MODE_CONNECTOR_Unknown);
 	if (ret)
 		return ret;
-	ret = drm_panel_attach(priv->panel, &priv->connector);
+
+	ret = of_property_read_u32(drm->dev->of_node, "vscan_holdoff",
+				   &priv->imx_mode.vscan_holdoff);
+	if (ret)
+		return ret;
+
+	ret = of_property_read_u32(drm->dev->of_node, "sdoed_width",
+				   &priv->imx_mode.sdoed_width);
+	if (ret)
+		return ret;
+
+	ret = of_property_read_u32(drm->dev->of_node, "sdoed_delay",
+				   &priv->imx_mode.sdoed_delay);
+	if (ret)
+		return ret;
+
+	ret = of_property_read_u32(drm->dev->of_node, "sdoez_width",
+				   &priv->imx_mode.sdoez_width);
+	if (ret)
+		return ret;
+
+	ret = of_property_read_u32(drm->dev->of_node, "sdoez_delay",
+				   &priv->imx_mode.sdoez_delay);
+	if (ret)
+		return ret;
+
+	ret = of_property_read_u32(drm->dev->of_node, "gdclk_hp_offs",
+				   &priv->imx_mode.gdclk_hp_offs);
+	if (ret)
+		return ret;
+
+	ret = of_property_read_u32(drm->dev->of_node, "gdsp_offs",
+				   &priv->imx_mode.gdsp_offs);
+	if (ret)
+		return ret;
+
+	ret = of_property_read_u32(drm->dev->of_node, "gdoe_offs",
+				   &priv->imx_mode.gdoe_offs);
+	if (ret)
+		return ret;
+
+	ret = of_property_read_u32(drm->dev->of_node, "gdclk_offs",
+				   &priv->imx_mode.gdclk_offs);
+	if (ret)
+		return ret;
+
+	ret = of_property_read_u32(drm->dev->of_node, "num_ce",
+				   &priv->imx_mode.num_ce);
+
 	return ret;
+
 }
 
 static void mxc_epdc_pipe_enable(struct drm_simple_display_pipe *pipe,
@@ -154,6 +205,20 @@ static void mxc_epdc_pipe_enable(struct drm_simple_display_pipe *pipe,
 	struct drm_display_mode *m = &pipe->crtc.state->adjusted_mode;
 
 	dev_info(priv->drm.dev, "Mode: %d x %d\n", m->hdisplay, m->vdisplay);
+	        priv->epdc_mem_width = m->hdisplay;
+        priv->epdc_mem_height = m->vdisplay;
+        priv->epdc_mem_virt = dma_alloc_wc(priv->drm.dev,
+					   m->hdisplay * m->vdisplay,
+					   &priv->epdc_mem_phys, GFP_DMA | GFP_KERNEL);
+	priv->working_buffer_size = m->hdisplay * m->vdisplay * 2;
+	priv->working_buffer_virt =
+		dma_alloc_coherent(priv->drm.dev,
+				   priv->working_buffer_size,
+				   &priv->working_buffer_phys,
+				   GFP_DMA | GFP_KERNEL);
+
+	if (priv->working_buffer_virt && priv->epdc_mem_virt)
+		mxc_epdc_init_sequence(priv, m);
 }
 
 static void mxc_epdc_pipe_disable(struct drm_simple_display_pipe *pipe)
@@ -161,6 +226,19 @@ static void mxc_epdc_pipe_disable(struct drm_simple_display_pipe *pipe)
 	struct mxc_epdc *priv = drm_pipe_to_mxc_epdc(pipe);
 
 	dev_dbg(priv->drm.dev, "pipe disable\n");
+
+	if (priv->epdc_mem_virt) {
+		dma_free_wc(priv->drm.dev, priv->epdc_mem_width * priv->epdc_mem_height,
+			    priv->epdc_mem_virt, priv->epdc_mem_phys);
+		priv->epdc_mem_virt = NULL;
+	}
+
+	if (priv->working_buffer_virt) {
+		dma_free_wc(priv->drm.dev, priv->working_buffer_size,
+			    priv->working_buffer_virt,
+			    priv->working_buffer_phys);
+		priv->working_buffer_virt = NULL;
+	}
 }
 
 static void mxc_epdc_pipe_update(struct drm_simple_display_pipe *pipe,
@@ -204,6 +282,7 @@ static struct drm_driver mxc_epdc_driver = {
 static int mxc_epdc_probe(struct platform_device *pdev)
 {
 	struct mxc_epdc *priv;
+	const struct firmware *firmware;
 	int ret;
 
 	priv = devm_drm_dev_alloc(&pdev->dev, &mxc_epdc_driver, struct mxc_epdc, drm);
@@ -211,6 +290,19 @@ static int mxc_epdc_probe(struct platform_device *pdev)
 		return PTR_ERR(priv);
 
 	platform_set_drvdata(pdev, priv);
+
+	ret = mxc_epdc_init_hw(priv);
+	if (ret)
+		return ret;
+
+	ret = request_firmware(&firmware, "imx/epdc/epdc.fw", priv->drm.dev);
+	if (ret)
+		return ret;
+
+	ret = mxc_epdc_prepare_waveform(priv, firmware->data, firmware->size);
+	release_firmware(firmware);
+	if (ret)
+		return ret;
 
 	mxc_epdc_setup_mode_config(&priv->drm);
 
@@ -239,7 +331,6 @@ static int mxc_epdc_remove(struct platform_device *pdev)
 	drm_dev_unregister(&priv->drm);
 	drm_kms_helper_poll_fini(&priv->drm);
 	drm_mode_config_cleanup(&priv->drm);
-	drm_panel_detach(priv->panel);
 	return 0;
 }
 
