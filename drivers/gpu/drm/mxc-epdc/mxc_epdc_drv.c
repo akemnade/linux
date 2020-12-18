@@ -12,6 +12,7 @@
 #include <drm/drm_atomic.h>
 #include <drm/drm_atomic_helper.h>
 #include <drm/drm_crtc_helper.h>
+#include <drm/drm_damage_helper.h>
 #include <drm/drm_drv.h>
 #include <drm/drm_fb_cma_helper.h>
 #include <drm/drm_fb_helper.h>
@@ -26,6 +27,7 @@
 #include <drm/drm_probe_helper.h>
 #include "mxc_epdc.h"
 #include "epdc_hw.h"
+#include "epdc_update.h"
 #include "epdc_waveform.h"
 
 #define DRIVER_NAME "mxc_epdc"
@@ -37,31 +39,8 @@
 
 #define to_mxc_epdc(x) container_of(x, struct mxc_epdc, drm)
 
-int mxc_epdc_framebuffer_dirty(struct drm_framebuffer *fb,
-			      struct drm_file *file_priv, unsigned int flags,
-			      unsigned int color, struct drm_clip_rect *clips,
-			      unsigned int num_clips)
-{
-	return 0;
-}
-
-
-static const struct drm_framebuffer_funcs mxc_epdc_framebuffer_funcs = {
-	.create_handle = drm_gem_fb_create_handle,
-	.dirty = mxc_epdc_framebuffer_dirty,
-	.destroy = drm_gem_fb_destroy,
-};
-
-struct drm_framebuffer *mxc_epdc_fb_create(struct drm_device *dev, struct drm_file *file,
-						const struct drm_mode_fb_cmd2 *mode_cmd)
-{
-	return drm_gem_fb_create_with_funcs(dev, file, mode_cmd,
-					    &mxc_epdc_framebuffer_funcs);
-}
-
-
 static const struct drm_mode_config_funcs mxc_epdc_mode_config_funcs = {
-	.fb_create = mxc_epdc_fb_create,
+	.fb_create = drm_gem_fb_create_with_dirty,
 	.atomic_check	   = drm_atomic_helper_check,
 	.atomic_commit	  = drm_atomic_helper_commit,
 };
@@ -226,6 +205,7 @@ static void mxc_epdc_pipe_disable(struct drm_simple_display_pipe *pipe)
 	struct mxc_epdc *priv = drm_pipe_to_mxc_epdc(pipe);
 
 	dev_dbg(priv->drm.dev, "pipe disable\n");
+	mxc_epdc_flush_updates(priv);
 
 	if (priv->epdc_mem_virt) {
 		dma_free_wc(priv->drm.dev, priv->epdc_mem_width * priv->epdc_mem_height,
@@ -242,11 +222,56 @@ static void mxc_epdc_pipe_disable(struct drm_simple_display_pipe *pipe)
 }
 
 static void mxc_epdc_pipe_update(struct drm_simple_display_pipe *pipe,
-				   struct drm_plane_state *plane_state)
+				   struct drm_plane_state *old_state)
 {
 	struct mxc_epdc *priv = drm_pipe_to_mxc_epdc(pipe);
+	struct drm_gem_cma_object *gem;
+	struct drm_atomic_helper_damage_iter iter;
+        struct drm_rect clip;
 
-	dev_dbg(priv->drm.dev, "pipe update\n");
+	int i;
+
+	dev_dbg(priv->drm.dev,"pipe update\n");
+	if (!old_state->fb) {
+		dev_dbg(priv->drm.dev,"no fb, nothing to update\n");
+		return;
+	}
+
+	if (priv->epdc_mem_virt == NULL)
+		return;
+
+	gem = drm_fb_cma_get_gem_obj(old_state->fb, 0);
+        drm_atomic_helper_damage_iter_init(&iter, old_state, pipe->plane.state);
+	drm_atomic_for_each_plane_damage(&iter, &clip) {
+		struct mxcfb_update_data upd_region;
+		struct drm_rect clip_line;
+
+		/* ignore cursor update */
+		if (clip.x2 - clip.x1 == 8 && clip.y2 - clip.y1 == 16)
+			continue;
+		dev_dbg(priv->drm.dev, "damaged: %d,%d-%d,%d\n",
+			clip.x1, clip.y1, clip.x2, clip.y2);
+
+		clip_line.x1 = 0;
+		clip_line.x2 = priv->epdc_mem_width;
+		clip_line.y1 = clip.y1;
+		clip_line.y2 = clip.y2;
+		drm_fb_xrgb8888_to_gray8(((u8 *)priv->epdc_mem_virt) +
+					 clip.y1 * priv->epdc_mem_width,
+					 gem->vaddr, old_state->fb,
+					 &clip_line);
+		upd_region.update_region.left = clip.x1;
+		upd_region.update_region.top = clip.y1;
+		upd_region.update_region.width = clip.x2 - clip.x1;
+		upd_region.update_region.height = clip.y2 - clip.y1;
+		upd_region.waveform_mode = WAVEFORM_MODE_AUTO;
+		upd_region.temp = TEMP_USE_AMBIENT;
+		upd_region.update_mode = UPDATE_MODE_PARTIAL;
+		upd_region.flags = 0;
+		mxc_epdc_fb_send_single_update(&upd_region, priv);
+	}
+
+	return;
 }
 
 static const struct drm_simple_display_pipe_funcs mxc_epdc_funcs = {
@@ -295,6 +320,10 @@ static int mxc_epdc_probe(struct platform_device *pdev)
 	if (ret)
 		return ret;
 
+	ret = mxc_epdc_init_update(priv);
+	if (ret)
+		return ret;
+
 	ret = request_firmware(&firmware, "imx/epdc/epdc.fw", priv->drm.dev);
 	if (ret)
 		return ret;
@@ -315,6 +344,7 @@ static int mxc_epdc_probe(struct platform_device *pdev)
 				     ARRAY_SIZE(mxc_epdc_formats),
 				     NULL,
 				     &priv->connector);
+	drm_plane_enable_fb_damage_clips(&priv->pipe.plane);
 
 	drm_mode_config_reset(&priv->drm);
 
