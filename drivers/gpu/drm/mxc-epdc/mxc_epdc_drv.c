@@ -288,7 +288,6 @@ static const uint32_t mxc_epdc_formats[] = {
 static struct drm_driver mxc_epdc_driver = {
 	.driver_features = DRIVER_GEM | DRIVER_MODESET | DRIVER_ATOMIC,
 	.fops = &fops,
-	.gem_create_object = drm_gem_cma_create_object_default_funcs,
 	.dumb_create	    = drm_gem_cma_dumb_create,
 	.prime_handle_to_fd     = drm_gem_prime_handle_to_fd,
 	.prime_fd_to_handle     = drm_gem_prime_fd_to_handle,
