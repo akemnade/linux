@@ -121,6 +121,12 @@
 		interrupts = <11 IRQ_TYPE_EDGE_FALLING>;
 		system-power-controller;
 
+		power {
+			compatible = "ricoh,rn5t618-power";
+			io-channels = <&ricoh619_adc 2>, <&ricoh619_adc 3>;
+			io-channel-names = "vadp", "vusb";
+		};
+
 		regulators {
 			dcdc1_reg: DCDC1 {
 				regulator-name = "DCDC1";
@@ -268,6 +274,11 @@
 				regulator-name = "LDORTC1";
 				regulator-boot-on;
 			};
+		};
+
+		ricoh619_adc: adc {
+			compatible = "ricoh,rn5t618-adc";
+			#io-channel-cells = <1>;
 		};
 	};
 };
