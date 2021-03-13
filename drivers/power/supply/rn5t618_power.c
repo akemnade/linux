@@ -53,11 +53,19 @@ struct rn5t618_power_info {
 	int irq;
 };
 
+static enum power_supply_usb_type rn5t618_usb_types[] = {
+        POWER_SUPPLY_USB_TYPE_SDP,
+        POWER_SUPPLY_USB_TYPE_DCP,
+        POWER_SUPPLY_USB_TYPE_CDP,
+        POWER_SUPPLY_USB_TYPE_UNKNOWN
+};
+
 static enum power_supply_property rn5t618_usb_props[] = {
 	/* input current limit is not very accurate */
 	POWER_SUPPLY_PROP_INPUT_CURRENT_LIMIT,
 	POWER_SUPPLY_PROP_VOLTAGE_NOW,
 	POWER_SUPPLY_PROP_STATUS,
+	POWER_SUPPLY_PROP_USB_TYPE,
 	POWER_SUPPLY_PROP_ONLINE,
 };
 
@@ -473,6 +481,33 @@ static int rn5t618_usb_get_property(struct power_supply *psy,
 
 		val->intval = 1000 * 100 * (1 + (regval & CHG_STATE_MASK));
 		break;
+	case POWER_SUPPLY_PROP_USB_TYPE:
+		if (!online)
+			return -ENODATA;
+
+		ret = regmap_read(info->rn5t618->regmap, RN5T618_GCHGDET, &regval);
+		if (ret < 0)
+			return ret;
+
+		dev_info(&psy->dev,"GCHGDET: %x\n", regval);
+		if ((regval & 0x0C) != 0x08)
+			return -ENODATA;
+
+		switch (regval & 0x30) {
+			case 0x00:
+				val->intval = POWER_SUPPLY_USB_TYPE_SDP;
+				break;
+			case 0x10:
+				val->intval = POWER_SUPPLY_USB_TYPE_CDP;
+				break;
+			case 0x20:
+				val->intval = POWER_SUPPLY_USB_TYPE_DCP;
+				break;
+			default:
+				val->intval = POWER_SUPPLY_USB_TYPE_UNKNOWN;
+
+		}
+		break;
 	case POWER_SUPPLY_PROP_VOLTAGE_NOW:
 		if (!info->channel_vusb)
 			return -ENODATA;
@@ -555,6 +590,8 @@ static const struct power_supply_desc rn5t618_adp_desc = {
 static const struct power_supply_desc rn5t618_usb_desc = {
 	.name                   = "rn5t618-usb",
 	.type                   = POWER_SUPPLY_TYPE_USB,
+	.usb_types		= rn5t618_usb_types,
+        .num_usb_types		= ARRAY_SIZE(rn5t618_usb_types),
 	.properties             = rn5t618_usb_props,
 	.num_properties         = ARRAY_SIZE(rn5t618_usb_props),
 	.get_property           = rn5t618_usb_get_property,
