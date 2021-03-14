@@ -41,6 +41,10 @@
 
 #define FG_ENABLE 1
 
+#define TO_CUR_REG(x) ((x) / 100000 - 1)
+#define FROM_CUR_REG(x) ((((x) & 0x1f) + 1) * 100000)
+#define CHG_MIN_CUR 100000
+
 struct rn5t618_power_info {
 	struct rn5t618 *rn5t618;
 	struct platform_device *pdev;
@@ -49,7 +53,15 @@ struct rn5t618_power_info {
 	struct power_supply *adp;
 	struct iio_channel *channel_vusb;
 	struct iio_channel *channel_vadp;
+	struct work_struct work;
 	int irq;
+};
+
+static enum power_supply_usb_type rn5t618_usb_types[] = {
+        POWER_SUPPLY_USB_TYPE_SDP,
+        POWER_SUPPLY_USB_TYPE_DCP,
+        POWER_SUPPLY_USB_TYPE_CDP,
+        POWER_SUPPLY_USB_TYPE_UNKNOWN
 };
 
 static enum power_supply_property rn5t618_usb_props[] = {
@@ -57,6 +69,7 @@ static enum power_supply_property rn5t618_usb_props[] = {
 	POWER_SUPPLY_PROP_INPUT_CURRENT_LIMIT,
 	POWER_SUPPLY_PROP_VOLTAGE_NOW,
 	POWER_SUPPLY_PROP_STATUS,
+	POWER_SUPPLY_PROP_USB_TYPE,
 	POWER_SUPPLY_PROP_ONLINE,
 };
 
@@ -79,6 +92,8 @@ static enum power_supply_property rn5t618_battery_props[] = {
 	POWER_SUPPLY_PROP_TIME_TO_EMPTY_NOW,
 	POWER_SUPPLY_PROP_TIME_TO_FULL_NOW,
 	POWER_SUPPLY_PROP_TECHNOLOGY,
+	POWER_SUPPLY_PROP_CHARGE_CONTROL_LIMIT,
+//	POWER_SUPPLY_PROP_CHARGE_CONTROL_LIMIT_MAX,
 	POWER_SUPPLY_PROP_CHARGE_FULL,
 	POWER_SUPPLY_PROP_CHARGE_NOW,
 };
@@ -268,6 +283,36 @@ static int rn5t618_battery_ttf(struct rn5t618_power_info *info,
 	return 0;
 }
 
+static int rn5t618_battery_set_current_limit(struct rn5t618_power_info *info,
+				const union power_supply_propval *val)
+{
+	if (val->intval < CHG_MIN_CUR)
+		return -EINVAL;
+
+	if (val->intval >= 1600000)
+		return -EINVAL;
+
+	return regmap_update_bits(info->rn5t618->regmap,
+				  RN5T618_CHGISET,
+				  0x1F, TO_CUR_REG(val->intval));
+}
+
+static int rn5t618_battery_get_current_limit(struct rn5t618_power_info *info,
+				             union power_supply_propval *val)
+{
+	unsigned int regval;
+	int ret;
+
+	ret = regmap_read(info->rn5t618->regmap, RN5T618_CHGISET,
+			  &regval);
+	if (ret < 0)
+		return ret;
+
+	val->intval = FROM_CUR_REG(regval);
+
+	return 0;
+}
+
 static int rn5t618_battery_charge_full(struct rn5t618_power_info *info,
 				       union power_supply_propval *val)
 {
@@ -333,6 +378,9 @@ static int rn5t618_battery_get_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_TECHNOLOGY:
 		val->intval = POWER_SUPPLY_TECHNOLOGY_LION;
 		break;
+	case POWER_SUPPLY_PROP_CHARGE_CONTROL_LIMIT:
+		ret = rn5t618_battery_get_current_limit(info, val);
+		break;
 	case POWER_SUPPLY_PROP_CHARGE_FULL:
 		ret = rn5t618_battery_charge_full(info, val);
 		break;
@@ -344,6 +392,31 @@ static int rn5t618_battery_get_property(struct power_supply *psy,
 	}
 
 	return ret;
+}
+
+static int rn5t618_battery_set_property(struct power_supply *psy,
+					enum power_supply_property psp,
+					const union power_supply_propval *val)
+{
+	struct rn5t618_power_info *info = power_supply_get_drvdata(psy);
+
+	switch (psp) {
+	case POWER_SUPPLY_PROP_CHARGE_CONTROL_LIMIT:
+		return rn5t618_battery_set_current_limit(info, val);
+	default:
+		return -EINVAL;
+	}
+}
+
+static int rn5t618_battery_property_is_writeable(struct power_supply *psy,
+						enum power_supply_property psp)
+{
+	switch (psp) {
+	case POWER_SUPPLY_PROP_CHARGE_CONTROL_LIMIT:
+		return true;
+	default:
+		return false;
+	}
 }
 
 static int rn5t618_adp_get_property(struct power_supply *psy,
@@ -377,12 +450,20 @@ static int rn5t618_adp_get_property(struct power_supply *psy,
 
 		break;
 	case POWER_SUPPLY_PROP_INPUT_CURRENT_LIMIT:
-		ret = regmap_read(info->rn5t618->regmap,
-				  RN5T618_REGISET1, &regval);
+		ret = regmap_read(info->rn5t618->regmap, RN5T618_CHGCTL1,
+				  &regval);
 		if (ret < 0)
 			return ret;
 
-		val->intval = 1000 * 100 * (1 + (regval & CHG_STATE_MASK));
+		val->intval = 0;
+		if (regval & 1) {
+			ret = regmap_read(info->rn5t618->regmap,
+					  RN5T618_REGISET1, &regval);
+			if (ret < 0)
+				return ret;
+
+			val->intval = FROM_CUR_REG(regval);
+		}
 		break;
 	case POWER_SUPPLY_PROP_VOLTAGE_NOW:
 		if (!info->channel_vadp)
@@ -410,12 +491,24 @@ static int rn5t618_adp_set_property(struct power_supply *psy,
 
 	switch (psp) {
 	case POWER_SUPPLY_PROP_INPUT_CURRENT_LIMIT:
-		if ((val->intval < 100000) || (val->intval > 1500000))
+		if (val->intval > 1500000)
 			return -EINVAL;
+
+		if (val->intval < CHG_MIN_CUR) {
+			return regmap_update_bits(info->rn5t618->regmap,
+						  RN5T618_CHGCTL1,
+						  0x1, 0x0);
+		}
+
+		ret = regmap_update_bits(info->rn5t618->regmap,
+					 RN5T618_CHGCTL1,
+					 0x1, 0x1);
+		if (ret < 0)
+			return ret;
 
 		/* input limit */
 		ret = regmap_write(info->rn5t618->regmap, RN5T618_REGISET1,
-				   0x00 | ((val->intval - 1) / 100000));
+				   TO_CUR_REG(val->intval));
 		if (ret < 0)
 			return ret;
 
@@ -465,12 +558,48 @@ static int rn5t618_usb_get_property(struct power_supply *psy,
 
 		break;
 	case POWER_SUPPLY_PROP_INPUT_CURRENT_LIMIT:
-		ret = regmap_read(info->rn5t618->regmap, RN5T618_REGISET2,
+		ret = regmap_read(info->rn5t618->regmap, RN5T618_CHGCTL1,
 				  &regval);
 		if (ret < 0)
 			return ret;
 
-		val->intval = 1000 * 100 * (1 + (regval & CHG_STATE_MASK));
+		val->intval = 0;
+		if (regval & 2) {
+			ret = regmap_read(info->rn5t618->regmap,
+					  RN5T618_REGISET2,
+					  &regval);
+			if (ret < 0)
+				return ret;
+
+			val->intval = FROM_CUR_REG(regval);
+		}
+		break;
+	case POWER_SUPPLY_PROP_USB_TYPE:
+		if (!online)
+			return -ENODATA;
+
+		ret = regmap_read(info->rn5t618->regmap, RN5T618_GCHGDET, &regval);
+		if (ret < 0)
+			return ret;
+
+		dev_info(&psy->dev,"GCHGDET: %x\n", regval);
+		if ((regval & 0x0C) != 0x08)
+			return -ENODATA;
+
+		switch (regval & 0x30) {
+			case 0x00:
+				val->intval = POWER_SUPPLY_USB_TYPE_SDP;
+				break;
+			case 0x10:
+				val->intval = POWER_SUPPLY_USB_TYPE_CDP;
+				break;
+			case 0x20:
+				val->intval = POWER_SUPPLY_USB_TYPE_DCP;
+				break;
+			default:
+				val->intval = POWER_SUPPLY_USB_TYPE_UNKNOWN;
+
+		}
 		break;
 	case POWER_SUPPLY_PROP_VOLTAGE_NOW:
 		if (!info->channel_vusb)
@@ -498,12 +627,24 @@ static int rn5t618_usb_set_property(struct power_supply *psy,
 
 	switch (psp) {
 	case POWER_SUPPLY_PROP_INPUT_CURRENT_LIMIT:
-		if ((val->intval < 100000) || (val->intval > 1500000))
+		if (val->intval > 1500000)
 			return -EINVAL;
+
+		if (val->intval < CHG_MIN_CUR) {
+			return regmap_update_bits(info->rn5t618->regmap,
+						  RN5T618_CHGCTL1,
+						  0x2, 0x0);
+		}
+
+		ret = regmap_update_bits(info->rn5t618->regmap,
+					 RN5T618_CHGCTL1,
+					 0x2, 0x2);
+		if (ret < 0)
+			return ret;
 
 		/* input limit */
 		ret = regmap_write(info->rn5t618->regmap, RN5T618_REGISET2,
-				   0xE0 | ((val->intval - 1) / 100000));
+				   0xE0 | TO_CUR_REG(val->intval));
 		if (ret < 0)
 			return ret;
 
@@ -539,6 +680,8 @@ static const struct power_supply_desc rn5t618_battery_desc = {
 	.properties             = rn5t618_battery_props,
 	.num_properties         = ARRAY_SIZE(rn5t618_battery_props),
 	.get_property           = rn5t618_battery_get_property,
+	.set_property           = rn5t618_battery_set_property,
+	.property_is_writeable  = rn5t618_battery_property_is_writeable,
 };
 
 static const struct power_supply_desc rn5t618_adp_desc = {
@@ -554,12 +697,24 @@ static const struct power_supply_desc rn5t618_adp_desc = {
 static const struct power_supply_desc rn5t618_usb_desc = {
 	.name                   = "rn5t618-usb",
 	.type                   = POWER_SUPPLY_TYPE_USB,
+	.usb_types		= rn5t618_usb_types,
+        .num_usb_types		= ARRAY_SIZE(rn5t618_usb_types),
 	.properties             = rn5t618_usb_props,
 	.num_properties         = ARRAY_SIZE(rn5t618_usb_props),
 	.get_property           = rn5t618_usb_get_property,
 	.set_property           = rn5t618_usb_set_property,
 	.property_is_writeable  = rn5t618_usb_property_is_writeable,
 };
+
+static void rn5t618_irq_worker(struct work_struct *data)
+{
+        struct rn5t618_power_info *info = container_of(data,
+						struct rn5t618_power_info,
+						work);
+	power_supply_changed(info->usb);
+	power_supply_changed(info->adp);
+	power_supply_changed(info->battery);
+}
 
 static irqreturn_t rn5t618_charger_irq(int irq, void *data)
 {
@@ -580,10 +735,7 @@ static irqreturn_t rn5t618_charger_irq(int irq, void *data)
 
 	dev_dbg(dev, "chgerr: %x chgctrl: %x chgstat: %x chgstat2: %x\n",
 		err, ctrl, stat1, stat2);
-
-	power_supply_changed(info->usb);
-	power_supply_changed(info->adp);
-	power_supply_changed(info->battery);
+	schedule_work(&info->work);
 
 	return IRQ_HANDLED;
 }
@@ -604,6 +756,7 @@ static int rn5t618_power_probe(struct platform_device *pdev)
 	info->irq = -1;
 
 	platform_set_drvdata(pdev, info);
+	INIT_WORK(&info->work, rn5t618_irq_worker);
 
 	info->channel_vusb = devm_iio_channel_get(&pdev->dev, "vusb");
 	if (IS_ERR(info->channel_vusb)) {
