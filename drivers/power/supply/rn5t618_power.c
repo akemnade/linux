@@ -53,7 +53,6 @@ struct rn5t618_power_info {
 	struct power_supply *adp;
 	struct iio_channel *channel_vusb;
 	struct iio_channel *channel_vadp;
-	struct work_struct work;
 	int irq;
 };
 
@@ -706,16 +705,6 @@ static const struct power_supply_desc rn5t618_usb_desc = {
 	.property_is_writeable  = rn5t618_usb_property_is_writeable,
 };
 
-static void rn5t618_irq_worker(struct work_struct *data)
-{
-        struct rn5t618_power_info *info = container_of(data,
-						struct rn5t618_power_info,
-						work);
-	power_supply_changed(info->usb);
-	power_supply_changed(info->adp);
-	power_supply_changed(info->battery);
-}
-
 static irqreturn_t rn5t618_charger_irq(int irq, void *data)
 {
 	struct device *dev = data;
@@ -735,7 +724,10 @@ static irqreturn_t rn5t618_charger_irq(int irq, void *data)
 
 	dev_dbg(dev, "chgerr: %x chgctrl: %x chgstat: %x chgstat2: %x\n",
 		err, ctrl, stat1, stat2);
-	schedule_work(&info->work);
+
+	power_supply_changed(info->usb);
+	power_supply_changed(info->adp);
+	power_supply_changed(info->battery);
 
 	return IRQ_HANDLED;
 }
@@ -756,7 +748,6 @@ static int rn5t618_power_probe(struct platform_device *pdev)
 	info->irq = -1;
 
 	platform_set_drvdata(pdev, info);
-	INIT_WORK(&info->work, rn5t618_irq_worker);
 
 	info->channel_vusb = devm_iio_channel_get(&pdev->dev, "vusb");
 	if (IS_ERR(info->channel_vusb)) {
