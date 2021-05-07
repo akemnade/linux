@@ -95,7 +95,7 @@
 	V3P3-supply = <&V3P3_reg>;      
 	VCOM-supply = <&VCOM_reg>;      
 	DISPLAY-supply = <&DISPLAY_reg>; 
-	TMST-supply = <&TMST_reg>; 
+	epd-thermal-zone = "epd-thermal";
 
 	vscan_holdoff = <4>;
 	sdoed_width = <10>;
