@@ -70,6 +70,18 @@ int mxc_epdc_fb_get_temp_index(struct mxc_epdc *priv, int temp)
 	int i;
 	int index = -1;
 
+	if (temp == TEMP_USE_AMBIENT) {
+		if (priv->thermal) {
+			if (thermal_zone_get_temp(priv->thermal, &temp)) {
+				dev_err(priv->drm.dev,
+					"reading temperature failed");
+				return DEFAULT_TEMP_INDEX;
+			}
+			temp /= 1000;
+		} else
+			temp = DEFAULT_TEMP;
+	}
+
 	if (priv->trt_entries == 0) {
 		dev_err(priv->drm.dev,
 			"No TRT exists...using default temp index\n");

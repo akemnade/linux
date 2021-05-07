@@ -4,6 +4,7 @@
 #include <drm/drm_drv.h>
 #include <drm/drm_connector.h>
 #include <drm/drm_simple_kms_helper.h>
+#include <linux/thermal.h>
 #include "epdc_regs.h"
 
 struct mxcfb_rect {
@@ -178,6 +179,7 @@ struct mxc_epdc {
 	bool waiting_for_wb;
 	bool waiting_for_lut;
 	struct completion update_res_free;
+	struct thermal_zone_device *thermal;
 };
 
 static inline u32 epdc_read(struct mxc_epdc *priv, u32 reg)

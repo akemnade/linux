@@ -784,13 +784,10 @@ static void epdc_submit_work_func(struct work_struct *work)
 	/* Enable Collision and WB complete IRQs */
 	epdc_working_buf_intr(priv, true);
 
+        epdc_write(priv, EPDC_TEMP,
+                   mxc_epdc_fb_get_temp_index(priv, TEMP_USE_AMBIENT));
+
 	/* Program EPDC update to process buffer */
-	if (upd_data_list->update_desc->upd_data.temp != TEMP_USE_AMBIENT) {
-		temp_index = mxc_epdc_fb_get_temp_index(priv,
-			upd_data_list->update_desc->upd_data.temp);
-		epdc_write(priv, EPDC_TEMP, temp_index);
-	} else
-		epdc_write(priv, EPDC_TEMP, priv->temp_index);
 
 	epdc_clear_lower_nibble(update_addr_virt,
 				0,

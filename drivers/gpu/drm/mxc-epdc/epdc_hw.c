@@ -223,7 +223,8 @@ void epdc_init_settings(struct mxc_epdc *priv, struct drm_display_mode *m)
 	epdc_write(priv, EPDC_FIFOCTRL, reg_val);
 
 	/* EPDC_TEMP - Use default temp to get index */
-	epdc_write(priv, EPDC_TEMP, mxc_epdc_fb_get_temp_index(priv, 20));
+	epdc_write(priv, EPDC_TEMP,
+		   mxc_epdc_fb_get_temp_index(priv, TEMP_USE_AMBIENT));
 
 	/* EPDC_RES */
 	epdc_set_screen_res(priv, m->hdisplay, m->vdisplay);
@@ -421,6 +422,7 @@ void mxc_epdc_init_sequence(struct mxc_epdc *priv,struct drm_display_mode *m)
 int mxc_epdc_init_hw(struct mxc_epdc *priv)
 {
         struct pinctrl *pinctrl;
+	const char *thermal = NULL;
 	u32 val;
 
 	/* get pmic regulators */
@@ -439,6 +441,14 @@ int mxc_epdc_init_hw(struct mxc_epdc *priv)
 		return dev_err_probe(priv->drm.dev, PTR_ERR(priv->vcom_regulator),
 				     "Unable to get V3P3 regulator\n");
 
+	of_property_read_string(priv->drm.dev->of_node,
+				"epd-thermal-zone", &thermal);
+	if (thermal) {
+		priv->thermal = thermal_zone_get_zone_by_name(thermal);
+		if (IS_ERR(priv->thermal))
+			return dev_err_probe(priv->drm.dev, PTR_ERR(priv->thermal),
+					     "unable to get thermal");
+	}
 	priv->iobase = devm_platform_get_and_ioremap_resource(to_platform_device(priv->drm.dev), 0, NULL);
 	if (priv->iobase == NULL)
 		return -ENOMEM;
