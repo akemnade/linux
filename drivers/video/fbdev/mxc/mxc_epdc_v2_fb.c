@@ -3333,7 +3333,7 @@ static int epdc_process_update(struct update_data_list *upd_data_list,
 #endif
 	pr_debug(" upd_data.dither_mode %d  \n", upd_desc_list->upd_data.dither_mode);
 	fb_data->pxp_conf.proc_data.dither_mode = 0;
-
+#if 0
 	/* Dithering */
 	if ((EPDC_FLAG_USE_DITHERING_PASSTHROUGH < upd_desc_list->upd_data.dither_mode) &&
 		(upd_desc_list->upd_data.dither_mode < EPDC_FLAG_USE_DITHERING_MAX)) {
@@ -3364,6 +3364,7 @@ static int epdc_process_update(struct update_data_list *upd_data_list,
 		}
 
 	}
+#endif
 
 #ifdef MXCFB_WAVEFORM_MODES_NTX//[
 	fb_data->pxp_conf.proc_data.reagl_d_en =
