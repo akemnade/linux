@@ -4587,6 +4587,7 @@ static void mxc_epdc_fb_update_pages(struct mxc_epdc_fb_data *fb_data,
 	update.update_marker = 0;
 	update.temp = TEMP_USE_AMBIENT;
 	update.flags = 0;
+	update.dither_mode = 0;
 
 	mxc_epdc_fb_send_update(&update, &fb_data->info);
 }
