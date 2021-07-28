@@ -2833,7 +2833,15 @@ static int mxc_epdc_fb_get_temp_index(struct mxc_epdc_fb_data *fb_data, int temp
 
 	if (index < 0) {
 		dev_err(fb_data->dev,
-			"No TRT index match...using default temp index\n");
+			"No TRT index match (%d)\n", temp);
+		if (temp < fb_data->temp_range_bounds[0]) {
+			dev_dbg(fb_data->dev, "temperature < minimum range\n");
+			return 0;
+		}
+		if (temp >= fb_data->temp_range_bounds[fb_data->trt_entries-1]) {
+			dev_dbg(fb_data->dev, "temperature >= maximum range\n");
+			return (fb_data->trt_entries-1);
+		}
 		return DEFAULT_TEMP_INDEX;
 	}
 
