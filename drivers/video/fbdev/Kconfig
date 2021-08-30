@@ -2238,3 +2238,4 @@ config FB_SM712
 source "drivers/video/fbdev/omap/Kconfig"
 source "drivers/video/fbdev/omap2/Kconfig"
 source "drivers/video/fbdev/mmp/Kconfig"
+source "drivers/video/fbdev/mxc/Kconfig"
