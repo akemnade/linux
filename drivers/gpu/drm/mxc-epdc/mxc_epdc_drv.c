@@ -229,7 +229,6 @@ static void mxc_epdc_pipe_update(struct drm_simple_display_pipe *pipe,
 	struct drm_atomic_helper_damage_iter iter;
         struct drm_rect clip;
 
-	int i;
 
 	dev_dbg(priv->drm.dev,"pipe update\n");
 	if (!old_state->fb) {
@@ -245,6 +244,8 @@ static void mxc_epdc_pipe_update(struct drm_simple_display_pipe *pipe,
 	drm_atomic_for_each_plane_damage(&iter, &clip) {
 		struct mxcfb_update_data upd_region;
 		struct drm_rect clip_line;
+		u8 *dst;
+		int y;
 
 		/* ignore cursor update */
 		if (clip.x2 - clip.x1 == 8 && clip.y2 - clip.y1 == 16)
@@ -252,14 +253,18 @@ static void mxc_epdc_pipe_update(struct drm_simple_display_pipe *pipe,
 		dev_dbg(priv->drm.dev, "damaged: %d,%d-%d,%d\n",
 			clip.x1, clip.y1, clip.x2, clip.y2);
 
-		clip_line.x1 = 0;
-		clip_line.x2 = priv->epdc_mem_width;
-		clip_line.y1 = clip.y1;
-		clip_line.y2 = clip.y2;
-		drm_fb_xrgb8888_to_gray8(((u8 *)priv->epdc_mem_virt) +
-					 clip.y1 * priv->epdc_mem_width,
-					 gem->vaddr, old_state->fb,
-					 &clip_line);
+		dst = priv->epdc_mem_virt;
+		dst += clip.y1 * priv->epdc_mem_width + clip.x1;
+		for(y = clip.y1; y < clip.y2 ; y++) {
+			clip_line.x1 = clip.x1;
+			clip_line.x2 = clip.x2;
+			clip_line.y1 = y;
+			clip_line.y2 = y + 1;
+			drm_fb_xrgb8888_to_gray8(dst,
+					 	 gem->vaddr, old_state->fb,
+					 	 &clip_line);
+			dst += priv->epdc_mem_width;
+		}
 		upd_region.update_region.left = clip.x1;
 		upd_region.update_region.top = clip.y1;
 		upd_region.update_region.width = clip.x2 - clip.x1;
