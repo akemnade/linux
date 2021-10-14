@@ -1980,6 +1980,15 @@ config SENSORS_INA3221
 	  This driver can also be built as a module. If so, the module
 	  will be called ina3221.
 
+config SENSORS_SY7636
+	tristate "Selergy SY7636 EPD temperature sensor"
+	depends on I2C
+	help
+	  If you say yes here you get support for SY7636 PMIC sensor.
+
+	  This driver can also be built as a module.  If so, the module
+	  will be called sy7636_sensor.
+
 config SENSORS_TC74
 	tristate "Microchip TC74"
 	depends on I2C
