@@ -789,12 +789,6 @@ static void epdc_submit_work_func(struct work_struct *work)
 
 	/* Program EPDC update to process buffer */
 
-	epdc_clear_lower_nibble(update_addr_virt,
-				0,
-				0,
-				adj_update_region.width,
-				adj_update_region.height,
-				upd_data_list->update_desc->epdc_stride);
 	epdc_set_update_area(priv, update_addr,
 			     adj_update_region.left, adj_update_region.top,
 			     adj_update_region.width, adj_update_region.height,
@@ -938,6 +932,13 @@ int mxc_epdc_fb_send_single_update(struct mxcfb_update_data *upd_data,
 			"Aborting update.\n");
 		return -EINVAL;
 	}
+
+	epdc_clear_lower_nibble(priv->epdc_mem_virt,
+				upd_data->update_region.left,
+				upd_data->update_region.top,
+				upd_data->update_region.width,
+				upd_data->update_region.height,
+				priv->epdc_mem_width);
 
 	/*
 	 * If we are waiting to go into suspend, or the FB is blanked,
@@ -1636,11 +1637,7 @@ static void epdc_intr_work_func(struct work_struct *work)
 		epdc_write(priv, EPDC_TEMP, temp_index);
 	} else
 		epdc_write(priv, EPDC_TEMP, priv->temp_index);
-	epdc_clear_lower_nibble(((u8 *)priv->cur_update->virt_addr) +
-				priv->cur_update->update_desc->epdc_offs,
-				0, 0,
-				next_upd_region->width, next_upd_region->height,
-				priv->cur_update->update_desc->epdc_stride);
+
 	epdc_set_update_area(priv, priv->cur_update->phys_addr +
 			     priv->cur_update->update_desc->epdc_offs,
 			     next_upd_region->left, next_upd_region->top,
