@@ -113,6 +113,7 @@ int sy7636_get_temperature(struct sy7636 *sy7636,int *O_piTemperature)
 	
 	return 0;
 }
+EXPORT_SYMBOL(sy7636_get_temperature);
 
 
 /*
@@ -206,6 +207,7 @@ int sy7636_set_vcom(struct sy7636 *sy7636,int iVCOMmV,int iIsWriteToFlash)
 	//printk("%s(%d);\n",__FUNCTION__,__LINE__);
 	return iRet;
 }
+EXPORT_SYMBOL(sy7636_set_vcom);
 
 int sy7636_get_vcom(struct sy7636 *sy7636,int *O_piVCOMmV)
 {
@@ -268,6 +270,7 @@ int sy7636_get_vcom(struct sy7636 *sy7636,int *O_piVCOMmV)
 	//printk("%s(%d);\n",__FUNCTION__,__LINE__);
 	return 0;
 }
+EXPORT_SYMBOL(sy7636_get_vcom);
 
 static ssize_t show_vcom(struct device *dev,
 	struct device_attribute *attr, char *buf)
@@ -359,17 +362,7 @@ static int sy7636_sensor_remove(struct platform_device *pdev)
 	return 0;
 }
 
-static int __init sensors_sy7636_init(void)
-{
-	return platform_driver_register(&sy7636_sensor_driver);
-}
-module_init(sensors_sy7636_init);
-
-static void __exit sensors_sy7636_exit(void)
-{
-	platform_driver_unregister(&sy7636_sensor_driver);
-}
-module_exit(sensors_sy7636_exit);
+module_platform_driver(sy7636_sensor_driver);
 
 MODULE_DESCRIPTION("SY7636 sensor driver");
 MODULE_LICENSE("GPL");
