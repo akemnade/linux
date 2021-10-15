@@ -387,6 +387,7 @@ static int epdc_submit_merge(struct update_desc_list *upd_desc_list,
 	return MERGE_OK;
 }
 
+/* done in Tolino 3.0.x kernels via PXP_LUT_AA */
 static void epdc_clear_lower_nibble(u8 *buf, int x, int y, int w, int h, int stride)
 {
 	flush_cache_all();
@@ -398,6 +399,24 @@ static void epdc_clear_lower_nibble(u8 *buf, int x, int y, int w, int h, int str
 	for (y = 0; y < h; y++) {
 		for (x = 0; x < w; x++) {
 			buf[x] &= 0xF0;
+		}
+		buf += stride;
+	}
+	flush_cache_all();
+}
+
+/* found by experimentation, reduced number of levels of gray */
+static void epdc_shift2(u8 *buf, int x, int y, int w, int h, int stride)
+{
+	flush_cache_all();
+	if (stride == 0)
+		stride = w;
+
+	buf += y * stride;
+	buf += x;
+	for (y = 0; y < h; y++) {
+		for (x = 0; x < w; x++) {
+			buf[x] = (buf[x] << 2) | 0xC0;
 		}
 		buf += stride;
 	}
@@ -789,12 +808,6 @@ static void epdc_submit_work_func(struct work_struct *work)
 
 	/* Program EPDC update to process buffer */
 
-	epdc_clear_lower_nibble(update_addr_virt,
-				0,
-				0,
-				adj_update_region.width,
-				adj_update_region.height,
-				upd_data_list->update_desc->epdc_stride);
 	epdc_set_update_area(priv, update_addr,
 			     adj_update_region.left, adj_update_region.top,
 			     adj_update_region.width, adj_update_region.height,
@@ -872,7 +885,11 @@ void mxc_epdc_draw_mode0(struct mxc_epdc *priv)
 	xres = priv->epdc_mem_width;
 	yres = priv->epdc_mem_height;
 
-	epdc_clear_lower_nibble((u8 *)upd_buf_ptr, 0, 0, xres, yres, 0);
+	if (priv->rev < 30) {
+		epdc_clear_lower_nibble((u8 *)upd_buf_ptr, 0, 0, xres, yres, 0);
+	} else {
+		epdc_shift2((u8 *)upd_buf_ptr, 0, 0, xres, yres, 0);
+	}
 	/* Program EPDC update to process buffer */
 	epdc_set_update_area(priv, priv->epdc_mem_phys, 0, 0, xres, yres, 0);
 	epdc_submit_update(priv, 0, priv->wv_modes.mode_init, UPDATE_MODE_FULL,
@@ -938,6 +955,13 @@ int mxc_epdc_fb_send_single_update(struct mxcfb_update_data *upd_data,
 			"Aborting update.\n");
 		return -EINVAL;
 	}
+
+	epdc_clear_lower_nibble(priv->epdc_mem_virt,
+				upd_data->update_region.left,
+				upd_data->update_region.top,
+				upd_data->update_region.width,
+				upd_data->update_region.height,
+				priv->epdc_mem_width);
 
 	/*
 	 * If we are waiting to go into suspend, or the FB is blanked,
@@ -1636,11 +1660,7 @@ static void epdc_intr_work_func(struct work_struct *work)
 		epdc_write(priv, EPDC_TEMP, temp_index);
 	} else
 		epdc_write(priv, EPDC_TEMP, priv->temp_index);
-	epdc_clear_lower_nibble(((u8 *)priv->cur_update->virt_addr) +
-				priv->cur_update->update_desc->epdc_offs,
-				0, 0,
-				next_upd_region->width, next_upd_region->height,
-				priv->cur_update->update_desc->epdc_stride);
+
 	epdc_set_update_area(priv, priv->cur_update->phys_addr +
 			     priv->cur_update->update_desc->epdc_offs,
 			     next_upd_region->left, next_upd_region->top,
