@@ -30,14 +30,10 @@
 #include <linux/regulator/of_regulator.h>
 #include <linux/mfd/sy7636.h>
 #include <linux/gpio.h>
-#include <linux/pmic_status.h>
 #include <linux/of_gpio.h>
 
 #include <linux/input.h>
 
-
-#define GDEBUG 0
-#include <linux/gallen_dbg.h>
 
 #define SY7636_V3P3_ENABLE		1
 
@@ -54,15 +50,6 @@ static int sy7636_vcom = { -2500000 };
 static int sy7636_is_power_good(struct sy7636 *sy7636);
 
 static int _sy7636_rals_onoff(struct sy7636 *sy7636,int iIsON);
-
-
-static uint32_t getDiffuS(struct timeval *tvEnd,struct timeval *tvBegin) 
-{
-	uint32_t dwDiffus = (tvEnd->tv_sec-tvBegin->tv_sec)*1000000;
-	dwDiffus += (tvEnd->tv_usec);
-	dwDiffus -= (tvBegin->tv_usec);
-  return (uint32_t) (dwDiffus); // ms
-}
 
 
 static ssize_t sy7636_powerup_read(struct device *dev, struct device_attribute *attr,char *buf)
@@ -161,9 +148,6 @@ static int _sy7636_vcom_set_voltage(struct sy7636 *sy7636,
 	unsigned int new_reg_val; /* new register value to write */
 	int retval;
 
-	dbgENTER();
-	
-
 	if(sy7636_set_vcom(sy7636,uV/1000,0)<0) {
 		retval = -1;
 	}
@@ -172,9 +156,7 @@ static int _sy7636_vcom_set_voltage(struct sy7636 *sy7636,
 		sy7636->vcom_uV = uV;
 	}
 
-	dbgLEAVE();
 	return retval;
-
 }
 
 static int sy7636_vcom_set_voltage(struct regulator_dev *reg,
@@ -191,16 +173,11 @@ static int _sy7636_vcom_get_voltage(struct sy7636 *sy7636,
 	int vcomValue;
 	int iVCOMmV;
 
-
-	dbgENTER();
-
-	
 	sy7636_get_vcom(sy7636,&iVCOMmV);
 
 	vcomValue = iVCOMmV*1000;
 	printk("%s() : vcom=%duV\n",__FUNCTION__,vcomValue);
 	
-	dbgLEAVE();
 	return vcomValue;
 }
 static int sy7636_vcom_get_voltage(struct regulator_dev *reg)
@@ -214,7 +191,6 @@ static int sy7636_vcom_enable(struct regulator_dev *reg)
 	struct sy7636 *sy7636 = rdev_get_drvdata(reg);
 	unsigned int cur_reg_val; /* current register value */
 
-	dbgENTER();
 	/*
 	 * Check to see if we need to set the VCOM voltage.
 	 * Should only be done one time. And, we can
@@ -233,8 +209,6 @@ static int sy7636_vcom_enable(struct regulator_dev *reg)
 		printk("%s vcom controlled autimatically \n",__FUNCTION__);
 	}
 
-
-	dbgLEAVE();
 	return 0;
 }
 
@@ -242,7 +216,6 @@ static int sy7636_vcom_disable(struct regulator_dev *reg)
 {
 	struct sy7636 *sy7636 = rdev_get_drvdata(reg);
 
-	dbgENTER();
 #ifdef SY7636_VCOM_EXTERNAL//[
 	if (gpio_is_valid(sy7636->gpio_pmic_vcom_ctrl)) {
 		// vcom controlled by external . 
@@ -254,7 +227,6 @@ static int sy7636_vcom_disable(struct regulator_dev *reg)
 		printk("%s vcom controlled autimatically \n",__FUNCTION__);
 	}
 
-	dbgLEAVE();
 	return 0;
 }
 
@@ -293,13 +265,13 @@ static void sy7636_int_func(struct work_struct *work)
 
 	iChk = sy7636_get_power_status(sy7636,0,0,&bFaults);
 	if(iChk<0) {
-		ERR_MSG("%s(),get power status failed !\n",__FUNCTION__);
+		dev_err(sy7636->dev, "%s(),get power status failed !\n",__FUNCTION__);
 		return ;
 	}
 
 	if(bFaults) {
-		printk(KERN_ERR"SY7636 faults occured !!,faults=0x%x\n",bFaults);
-		sy7636->int_state = MSC_RAW_EPD_UNKOWN_ERROR;
+		dev_err(sy7636->dev, "SY7636 faults occured !!,faults=0x%x\n",bFaults);
+		/* sy7636->int_state = MSC_RAW_EPD_UNKOWN_ERROR; */
 #ifdef SY7636_VDROP_PROC_IN_KERNEL//[
 #else //][!SY7636_VDROP_PROC_IN_KERNEL
 		ntx_report_event(EV_MSC,MSC_RAW,sy7636->int_state);
@@ -380,14 +352,14 @@ static int sy7636_wait_power_good(struct sy7636 *sy7636,int iWaitON)
 
 			if (iPG) {
 				iRet = 0;
-				DBG_MSG("%s():cnt=%d,PG=%d,%d,faults=0x%x\n",__FUNCTION__,i,gpio_get_value(sy7636->gpio_pmic_pwrgood),iPG,bFaults);
+				dev_dbg(sy7636->dev, "%s():cnt=%d,PG=%d,%d,faults=0x%x\n",__FUNCTION__,i,gpio_get_value(sy7636->gpio_pmic_pwrgood),iPG,bFaults);
 				break;
 			}
 
 		}
 		else {
 			if (!sy7636_is_power_good(sy7636)) {
-				DBG_MSG("%s():cnt=%d,PG=%d\n",__FUNCTION__,i,gpio_get_value(sy7636->gpio_pmic_pwrgood));
+				dev_dbg(sy7636->dev, "%s():cnt=%d,PG=%d\n",__FUNCTION__,i,gpio_get_value(sy7636->gpio_pmic_pwrgood));
 				iRet = 0;
 				break;
 			}
@@ -397,7 +369,7 @@ static int sy7636_wait_power_good(struct sy7636 *sy7636,int iWaitON)
 
 
 	if(iRet<0) {
-		printk(KERN_ERR"%s():waiting(%d) for PG(%d) timeout\n",__FUNCTION__,i,gpio_get_value(sy7636->gpio_pmic_pwrgood));
+		dev_err(sy7636->dev, "%s():waiting(%d) for PG(%d) timeout\n",__FUNCTION__,i,gpio_get_value(sy7636->gpio_pmic_pwrgood));
 	}
 
 	return iRet;
@@ -412,7 +384,7 @@ static int _sy7636_rals_onoff(struct sy7636 *sy7636,int iIsON)
 	int iChk;
 
 	if(!sy7636) {
-		ERR_MSG("%s() : error object !\n",__FUNCTION__);
+		pr_err("%s() : error object !\n",__FUNCTION__);
 		return -1;
 	}
 
@@ -425,13 +397,13 @@ static int _sy7636_rals_onoff(struct sy7636 *sy7636,int iIsON)
 		/*
 		if( BITFEXT(bOP,RAILS_ON) && BITFEXT(bOP,RAILS_DISABLE)!=0 ) 
 		{
-			DBG_MSG("%s() : SY7636 says rails already on,op=0x%x \n",
+			dev_dbg(sy7636->dev, "%s() : SY7636 says rails already on,op=0x%x \n",
 					__FUNCTION__,bOP);
 #if 0
 			if(gpio_get_value(sy7636->gpio_pmic_powerup)==0) {
 				WARNING_MSG("%s() : But powerup gpio is low \n",__FUNCTION__);
 
-				DBG_MSG("%s() : powerup set 1 automatically \n",__FUNCTION__);
+				dev_dbg(sy7636->dev, "%s() : powerup set 1 automatically \n",__FUNCTION__);
 				gpio_set_value(sy7636->gpio_pmic_powerup,1);sy7636->gpio_pmic_powerup_stat = 1;
 			}
 #endif
@@ -458,7 +430,7 @@ static int _sy7636_rals_onoff(struct sy7636 *sy7636,int iIsON)
 				fld_val |= BITFVAL(VCOM_MANUAL,false);
 			}
 			new_reg_val = sy7636_to_reg_val(cur_reg_val, fld_mask, fld_val);
-			DBG_MSG("%s() : set SY7636 OP mode ON 0x%x->0x%x \n",
+			dev_dbg(sy7636->dev, "%s() : set SY7636 OP mode ON 0x%x->0x%x \n",
 					__FUNCTION__,cur_reg_val,new_reg_val);
 
 			SY7636_REG_SET(sy7636,OPMODE,new_reg_val);
@@ -468,14 +440,14 @@ static int _sy7636_rals_onoff(struct sy7636 *sy7636,int iIsON)
 	else {
 #if 0
 		if(!BITFEXT(bOP,RAILS_ON)||BITFEXT(bOP,RAILS_DISABLE)) {
-			DBG_MSG("%s() : SY7636 says rails already off,OP=0x%x \n",
+			dev_dbg(sy7636->dev, "%s() : SY7636 says rails already off,OP=0x%x \n",
 					__FUNCTION__,bOP);
 
 #if 0
 			if(gpio_get_value(sy7636->gpio_pmic_powerup)==1) {
 				WARNING_MSG("%s() : But powerup gpio is high \n",__FUNCTION__);
 
-				DBG_MSG("%s() : powerup set 0 automatically \n",__FUNCTION__);
+				dev_dbg(sy7636->dev, "%s() : powerup set 0 automatically \n",__FUNCTION__);
 				gpio_set_value(sy7636->gpio_pmic_powerup,0);sy7636->gpio_pmic_powerup_stat = 0;
 			}
 #endif
@@ -501,7 +473,7 @@ static int _sy7636_rals_onoff(struct sy7636 *sy7636,int iIsON)
 			}
 
 			new_reg_val = sy7636_to_reg_val(cur_reg_val, fld_mask, fld_val);
-			DBG_MSG("%s() : set SY7636 OP mode OFF 0x%x->0x%x \n",
+			dev_dbg(sy7636->dev, "%s() : set SY7636 OP mode OFF 0x%x->0x%x \n",
 					__FUNCTION__,cur_reg_val,new_reg_val);
 			SY7636_REG_SET(sy7636,OPMODE,new_reg_val);
 			SY7636_REG_WRITE(sy7636,OPMODE);
@@ -522,9 +494,6 @@ static int sy7636_display_enable(struct regulator_dev *reg)
 	int iRet;
 	int iTryCnt=0;
 
-	dbgENTER();
-
-
 	do {
 		++iTryCnt;
 		_sy7636_rals_onoff(sy7636,1);
@@ -543,7 +512,6 @@ static int sy7636_display_enable(struct regulator_dev *reg)
 			break;
 		}
 	} while (iTryCnt<=5);
-	dbgLEAVE();
 	return iRet;
 }
 
@@ -556,7 +524,6 @@ static int sy7636_display_disable(struct regulator_dev *reg)
 	struct sy7636 *sy7636 = rdev_get_drvdata(reg);
 	int iRet;
 
-	dbgENTER();
 	_sy7636_rals_onoff(sy7636,0);
 	iRet = sy7636_wait_power_good(sy7636,0);
 
@@ -564,7 +531,6 @@ static int sy7636_display_disable(struct regulator_dev *reg)
 	sy7636_EN(sy7636,0);
 #endif //]EN_ONOFF_WITH_RAILS
 
-	dbgLEAVE();
 
 	return iRet;
 #endif
@@ -583,7 +549,7 @@ static int sy7636_display_is_enabled(struct regulator_dev *reg)
 		cur_reg = (unsigned int)iChk;
 	}
 
-	DBG_MSG("%s() : OP=0x%x,RailsEN=%d,RailsDisable=0x%x\n",__FUNCTION__,
+	dev_dbg(sy7636->dev, "%s() : OP=0x%x,RailsEN=%d,RailsDisable=0x%x\n",__FUNCTION__,
 			cur_reg,(int)BITFEXT(cur_reg,RAILS_ON),BITFEXT(cur_reg,RAILS_DISABLE));
 
 	if(!BITFEXT(cur_reg,RAILS_ON) || BITFEXT(cur_reg,RAILS_DISABLE)) {
@@ -602,18 +568,14 @@ static int sy7636_display_is_enabled(struct regulator_dev *reg)
 static int sy7636_v3p3_enable(struct regulator_dev *reg)
 {
 	struct sy7636 *sy7636 = rdev_get_drvdata(reg);
-	dbgENTER();
 	sy7636->fake_vp3v3_stat = 1;
-	dbgLEAVE();
 	return 0;
 }
 
 static int sy7636_v3p3_disable(struct regulator_dev *reg)
 {
 	struct sy7636 *sy7636 = rdev_get_drvdata(reg);
-	dbgENTER();
 	sy7636->fake_vp3v3_stat = 0;
-	dbgLEAVE();
 	return 0;
 
 }
@@ -719,7 +681,7 @@ static void sy7636_setup_timings(struct sy7636 *sy7636)
 			0xff==sy7636->on_delay4)
 	{
 		// nothing to do .
-		DBG_MSG("%s(),skipped !\n",__FUNCTION__);
+		dev_dbg(sy7636->dev, "%s(),skipped !\n",__FUNCTION__);
 		return ;
 	}
 
@@ -751,7 +713,7 @@ static void sy7636_setup_timings(struct sy7636 *sy7636)
 	}
 	new_reg_val = sy7636_to_reg_val(cur_reg, fld_mask, fld_val);
 	if(cur_reg!=new_reg_val) {
-		DBG_MSG("%s(),set poweron delay=0x%x\n",__FUNCTION__,new_reg_val);
+		dev_dbg(sy7636->dev, "%s(),set poweron delay=0x%x\n",__FUNCTION__,new_reg_val);
 		//SY7636_REG_WRITE_EX(sy7636,PWRON_DLY,new_reg_val);
 		SY7636_REG_SET(sy7636,PWRON_DLY,(unsigned char)new_reg_val);
 	}
@@ -776,8 +738,6 @@ static int sy7636_pmic_dt_parse_pdata(struct platform_device *pdev,
 	struct sy7636_regulator_data *rdata;
 	int i, ret;
 
-	GALLEN_DBGLOCAL_BEGIN();
-
 	pmic_np = of_node_get(sy7636->dev->of_node);
 	if (!pmic_np) {
 		dev_err(&pdev->dev, "could not find pmic sub-node\n");
@@ -795,7 +755,7 @@ static int sy7636_pmic_dt_parse_pdata(struct platform_device *pdev,
 	dev_info(&pdev->dev, "num_regulators %d\n", pdata->num_regulators);
 
 
-	//DBG_MSG("%s(%d):skipped !!\n",__FILE__,__LINE__);return -1;
+	//dev_dbg(sy7636->dev, "%s(%d):skipped !!\n",__FILE__,__LINE__);return -1;
 
 	rdata = devm_kzalloc(&pdev->dev, sizeof(*rdata) *
 				pdata->num_regulators, GFP_KERNEL);
@@ -806,11 +766,11 @@ static int sy7636_pmic_dt_parse_pdata(struct platform_device *pdev,
 		return -ENOMEM;
 	}
 
-	//DBG_MSG("%s(%d):test ok !!\n",__FILE__,__LINE__);return -1;
+	//dev_dbg(sy7636->dev, "%s(%d):test ok !!\n",__FILE__,__LINE__);return -1;
 
 	pdata->regulators = rdata;
 	for_each_child_of_node(regulators_np, reg_np) {
-		DBG_MSG("%s():regulator name=\"%s\"\n",__FUNCTION__,reg_np->name);
+		dev_dbg(sy7636->dev, "%s():regulator name=\"%s\"\n",__FUNCTION__,reg_np->name);
 
 		for (i = 0; i < ARRAY_SIZE(sy7636_reg); i++)
 			if (!of_node_cmp(reg_np->name, sy7636_reg[i].name))
@@ -874,7 +834,7 @@ static int sy7636_pmic_dt_parse_pdata(struct platform_device *pdev,
 		dev_info(&pdev->dev, "failed to get turnoff_delay_ep3v3 property,default will be 0\n");
 	}
 	else {
-		dev_info(&pdev->dev, "turnoff_delay_ep3v3=%d\n", &sy7636->turnoff_delay_ep3v3);
+		dev_info(&pdev->dev, "turnoff_delay_ep3v3=%d\n", sy7636->turnoff_delay_ep3v3);
 	}
 
 
@@ -907,7 +867,7 @@ static int sy7636_pmic_dt_parse_pdata(struct platform_device *pdev,
 		goto err;
 	}
 	else {
-		DBG_MSG("%s():gpio_pmic_powerup=%d\n",__FUNCTION__,sy7636->gpio_pmic_powerup);
+		dev_dbg(sy7636->dev, "%s():gpio_pmic_powerup=%d\n",__FUNCTION__,sy7636->gpio_pmic_powerup);
 	}
 #if 0
 	ret = devm_gpio_request_one(&pdev->dev, sy7636->gpio_pmic_powerup,
@@ -941,7 +901,6 @@ static int sy7636_pmic_dt_parse_pdata(struct platform_device *pdev,
 	}
 
 err:
-	GALLEN_DBGLOCAL_END();
 	return 0;
 
 }
@@ -957,7 +916,7 @@ int sy7636_regs_init(struct sy7636 *sy7636)
 {
 	int iRet;
 
-	DBG_MSG("%s(%d)\n",__FUNCTION__,__LINE__);
+	dev_dbg(sy7636->dev, "%s(%d)\n",__FUNCTION__,__LINE__);
 	// write registers . 	
 
 	SY7636_REG_WRITE(sy7636,VPDD_LEN);
@@ -971,7 +930,7 @@ int sy7636_regs_init(struct sy7636 *sy7636)
 	SY7636_REG_WRITE(sy7636,PWRON_DLY);
 
 
-	DBG_MSG("%s(%d)\n",__FUNCTION__,__LINE__);
+	dev_dbg(sy7636->dev, "%s(%d)\n",__FUNCTION__,__LINE__);
 
 	return iRet;
 }
@@ -989,7 +948,7 @@ static int sy7636_regulator_probe(struct platform_device *pdev)
 	struct regulator_config config = { };
 	int size, i, ret = 0;
 
-	DBG_MSG("%s starting , of_node=%p\n",__FUNCTION__,sy7636->dev->of_node);
+	dev_dbg(sy7636->dev, "%s starting , of_node=%p\n",__FUNCTION__,sy7636->dev->of_node);
 
 
 	//sy7636->pwrgood_polarity = 1;
@@ -1089,7 +1048,7 @@ static int sy7636_regulator_probe(struct platform_device *pdev)
 		dev_err(sy7636->dev, "sy7636 int workqueue creating failed !\n");
 	}
 
-    DBG_MSG("%s success\n",__FUNCTION__);
+    dev_dbg(sy7636->dev, "%s success\n",__FUNCTION__);
 	return 0;
 err:
 	while (--i >= 0)
