@@ -42,9 +42,6 @@
 
 #include <linux/gpio.h>
 
-#define GDEBUG 0
-#include <linux/gallen_dbg.h>
-
 /*
  * Conversions
  */
