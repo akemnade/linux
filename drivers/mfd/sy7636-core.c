@@ -105,6 +105,7 @@ int sy7636_reg_read(struct sy7636 *sy7636,int reg_num, unsigned int *reg_val)
 
 	return PMIC_SUCCESS;
 }
+EXPORT_SYMBOL(sy7636_reg_read);
 
 int sy7636_reg_write(struct sy7636 *sy7636,int reg_num, const unsigned int reg_val)
 {
@@ -141,6 +142,7 @@ int sy7636_reg_write(struct sy7636 *sy7636,int reg_num, const unsigned int reg_v
 
 	return PMIC_SUCCESS;
 }
+EXPORT_SYMBOL(sy7636_reg_write);
 
 static const char *gszSY7636_fault_strA[] = 
 {
@@ -170,6 +172,7 @@ const char *sy7636_get_fault_string(unsigned char bFault)
 		return gszSY7636_fault_strA[bFault];
 	}
 }
+EXPORT_SYMBOL(sy7636_get_fault_string);
 
 
 int sy7636_EN(struct sy7636 *sy7636,int iEN)
@@ -208,8 +211,7 @@ int sy7636_EN(struct sy7636 *sy7636,int iEN)
 
 	return iEN_Old_State;
 }
-
-
+EXPORT_SYMBOL(sy7636_EN);
 
 int sy7636_chip_power(struct sy7636 *sy7636,int iIsON)
 {
@@ -332,6 +334,7 @@ int sy7636_get_power_status(struct sy7636 *sy7636,int iIsGetCached,int *O_piPG,u
 
 	return iRet;
 }
+EXPORT_SYMBOL(sy7636_get_power_status);
 
 #ifdef CONFIG_OF
 static struct sy7636_platform_data *sy7636_i2c_parse_dt_pdata(
@@ -678,7 +681,7 @@ static const struct dev_pm_ops sy7636_dev_pm= {
 };
 
 
-static struct i2c_driver sy7636_driver = {
+static struct i2c_driver sy7636_i2c_driver = {
 	.driver = {
 		   .name = "sy7636",
 		   .owner = THIS_MODULE,
@@ -692,20 +695,5 @@ static struct i2c_driver sy7636_driver = {
 	.address_list = &normal_i2c[0],
 };
 
-static int __init sy7636_init(void)
-{
-	return i2c_add_driver(&sy7636_driver);
-}
-
-static void __exit sy7636_exit(void)
-{
-	i2c_del_driver(&sy7636_driver);
-}
-
-
-
-/*
- * Module entry points
- */
-subsys_initcall(sy7636_init);
-module_exit(sy7636_exit);
+module_i2c_driver(sy7636_i2c_driver);
+MODULE_LICENSE("GPL v2");
