@@ -531,7 +531,7 @@ static void sy7636_remove(struct i2c_client *i2c)
 	mfd_remove_devices(sy7636->dev);
 }
 
-extern int gSleep_Mode_Suspend;
+int gSleep_Mode_Suspend = 0;
 
 static int sy7636_suspend_late(struct device *dev)
 {
