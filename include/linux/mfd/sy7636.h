@@ -19,8 +19,6 @@
 #ifndef __LINUX_REGULATOR_SY7636_H_ //[
 #define __LINUX_REGULATOR_SY7636_H_
 
-#include <linux/pmic_status.h>
-
 #define EN_ONOFF_WITH_RAILS	1
 #define SY7636_VCOM_EXTERNAL	1
 #define SY7636_LIGHTNESS_ENABLE	1
@@ -28,6 +26,8 @@
 
 #define SY7636_VDROP_PROC_IN_KERNEL		1
 
+/* to be removed again */
+#define PMIC_SUCCESS 0
 /*
  * PMIC Register Addresses
  */
@@ -156,10 +156,10 @@ struct sy7636 {
 	struct i2c_client *i2c_client;
 
 	/* Timings */
-	unsigned char on_delay1;
-	unsigned char on_delay2;
-	unsigned char on_delay3;
-	unsigned char on_delay4;
+	u32 on_delay1;
+	u32 on_delay2;
+	u32 on_delay3;
+	u32 on_delay4;
 
 	unsigned int VLDO;
 
