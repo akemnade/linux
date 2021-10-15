@@ -534,7 +534,7 @@ static int sy7636_remove(struct i2c_client *i2c)
 	return 0;
 }
 
-extern int gSleep_Mode_Suspend;
+int gSleep_Mode_Suspend = 0;
 
 static int sy7636_suspend_late(struct device *dev)
 {
