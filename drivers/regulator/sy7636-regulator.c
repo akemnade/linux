@@ -1082,48 +1082,7 @@ static struct platform_driver sy7636_regulator_driver = {
 	},
 };
 
-static int __init sy7636_regulator_init(void)
-{
-	return platform_driver_register(&sy7636_regulator_driver);
-}
-subsys_initcall_sync(sy7636_regulator_init);
-
-static void __exit sy7636_regulator_exit(void)
-{
-	platform_driver_unregister(&sy7636_regulator_driver);
-}
-module_exit(sy7636_regulator_exit);
-
-
-/*
- * Parse user specified options (`sy7636:')
- * example:
- *   sy7636:pass=2,vcom=-1250000
- */
-static int __init sy7636_setup(char *options)
-{
-	int ret;
-	char *opt;
-	unsigned long ulResult;
-	while ((opt = strsep(&options, ",")) != NULL) {
-		if (!*opt)
-			continue;
-		if (!strncmp(opt, "vcom=", 5)) {
-			int offs = 5;
-			if (opt[5] == '-')
-				offs = 6;
-			ret = kstrtoul((const char *)(opt + offs), 0, &ulResult);
-			sy7636_vcom = (int) ulResult;
-			if (ret < 0)
-				return ret;
-			sy7636_vcom = -sy7636_vcom;
-		}
-	}
-
-	return 1;
-}
-
-__setup("sy7636:", sy7636_setup);
+module_platform_driver(sy7636_regulator_driver);
 
 
 /* Module information */
