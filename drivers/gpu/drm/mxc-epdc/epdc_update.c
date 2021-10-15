@@ -387,6 +387,7 @@ static int epdc_submit_merge(struct update_desc_list *upd_desc_list,
 	return MERGE_OK;
 }
 
+/* done in Tolino 3.0.x kernels via PXP_LUT_AA */
 static void epdc_clear_lower_nibble(u8 *buf, int x, int y, int w, int h, int stride)
 {
 	flush_cache_all();
@@ -398,6 +399,24 @@ static void epdc_clear_lower_nibble(u8 *buf, int x, int y, int w, int h, int str
 	for (y = 0; y < h; y++) {
 		for (x = 0; x < w; x++) {
 			buf[x] &= 0xF0;
+		}
+		buf += stride;
+	}
+	flush_cache_all();
+}
+
+/* found by experimentation, reduced number of levels of gray */
+static void epdc_shift2(u8 *buf, int x, int y, int w, int h, int stride)
+{
+	flush_cache_all();
+	if (stride == 0)
+		stride = w;
+
+	buf += y * stride;
+	buf += x;
+	for (y = 0; y < h; y++) {
+		for (x = 0; x < w; x++) {
+			buf[x] = (buf[x] << 2) | 0xC0;
 		}
 		buf += stride;
 	}
@@ -866,7 +885,11 @@ void mxc_epdc_draw_mode0(struct mxc_epdc *priv)
 	xres = priv->epdc_mem_width;
 	yres = priv->epdc_mem_height;
 
-	epdc_clear_lower_nibble((u8 *)upd_buf_ptr, 0, 0, xres, yres, 0);
+	if (priv->rev < 30) {
+		epdc_clear_lower_nibble((u8 *)upd_buf_ptr, 0, 0, xres, yres, 0);
+	} else {
+		epdc_shift2((u8 *)upd_buf_ptr, 0, 0, xres, yres, 0);
+	}
 	/* Program EPDC update to process buffer */
 	epdc_set_update_area(priv, priv->epdc_mem_phys, 0, 0, xres, yres, 0);
 	epdc_submit_update(priv, 0, priv->wv_modes.mode_init, UPDATE_MODE_FULL,
