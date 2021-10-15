@@ -44,18 +44,9 @@
 
 #include <linux/platform_device.h>
 #include <linux/regulator/machine.h>
-#include <linux/pmic_status.h>
 #include <linux/mfd/core.h>
 #include <linux/mfd/sy7636.h>
 #include <asm/mach-types.h>
-
-
-#define GDEBUG 0
-#include <linux/gallen_dbg.h>
-
-#include "../../arch/arm/mach-imx/ntx_hwconfig.h"
-
-extern volatile NTX_HWCONFIG *gptHWCFG;
 
 /*
  * EPDC PMIC I2C address
@@ -86,7 +77,7 @@ int sy7636_reg_read(struct sy7636 *sy7636,int reg_num, unsigned int *reg_val)
 	if (sy7636_client == NULL) {
 		dev_err(&sy7636_client->dev,
 			"sy7636 I2C adaptor not ready !\n");
-		return PMIC_ERROR;
+		return -EINVAL;
 	}
 
 
@@ -100,10 +91,10 @@ int sy7636_reg_read(struct sy7636 *sy7636,int reg_num, unsigned int *reg_val)
 			}
 			dev_err(&sy7636_client->dev,
 				"Unable to read sy7636 register%d via I2C\n",reg_num);
-			return PMIC_ERROR;
+			return -EINVAL;
 		}
 		else {
-			DBG_MSG("%s():reg%d=0x%x\n",__FUNCTION__,reg_num,result);
+			dev_dbg(sy7636->dev, "%s():reg%d=0x%x\n",__FUNCTION__,reg_num,result);
 		}
 		break;
 		mdelay(1);
@@ -125,7 +116,7 @@ int sy7636_reg_write(struct sy7636 *sy7636,int reg_num, const unsigned int reg_v
 	if (sy7636_client == NULL) {
 		dev_err(&sy7636_client->dev,
 			"sy7636 I2C adaptor not ready !\n");
-		return PMIC_ERROR;
+		return -ENODEV;
 	}
 
 	do {
@@ -138,10 +129,10 @@ int sy7636_reg_write(struct sy7636 *sy7636,int reg_num, const unsigned int reg_v
 			}
 			dev_err(&sy7636_client->dev,
 				"Unable to write SY7636 register%d via I2C\n",reg_num);
-			return PMIC_ERROR;
+			return -EIO;
 		}
 		else {
-			DBG_MSG("%s():reg%d<=0x%x\n",__FUNCTION__,reg_num,reg_val);
+			dev_dbg(sy7636->dev, "%s():reg%d<=0x%x\n",__FUNCTION__,reg_num,reg_val);
 		}
 		break;
 		mdelay(1);
@@ -186,7 +177,7 @@ int sy7636_EN(struct sy7636 *sy7636,int iEN)
 	int iEN_Old_State;
 
 	if (!gpio_is_valid(sy7636->gpio_pmic_powerup)) {
-		dev_err(&sy7636->dev, "%s():epdc pmic powerup pin available\n",__FUNCTION__);
+		dev_err(sy7636->dev, "%s():epdc pmic powerup pin available\n",__FUNCTION__);
 		return -1;
 	}
 
@@ -200,7 +191,7 @@ int sy7636_EN(struct sy7636 *sy7636,int iEN)
 		gpio_set_value(sy7636->gpio_pmic_powerup,1);sy7636->gpio_pmic_powerup_stat = 1;
 		sy7636->jiffies_chip_wake = jiffies+msecs_to_jiffies(SY7636_WAKEUP_MS);
 		if(0==iEN_Old_State) {
-			DBG_MSG("%s():EN 0->1 .\n",__FUNCTION__);
+			dev_dbg(sy7636->dev, "%s():EN 0->1 .\n",__FUNCTION__);
 			mdelay(SY7636_WAKEUP0_MS);
 			sy7636_regs_init(sy7636);	
 			sy7636->need_reinit = 0;
@@ -210,7 +201,7 @@ int sy7636_EN(struct sy7636 *sy7636,int iEN)
 		sy7636->need_reinit = 1;//need setup vcom/regs again .
 		gpio_set_value(sy7636->gpio_pmic_powerup,0);sy7636->gpio_pmic_powerup_stat = 0;
 		if(1==iEN_Old_State) {
-			DBG_MSG("%s():EM 1->0 .\n",__FUNCTION__);
+			dev_dbg(sy7636->dev, "%s():EM 1->0 .\n",__FUNCTION__);
 			udelay(SY7636_PWRON_READYUS/2);
 		}
 	}
@@ -244,7 +235,7 @@ int sy7636_chip_power(struct sy7636 *sy7636,int iIsON)
 		gpio_set_value(sy7636->gpio_pmic_pwrall,1);
 		sy7636->jiffies_chip_on = jiffies;
 		if(0==iPwrallCurrentStat) {
-			DBG_MSG("%s():chip power 0->1 .\n",__FUNCTION__);
+			dev_dbg(sy7636->dev, "%s():chip power 0->1 .\n",__FUNCTION__);
 			udelay(SY7636_PWRON_READYUS);
 		}
 		sy7636_EN(sy7636,1);
@@ -284,7 +275,7 @@ int sy7636_get_FaultFlags(struct sy7636 *sy7636,int iIsGetCached)
 	int iChk;
 
 	if(!sy7636) {
-		ERR_MSG("%s():error object !\n",__FUNCTION__);
+		pr_err("%s():error object !\n",__FUNCTION__);
 		return -2;
 	}
 
@@ -298,7 +289,7 @@ int sy7636_get_FaultFlags(struct sy7636 *sy7636,int iIsGetCached)
 		}
 		else {
 			iRet = -1;
-			ERR_MSG("%s():reading fault flags failed !\n",__FUNCTION__);
+			dev_err(sy7636->dev, "%s():reading fault flags failed !\n",__FUNCTION__);
 		}
 	}
 	return iRet;
@@ -435,16 +426,6 @@ static int sy7636_probe(struct i2c_client *client,
 	struct device_node *np = client->dev.of_node;
 	int ret = 0;
 
-
-	switch(gptHWCFG->m_val.bDisplayCtrl) {
-	case 19: // mx6sl+SY7636
-	case 20: // mx6ull+SY7636
-	case 21: // mx6sll+SY7636
-	case 22: // mx6dl+SY7636
-		break;
-	default :
-		return -ENODEV;
-	}
 
 	printk("sy7636_probe calling\n");
 
@@ -600,7 +581,7 @@ static int sy7636_resume(struct device *dev)
 	iChk = SY7636_REG_READ(sy7636,OPMODE);
 	if(iChk>=0) {
 		dwReg = (unsigned int)iChk;
-		DBG_MSG("%s() : OP=0x%x,RailsEN=%d,RailsDisable=0x%x\n",__FUNCTION__,
+		dev_dbg(sy7636->dev, "%s() : OP=0x%x,RailsEN=%d,RailsDisable=0x%x\n",__FUNCTION__,
 			dwReg,(int)BITFEXT(dwReg,RAILS_ON),BITFEXT(dwReg,RAILS_DISABLE));
 	}
 	else {
@@ -681,7 +662,7 @@ MODULE_DEVICE_TABLE(i2c, sy7636_id);
 
 static const struct of_device_id sy7636_dt_ids[] = {
 	{
-		.compatible = "Silergy,sy7636",
+		.compatible = "silergy,sy7636",
 		.data = (void *) &sy7636_id[0],
 	}, {
 		/* sentinel */
