@@ -912,30 +912,6 @@ static int sy7636_pmic_dt_parse_pdata(struct platform_device *pdev,
 }
 #endif	/* !CONFIG_OF */
 
-int sy7636_regs_init(struct sy7636 *sy7636)
-{
-	int iRet;
-
-	dev_dbg(sy7636->dev, "%s(%d)\n",__FUNCTION__,__LINE__);
-	// write registers . 	
-
-	SY7636_REG_WRITE(sy7636,VPDD_LEN);
-	SY7636_REG_WRITE(sy7636,VEE_VP_EXT);
-
-
-	SY7636_REG_WRITE(sy7636,VCOM_ADJ1);
-	SY7636_REG_WRITE(sy7636,VCOM_ADJ2);
-
-	SY7636_REG_WRITE(sy7636,VLDO_ADJ);
-	SY7636_REG_WRITE(sy7636,PWRON_DLY);
-
-
-	dev_dbg(sy7636->dev, "%s(%d)\n",__FUNCTION__,__LINE__);
-
-	return iRet;
-}
-
-
 /*
  * Regulator init/probing/exit functions
  */
