@@ -635,14 +635,14 @@ static struct regulator_ops sy7636_tmst_ops = {
  */
 static struct regulator_desc sy7636_reg[] = {
 {
-	.name = "DISPLAY_SY7636",
+	.name = "DISPLAY",
 	.id = SY7636_DISPLAY,
 	.ops = &sy7636_display_ops,
 	.type = REGULATOR_VOLTAGE,
 	.owner = THIS_MODULE,
 },
 {
-	.name = "VCOM_SY7636",
+	.name = "VCOM",
 	.id = SY7636_VCOM,
 	.ops = &sy7636_vcom_ops,
 	.type = REGULATOR_VOLTAGE,
@@ -650,7 +650,7 @@ static struct regulator_desc sy7636_reg[] = {
 },
 #ifdef SY7636_V3P3_ENABLE//[
 {
-	.name = "V3P3_SY7636",
+	.name = "V3P3",
 	.id = SY7636_VP3V3,
 	.ops = &sy7636_v3p3_ops,
 	.type = REGULATOR_VOLTAGE,
@@ -658,7 +658,7 @@ static struct regulator_desc sy7636_reg[] = {
 },
 #endif //]SY7636_V3P3_ENABLE
 {
-	.name = "TMST_SY7636",
+	.name = "TMST",
 	.id = SY7636_TMST,
 	.ops = &sy7636_tmst_ops,
 	.type = REGULATOR_VOLTAGE,
