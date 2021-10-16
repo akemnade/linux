@@ -166,6 +166,29 @@
 		>;
 	};
 
+	pinctrl_sy7636_gpio: sy7636-gpiogrp {
+		fsl,pins = <
+			MX6SL_PAD_EPDC_PWRWAKEUP__GPIO2_IO14	0x40010059 /* EP_PWRALL */
+			MX6SL_PAD_EPDC_VCOM0__GPIO2_IO03	0x40010059 /* VCOM_CTRL0 */
+			MX6SL_PAD_EPDC_PWRCTRL0__GPIO2_IO07	0x40010059 /* EP_PWRCTRL0 WAKEUP */
+			MX6SL_PAD_EPDC_PWRCTRL1__GPIO2_IO08	0x40010059 /* EP_PWRCTRL1 PWRUP */
+			MX6SL_PAD_EPDC_PWRCTRL2__GPIO2_IO09	0x17059 /* EP_PWRCTRL2 EP_INT */
+			MX6SL_PAD_EPDC_PWRSTAT__GPIO2_IO13	0x17059 /* EP_PWRSTAT */
+		>;
+	};
+
+	pinctrl_sy7636_gpio_sleep: sy7636-gpiosleepgrp {
+		fsl,pins = <
+			MX6SL_PAD_EPDC_PWRWAKEUP__GPIO2_IO14	0x10059 /* EP_PWRALL */
+			MX6SL_PAD_EPDC_VCOM0__GPIO2_IO03	0x10059 /* VCOM_CTRL0 */
+			MX6SL_PAD_EPDC_PWRCTRL0__GPIO2_IO07	0x10059 /* EP_PWRCTRL0 WAKEUP */
+			MX6SL_PAD_EPDC_PWRCTRL1__GPIO2_IO08	0x10059 /* EP_PWRCTRL1 PWRUP */
+			MX6SL_PAD_EPDC_PWRCTRL2__GPIO2_IO09	0x13059 /* EP_PWRCTRL2 EP_INT */
+			MX6SL_PAD_EPDC_PWRSTAT__GPIO2_IO13	0x13059 /* EP_PWRSTAT */
+		>;
+
+	};
+
 	pinctrl_uart1: uart1grp {
 		fsl,pins = <
 			MX6SL_PAD_UART1_TXD__UART1_TX_DATA 0x1b0b1
@@ -355,6 +378,12 @@
 	pinctrl-1 = <&pinctrl_usdhc3_100mhz>;
 	pinctrl-2 = <&pinctrl_usdhc3_200mhz>;
 	pinctrl-3 = <&pinctrl_usdhc3_sleep>;
+};
+
+&sy7636 {
+        pinctrl-names = "default", "sleep";
+        pinctrl-0 = <&pinctrl_sy7636_gpio>;
+        pinctrl-1 = <&pinctrl_sy7636_gpio_sleep>;
 };
 
 &wifi_pwrseq {
