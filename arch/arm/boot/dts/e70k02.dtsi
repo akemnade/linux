@@ -206,7 +206,35 @@
 		};
         };
 
-	/* TODO: SY7636 PMIC for E Ink at 0x62 */
+        sy7636: sy7636@62 {
+		compatible = "silergy,sy7636";
+		reg = <0x62>;
+		gpio_pmic_pwrgood = <&gpio2 13 0>;
+		gpio_pmic_vcom_ctrl = <&gpio2 3 GPIO_ACTIVE_HIGH>;
+		gpio_pmic_powerup = <&gpio2 8 GPIO_ACTIVE_HIGH>;
+		gpio_pmic_pwrall = <&gpio2 14 GPIO_ACTIVE_HIGH>;
+
+		regulators {
+			DISPLAY_reg: DISPLAY {
+                                regulator-name = "DISPLAY";
+                        };
+
+                        VCOM_reg: VCOM {
+                                regulator-name = "VCOM";
+                                regulator-min-microvolt = <500000>;
+                                regulator-max-microvolt = <4325000>;
+                        };
+
+                        V3P3_reg: V3P3 {
+                                regulator-name = "V3P3";
+                        };
+
+                        TMST_reg: TMST {
+                                regulator-name = "TMST";
+                        };
+
+                };
+	};
 
 };
 
