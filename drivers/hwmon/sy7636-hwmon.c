@@ -155,7 +155,7 @@ int sy7636_set_vcom(struct sy7636 *sy7636,int iVCOMmV,int iIsWriteToFlash)
 	}
 
 
-	wVCOM_val = (unsigned short)((-iVCOMmV)/10);
+	wVCOM_val = (unsigned short)((iVCOMmV)/10);
 	dev_dbg(sy7636->dev, "vcom=>%dmV,wVCOM_val=0x%x\n",
 			iVCOMmV,wVCOM_val);
 
@@ -261,7 +261,7 @@ int sy7636_get_vcom(struct sy7636 *sy7636,int *O_piVCOMmV)
 	else {
 		wTemp &= ~0x100;
 	}
-	iVCOMmV = -(wTemp*10);
+	iVCOMmV = (wTemp*10);
 
 	if(O_piVCOMmV) {
 		*O_piVCOMmV = iVCOMmV;
@@ -289,7 +289,7 @@ static ssize_t set_vcom(struct device *dev,
 	long vcom_reg_val = simple_strtol(buf,NULL,10);
 	struct sy7636_data *data = dev_get_drvdata(dev);
 
-	sy7636_set_vcom(data->sy7636,-vcom_reg_val,0);
+	sy7636_set_vcom(data->sy7636,vcom_reg_val,0);
 	return count;
 }
 
