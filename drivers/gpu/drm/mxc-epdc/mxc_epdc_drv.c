@@ -78,11 +78,21 @@ DEFINE_DRM_GEM_CMA_FOPS(fops);
 static int mxc_epdc_get_modes(struct drm_connector *connector)
 {
 	struct mxc_epdc *priv = drm_connector_to_mxc_epdc(connector);
+	struct drm_display_mode *mode;
+	struct videomode vm;
 
-	if (priv->panel)
-		return drm_panel_get_modes(priv->panel, connector);
+	videomode_from_timing(&priv->timing, &vm);
+	mode = drm_mode_create(connector->dev);
+	if (!mode) {
+		dev_err(priv->drm.dev, "failed to add mode\n");
+		return 0;
+	}
 
-	return 0;
+	drm_display_mode_from_videomode(&vm, mode);
+	mode->type |= DRM_MODE_TYPE_DRIVER | DRM_MODE_TYPE_PREFERRED;
+	drm_mode_probed_add(connector, mode);
+
+	return 1;
 }
 
 static const struct
@@ -101,18 +111,7 @@ static const struct drm_connector_funcs mxc_epdc_connector_funcs = {
 int mxc_epdc_output(struct drm_device *drm)
 {
 	struct mxc_epdc *priv = to_mxc_epdc(drm);
-	struct device_node *remote_node;
 	int ret;
-
-	remote_node = of_graph_get_remote_node(drm->dev->of_node, 0, 0);
-	if (!remote_node) {
-		dev_dbg(drm->dev, "failed to find video sink\n");
-		return -ENODEV;
-	}
-
-	priv->panel = of_drm_find_panel(remote_node);
-	if (IS_ERR(priv->panel))
-		return PTR_ERR(priv->panel);
 
 	priv->connector.dpms = DRM_MODE_DPMS_OFF;
 	priv->connector.polled = 0;
@@ -124,56 +123,61 @@ int mxc_epdc_output(struct drm_device *drm)
 	if (ret)
 		return ret;
 
-	ret = of_property_read_u32(drm->dev->of_node, "vscan_holdoff",
+	ret = of_property_read_u32(drm->dev->of_node, "vscan-holdoff",
 				   &priv->imx_mode.vscan_holdoff);
 	if (ret)
 		return ret;
 
-	ret = of_property_read_u32(drm->dev->of_node, "sdoed_width",
+	ret = of_property_read_u32(drm->dev->of_node, "sdoed-width",
 				   &priv->imx_mode.sdoed_width);
 	if (ret)
 		return ret;
 
-	ret = of_property_read_u32(drm->dev->of_node, "sdoed_delay",
+	ret = of_property_read_u32(drm->dev->of_node, "sdoed-delay",
 				   &priv->imx_mode.sdoed_delay);
 	if (ret)
 		return ret;
 
-	ret = of_property_read_u32(drm->dev->of_node, "sdoez_width",
+	ret = of_property_read_u32(drm->dev->of_node, "sdoez-width",
 				   &priv->imx_mode.sdoez_width);
 	if (ret)
 		return ret;
 
-	ret = of_property_read_u32(drm->dev->of_node, "sdoez_delay",
+	ret = of_property_read_u32(drm->dev->of_node, "sdoez-delay",
 				   &priv->imx_mode.sdoez_delay);
 	if (ret)
 		return ret;
 
-	ret = of_property_read_u32(drm->dev->of_node, "gdclk_hp_offs",
+	ret = of_property_read_u32(drm->dev->of_node, "gdclk-hp-offs",
 				   &priv->imx_mode.gdclk_hp_offs);
 	if (ret)
 		return ret;
 
-	ret = of_property_read_u32(drm->dev->of_node, "gdsp_offs",
+	ret = of_property_read_u32(drm->dev->of_node, "gdsp-offs",
 				   &priv->imx_mode.gdsp_offs);
 	if (ret)
 		return ret;
 
-	ret = of_property_read_u32(drm->dev->of_node, "gdoe_offs",
+	ret = of_property_read_u32(drm->dev->of_node, "gdoe-offs",
 				   &priv->imx_mode.gdoe_offs);
 	if (ret)
 		return ret;
 
-	ret = of_property_read_u32(drm->dev->of_node, "gdclk_offs",
+	ret = of_property_read_u32(drm->dev->of_node, "gdclk-offs",
 				   &priv->imx_mode.gdclk_offs);
 	if (ret)
 		return ret;
 
-	ret = of_property_read_u32(drm->dev->of_node, "num_ce",
+	ret = of_property_read_u32(drm->dev->of_node, "num-ce",
 				   &priv->imx_mode.num_ce);
+	if (ret)
+		return ret;
 
-	return ret;
+	ret = of_get_display_timing(drm->dev->of_node, "timing", &priv->timing);
+	if (ret)
+		return ret;
 
+	return 0;
 }
 
 static void mxc_epdc_pipe_enable(struct drm_simple_display_pipe *pipe,

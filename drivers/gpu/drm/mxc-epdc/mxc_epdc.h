@@ -1,6 +1,10 @@
 /* SPDX-License-Identifier: GPL-2.0+ */
 /* Copyright (C) 2020 Andreas Kemnade */
 
+#include <video/display_timing.h>
+#include <video/of_display_timing.h>
+#include <video/videomode.h>
+
 #include <drm/drm_drv.h>
 #include <drm/drm_connector.h>
 #include <drm/drm_simple_kms_helper.h>
@@ -108,13 +112,12 @@ struct mxc_epdc {
 	struct drm_device drm;
 	struct drm_simple_display_pipe pipe;
 	struct drm_connector connector;
-	struct drm_panel *panel;
+	struct display_timing timing;
 	struct imx_epdc_fb_mode imx_mode;
 	void __iomem *iobase;
 	struct completion powerdown_compl;
 	struct clk *epdc_clk_axi;
 	struct clk *epdc_clk_pix;
-#warning display regulators belong to panel
 	struct regulator *display_regulator;
 	struct regulator *vcom_regulator;
 	struct regulator *v3p3_regulator;
