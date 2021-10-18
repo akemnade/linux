@@ -72,27 +72,6 @@
 		reg = <0x80000000 0x20000000>;
 	};
 
-	panel: panel {
-                compatible = "panel-dpi";
-		panel-timing {
-			clock-frequency = <80000000>;
-			hactive = <1448>;
-			hback-porch = <16>;
-			hfront-porch = <102>;
-			hsync-len = <28>;
-			vactive = <1072>;
-			vback-porch = <4>;
-			vfront-porch = <4>;
-			vsync-len = <2>;
-		};
-
-                port {
-                        panel_in: endpoint {
-                                remote-endpoint = <&epdc_out>;
-                        };
-                };
-        };
-
 	reg_wifi: regulator-wifi {
 		compatible = "regulator-fixed";
 		pinctrl-names = "default";
@@ -121,23 +100,28 @@
 	DISPLAY-supply = <&DISPLAY_reg>;
 	epd-thermal-zone = "epd-thermal";
 
-	vscan_holdoff = <4>;
-	sdoed_width = <10>;
-	sdoed_delay = <20>;
-	sdoez_width = <10>;
-	sdoez_delay = <20>;
-	gdclk_hp_offs = <562>;
-	gdsp_offs = <662>;
-	gdoe_offs = <0>;
-	gdclk_offs = <225>;
-	num_ce = <3>;
-
+	vscan-holdoff = <4>;
+	sdoed-width = <10>;
+	sdoed-delay = <20>;
+	sdoez-width = <10>;
+	sdoez-delay = <20>;
+	gdclk-hp-offs = <562>;
+	gdsp-offs = <662>;
+	gdoe-offs = <0>;
+	gdclk-offs = <225>;
+	num-ce = <3>;
 	status = "okay";
 
-	port {
-		epdc_out: endpoint {
-			remote-endpoint = <&panel_in>;
-		};
+	timing {
+		clock-frequency = <80000000>;
+		hactive = <1448>;
+		hback-porch = <16>;
+		hfront-porch = <102>;
+		hsync-len = <28>;
+		vactive = <1072>;
+		vback-porch = <4>;
+		vfront-porch = <4>;
+		vsync-len = <2>;
 	};
 };
 
