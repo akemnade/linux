@@ -69,6 +69,27 @@
 		reg = <0x80000000 0x20000000>;
 	};
 
+	panel: panel {
+		compatible = "panel-dpi";
+		panel-timing {
+			clock-frequency = <133333334>;
+			hactive = <1264>;
+			hback-porch = <28>;
+			hfront-porch = <193>;
+			hsync-len = <72>;
+			vactive = <1680>;
+			vback-porch = <4>;
+			vfront-porch = <12>;
+			vsync-len = <1>;
+		};
+
+		port {
+			panel_in: endpoint {
+				remote-endpoint = <&epdc_out>;
+			};
+		};
+	};
+
 	reg_wifi: regulator-wifi {
 		compatible = "regulator-fixed";
 		regulator-name = "SD3_SPWR";
@@ -82,6 +103,31 @@
 		compatible = "mmc-pwrseq-simple";
 		post-power-on-delay-ms = <20>;
 		reset-gpios = <&gpio5 0 GPIO_ACTIVE_LOW>;
+	};
+};
+
+&epdc {
+	V3P3-supply = <&V3P3_reg>;
+	VCOM-supply = <&VCOM_reg>;
+	DISPLAY-supply = <&DISPLAY_reg>;
+
+	vscan_holdoff = <4>;
+	sdoed_width = <10>;
+	sdoed_delay = <20>;
+	sdoez_width = <10>;
+	sdoez_delay = <20>;
+	gdclk_hp_offs = <737>;
+	gdsp_offs = <547>;
+	gdoe_offs = <0>;
+	gdclk_offs = <83>;
+	num_ce = <1>;
+
+	status = "okay";
+
+	port {
+		epdc_out: endpoint {
+			remote-endpoint = <&panel_in>;
+		};
 	};
 };
 
