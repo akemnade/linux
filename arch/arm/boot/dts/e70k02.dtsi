@@ -206,7 +206,7 @@
 		};
         };
 
-        sy7636: sy7636@62 {
+	sy7636: sy7636@62 {
 		compatible = "silergy,sy7636";
 		reg = <0x62>;
 		gpio_pmic_pwrgood = <&gpio2 13 0>;
@@ -216,24 +216,23 @@
 
 		regulators {
 			DISPLAY_reg: DISPLAY {
-                                regulator-name = "DISPLAY";
-                        };
+				regulator-name = "DISPLAY";
+			};
 
-                        VCOM_reg: VCOM {
-                                regulator-name = "VCOM";
-                                regulator-min-microvolt = <500000>;
-                                regulator-max-microvolt = <4325000>;
-                        };
+			VCOM_reg: VCOM {
+				regulator-name = "VCOM";
+				regulator-min-microvolt = <500000>;
+				regulator-max-microvolt = <4325000>;
+			};
 
-                        V3P3_reg: V3P3 {
-                                regulator-name = "V3P3";
-                        };
+			V3P3_reg: V3P3 {
+				regulator-name = "V3P3";
+			};
 
-                        TMST_reg: TMST {
-                                regulator-name = "TMST";
-                        };
-
-                };
+			TMST_reg: TMST {
+				regulator-name = "TMST";
+			};
+		};
 	};
 
 };
