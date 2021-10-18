@@ -85,6 +85,37 @@
 	};
 };
 
+&epdc {
+	V3P3-supply = <&V3P3_reg>;
+	VCOM-supply = <&VCOM_reg>;
+	DISPLAY-supply = <&DISPLAY_reg>;
+
+	vscan_holdoff = <4>;
+	sdoed_width = <10>;
+	sdoed_delay = <20>;
+	sdoez_width = <10>;
+	sdoez_delay = <20>;
+	gdclk_hp_offs = <737>;
+	gdsp_offs = <547>;
+	gdoe_offs = <0>;
+	gdclk_offs = <83>;
+	num_ce = <1>;
+
+	status = "okay";
+
+	timing {
+		clock-frequency = <133333334>;
+		hactive = <1264>;
+		hback-porch = <28>;
+		hfront-porch = <193>;
+		hsync-len = <72>;
+		vactive = <1680>;
+		vback-porch = <4>;
+		vfront-porch = <12>;
+		vsync-len = <1>;
+	};
+};
+
 &i2c1 {
 	clock-frequency = <100000>;
 	status = "okay";
