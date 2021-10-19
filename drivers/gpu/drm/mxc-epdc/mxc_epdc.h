@@ -158,7 +158,6 @@ struct mxc_epdc {
 	bool hw_initializing;
 	bool waiting_for_idle;
 
-	u32 upd_scheme;
 	int order_cnt;
 	struct list_head upd_pending_list;
 	struct list_head upd_buf_queue;
