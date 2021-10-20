@@ -570,7 +570,6 @@ static int epdc_choose_next_lut(struct mxc_epdc *priv, int *next_lut)
 
 static void epdc_submit_work_func(struct work_struct *work)
 {
-	int temp_index;
 	struct update_data_list *next_update, *temp_update;
 	struct update_desc_list *next_desc, *temp_desc;
 	struct update_marker_data *next_marker, *temp_marker;
@@ -899,12 +898,8 @@ void mxc_epdc_draw_mode0(struct mxc_epdc *priv)
 int mxc_epdc_fb_send_single_update(struct mxcfb_update_data *upd_data,
 				   struct mxc_epdc *priv)
 {
-	struct update_data_list *upd_data_list = NULL;
-	struct mxcfb_rect *screen_upd_region; /* Region on screen to update */
-	int temp_index;
-	int ret;
 	struct update_desc_list *upd_desc;
-	struct update_marker_data *marker_data, *next_marker, *temp_marker;
+	struct update_marker_data *marker_data;
 
 	/* Has EPDC HW been initialized? */
 	if (!priv->hw_ready) {
@@ -1016,17 +1011,14 @@ static void epdc_intr_work_func(struct work_struct *work)
 	struct mxc_epdc *priv =
 		container_of(work, struct mxc_epdc, epdc_intr_work);
 	struct update_data_list *collision_update;
-	struct mxcfb_rect *next_upd_region;
 	struct update_marker_data *next_marker;
 	struct update_marker_data *temp;
-	int temp_index;
 	u64 temp_mask;
 	u32 lut;
 	bool ignore_collision = false;
 	int i;
 	bool wb_lut_done = false;
 	bool free_update = true;
-	int next_lut, epdc_next_lut_15;
 	u32 epdc_luts_active, epdc_wb_busy, epdc_luts_avail, epdc_lut_cancelled;
 	u32 epdc_collision;
 	u64 epdc_irq_stat;
@@ -1231,8 +1223,9 @@ static void epdc_intr_work_func(struct work_struct *work)
 					kfree(next_marker);
 			}
 		} else if (epdc_collision) {
-			u32 xres, yres;
 			/* Real update (no dry-run), collision occurred */
+			struct mxcfb_rect *cur_upd_rect =
+				&priv->cur_update->update_desc->upd_data.update_region;
 
 			/* Check list of colliding LUTs, and add to our collision mask */
 			priv->cur_update->collision_mask =
@@ -1249,10 +1242,7 @@ static void epdc_intr_work_func(struct work_struct *work)
 			 * For EPDC 2.0 and later, minimum collision bounds
 			 * are provided by HW.  Recompute new bounds here.
 			 */
-			struct mxcfb_rect *cur_upd_rect =
-				&priv->cur_update->update_desc->upd_data.update_region;
 
-			/* Get collision region coords from EPDC */
 			coll_coord = epdc_read(priv, EPDC_UPD_COL_CORD);
 			coll_size = epdc_read(priv, EPDC_UPD_COL_SIZE);
 			coll_region.left =
