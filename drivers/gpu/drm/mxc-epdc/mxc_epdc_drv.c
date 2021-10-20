@@ -251,9 +251,6 @@ static void mxc_epdc_pipe_update(struct drm_simple_display_pipe *pipe,
 		u8 *dst;
 		int y;
 
-		/* ignore cursor update */
-		if (clip.x2 - clip.x1 == 8 && clip.y2 - clip.y1 == 16)
-			continue;
 		dev_dbg(priv->drm.dev, "damaged: %d,%d-%d,%d\n",
 			clip.x1, clip.y1, clip.x2, clip.y2);
 
