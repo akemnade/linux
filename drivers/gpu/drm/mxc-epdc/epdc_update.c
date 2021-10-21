@@ -570,7 +570,6 @@ static int epdc_choose_next_lut(struct mxc_epdc *priv, int *next_lut)
 
 static void epdc_submit_work_func(struct work_struct *work)
 {
-	int temp_index;
 	struct update_data_list *next_update, *temp_update;
 	struct update_desc_list *next_desc, *temp_desc;
 	struct update_marker_data *next_marker, *temp_marker;
@@ -610,9 +609,6 @@ static void epdc_submit_work_func(struct work_struct *work)
 		if (!upd_data_list) {
 			upd_data_list = next_update;
 			list_del_init(&next_update->list);
-			if (priv->upd_scheme == UPDATE_SCHEME_QUEUE)
-				/* If not merging, we have our update */
-				break;
 		} else {
 			switch (epdc_submit_merge(upd_data_list->update_desc,
 						next_update->update_desc,
@@ -647,66 +643,56 @@ static void epdc_submit_work_func(struct work_struct *work)
 	}
 
 	/*
-	 * Skip pending update list only if we found a collision
-	 * update and we are not merging
+	 * If we didn't find a collision update ready to go, we
+	 * need to get a free buffer and match it to a pending update.
 	 */
-	if (!((priv->upd_scheme == UPDATE_SCHEME_QUEUE) &&
-		upd_data_list)) {
-		/*
-		 * If we didn't find a collision update ready to go, we
-		 * need to get a free buffer and match it to a pending update.
-		 */
 
-		/*
-		 * Can't proceed if there are no free buffers (and we don't
-		 * already have a collision update selected)
-		 */
-		if (!upd_data_list &&
-			list_empty(&priv->upd_buf_free_list)) {
-			mutex_unlock(&priv->queue_mutex);
-			return;
-		}
+	/*
+	 * Can't proceed if there are no free buffers (and we don't
+	 * already have a collision update selected)
+	 */
+	if (!upd_data_list &&
+		list_empty(&priv->upd_buf_free_list)) {
+		mutex_unlock(&priv->queue_mutex);
+		return;
+	}
 
-		list_for_each_entry_safe(next_desc, temp_desc,
-				&priv->upd_pending_list, list) {
+	list_for_each_entry_safe(next_desc, temp_desc,
+			&priv->upd_pending_list, list) {
 
-			dev_dbg(priv->drm.dev, "Found a pending update!\n");
+		dev_dbg(priv->drm.dev, "Found a pending update!\n");
 
-			if (!upd_data_list) {
-				if (list_empty(&priv->upd_buf_free_list))
-					break;
-				upd_data_list =
-					list_entry(priv->upd_buf_free_list.next,
-						struct update_data_list, list);
-				list_del_init(&upd_data_list->list);
-				upd_data_list->update_desc = next_desc;
+		if (!upd_data_list) {
+			if (list_empty(&priv->upd_buf_free_list))
+				break;
+			upd_data_list =
+				list_entry(priv->upd_buf_free_list.next,
+					struct update_data_list, list);
+			list_del_init(&upd_data_list->list);
+			upd_data_list->update_desc = next_desc;
+			list_del_init(&next_desc->list);
+		} else {
+			switch (epdc_submit_merge(upd_data_list->update_desc,
+					next_desc, priv)) {
+			case MERGE_OK:
+				dev_dbg(priv->drm.dev,
+					"Update merged [queue]\n");
 				list_del_init(&next_desc->list);
-				if (priv->upd_scheme == UPDATE_SCHEME_QUEUE)
-					/* If not merging, we have an update */
-					break;
-			} else {
-				switch (epdc_submit_merge(upd_data_list->update_desc,
-						next_desc, priv)) {
-				case MERGE_OK:
-					dev_dbg(priv->drm.dev,
-						"Update merged [queue]\n");
-					list_del_init(&next_desc->list);
-					kfree(next_desc);
-					break;
-				case MERGE_FAIL:
-					dev_dbg(priv->drm.dev,
-						"Update not merged [queue]\n");
-					break;
-				case MERGE_BLOCK:
-					dev_dbg(priv->drm.dev,
-						"Merge blocked [collision]\n");
-					end_merge = true;
-					break;
-				}
-
-				if (end_merge)
-					break;
+				kfree(next_desc);
+				break;
+			case MERGE_FAIL:
+				dev_dbg(priv->drm.dev,
+					"Update not merged [queue]\n");
+				break;
+			case MERGE_BLOCK:
+				dev_dbg(priv->drm.dev,
+					"Merge blocked [collision]\n");
+				end_merge = true;
+				break;
 			}
+
+			if (end_merge)
+				break;
 		}
 	}
 
@@ -716,8 +702,6 @@ static void epdc_submit_work_func(struct work_struct *work)
 		return;
 	}
 
-
-	/* If needed, enable EPDC HW while ePxP is processing */
 	if ((!priv->powered)
 		|| priv->powering_down)
 		mxc_epdc_powerup(priv);
@@ -914,12 +898,8 @@ void mxc_epdc_draw_mode0(struct mxc_epdc *priv)
 int mxc_epdc_fb_send_single_update(struct mxcfb_update_data *upd_data,
 				   struct mxc_epdc *priv)
 {
-	struct update_data_list *upd_data_list = NULL;
-	struct mxcfb_rect *screen_upd_region; /* Region on screen to update */
-	int temp_index;
-	int ret;
 	struct update_desc_list *upd_desc;
-	struct update_marker_data *marker_data, *next_marker, *temp_marker;
+	struct update_marker_data *marker_data;
 
 	/* Has EPDC HW been initialized? */
 	if (!priv->hw_ready) {
@@ -974,48 +954,6 @@ int mxc_epdc_fb_send_single_update(struct mxcfb_update_data *upd_data,
 		return -EPERM;
 	}
 
-#if 0
-	if (priv->upd_scheme == UPDATE_SCHEME_SNAPSHOT) {
-		int count = 0;
-		struct update_data_list *plist;
-
-		/*
-		 * If next update is a FULL mode update, then we must
-		 * ensure that all pending & active updates are complete
-		 * before submitting the update.  Otherwise, the FULL
-		 * mode update may cause an endless collision loop with
-		 * other updates.  Block here until updates are flushed.
-		 */
-		if (upd_data->update_mode == UPDATE_MODE_FULL) {
-			mutex_unlock(&priv->queue_mutex);
-			mxc_epdc_fb_flush_updates(priv);
-			mutex_lock(&priv->queue_mutex);
-		}
-
-		/* Count buffers in free buffer list */
-		list_for_each_entry(plist, &priv->upd_buf_free_list, list)
-			count++;
-
-		/*
-		 * Use count to determine if we have enough
-		 * free buffers to handle this update request
-		 */
-		if (count + priv->max_num_buffers
-			<= priv->max_num_updates) {
-			dev_err(priv->drm.dev,
-				"No free intermediate buffers available.\n");
-			mutex_unlock(&priv->queue_mutex);
-			return -ENOMEM;
-		}
-
-		/* Grab first available buffer and delete from the free list */
-		upd_data_list =
-		    list_entry(priv->upd_buf_free_list.next,
-			       struct update_data_list, list);
-
-		list_del_init(&upd_data_list->list);
-	}
-#endif
 
 	/*
 	 * Create new update data structure, fill it with new update
@@ -1025,10 +963,6 @@ int mxc_epdc_fb_send_single_update(struct mxcfb_update_data *upd_data,
 	if (!upd_desc) {
 		dev_err(priv->drm.dev,
 			"Insufficient system memory for update! Aborting.\n");
-		if (priv->upd_scheme == UPDATE_SCHEME_SNAPSHOT) {
-			list_add(&upd_data_list->list,
-				&priv->upd_buf_free_list);
-		}
 		mutex_unlock(&priv->queue_mutex);
 		return -EPERM;
 	}
@@ -1061,133 +995,14 @@ int mxc_epdc_fb_send_single_update(struct mxcfb_update_data *upd_data,
 			&priv->full_marker_list);
 	}
 
-	if (priv->upd_scheme != UPDATE_SCHEME_SNAPSHOT) {
-		/* Queued update scheme processing */
-
-		mutex_unlock(&priv->queue_mutex);
-
-		/* Signal workqueue to handle new update */
-		queue_work(priv->epdc_submit_workqueue,
-			&priv->epdc_submit_work);
-
-		return 0;
-	}
-#if 0
-	/* Snapshot update scheme processing */
-
-	/* Set descriptor for current update, delete from pending list */
-	upd_data_list->update_desc = upd_desc;
-	list_del_init(&upd_desc->list);
+	/* Queued update scheme processing */
 
 	mutex_unlock(&priv->queue_mutex);
 
-	/*
-	 * Hold on to original screen update region, which we
-	 * will ultimately use when telling EPDC where to update on panel
-	 */
-	screen_upd_region = &upd_desc->upd_data.update_region;
+	/* Signal workqueue to handle new update */
+	queue_work(priv->epdc_submit_workqueue,
+		   &priv->epdc_submit_work);
 
-	/* Select from PxP output buffers */
-	upd_data_list->phys_addr =
-		priv->phys_addr_updbuf[priv->upd_buffer_num];
-	upd_data_list->virt_addr =
-		priv->virt_addr_updbuf[priv->upd_buffer_num];
-	priv->upd_buffer_num++;
-	if (priv->upd_buffer_num > priv->max_num_buffers-1)
-		priv->upd_buffer_num = 0;
-
-	ret = epdc_process_update(upd_data_list, priv);
-	if (ret) {
-		mutex_unlock(&priv->pxp_mutex);
-		return ret;
-	}
-
-	/* Pass selected waveform mode back to user */
-	upd_data->waveform_mode = upd_desc->upd_data.waveform_mode;
-
-	/* Get rotation-adjusted coordinates */
-	adjust_coordinates(priv->epdc_fb_var.xres,
-		priv->epdc_fb_var.yres,
-		&upd_desc->upd_data.update_region, NULL);
-
-	/* Grab lock for queue manipulation and update submission */
-	mutex_lock(&priv->queue_mutex);
-
-	/*
-	 * Is the working buffer idle?
-	 * If either the working buffer is busy, or there are no LUTs available,
-	 * then we return and let the ISR handle the update later
-	 */
-	if ((priv->cur_update != NULL) || !epdc_any_luts_available()) {
-		/* Add processed Y buffer to update list */
-		list_add_tail(&upd_data_list->list, &priv->upd_buf_queue);
-
-		/* Return and allow the update to be submitted by the ISR. */
-		mutex_unlock(&priv->queue_mutex);
-		return 0;
-	}
-
-	/* LUTs are available, so we get one here */
-	ret = epdc_choose_next_lut(priv->rev, &upd_data_list->lut_num);
-
-	if (!(upd_data_list->update_desc->upd_data.flags
-		& EPDC_FLAG_TEST_COLLISION)) {
-
-		/* Save current update */
-		priv->cur_update = upd_data_list;
-
-		/* Reset mask for LUTS that have completed during WB processing */
-		priv->luts_complete_wb = 0;
-
-		/* Associate LUT with update marker */
-		list_for_each_entry_safe(next_marker, temp_marker,
-			&upd_data_list->update_desc->upd_marker_list, upd_list)
-			next_marker->lut_num = upd_data_list->lut_num;
-
-		/* Mark LUT as containing new update */
-		priv->lut_update_order[upd_data_list->lut_num] =
-			upd_desc->update_order;
-
-		epdc_lut_complete_intr(priv->rev, upd_data_list->lut_num,
-					true);
-	}
-
-	/* Clear status and Enable LUT complete and WB complete IRQs */
-	epdc_working_buf_intr(true);
-
-	epdc_clear_lower_nibble(((u8 *)upd_data_list->virt_addr) + upd_desc->epdc_offs,
-				0, 0,
-				screen_upd_region->width,
-				screen_upd_region->height,
-				upd_desc->epdc_stride);
-	/* Program EPDC update to process buffer */
-	epdc_set_update_addr(upd_data_list->phys_addr + upd_desc->epdc_offs);
-	epdc_set_update_coord(screen_upd_region->left, screen_upd_region->top);
-	epdc_set_update_dimensions(screen_upd_region->width,
-		screen_upd_region->height);
-
-	epdc_set_update_stride(upd_desc->epdc_stride);
-	if (upd_desc->upd_data.temp != TEMP_USE_AMBIENT) {
-		temp_index = mxc_epdc_fb_get_temp_index(priv,
-			upd_desc->upd_data.temp);
-		epdc_write(priv, EPDC_TEMP, temp_index);
-	} else
-		epdc_write(priv, EPDC_TEMP, priv->temp_index);
-	if (priv->wv_modes_update &&
-		(upd_desc->upd_data.waveform_mode == WAVEFORM_MODE_AUTO)) {
-		mxc_epdc_set_update_waveform(&priv->wv_modes);
-		priv->wv_modes_update = false;
-	}
-
-	epdc_submit_update(upd_data_list->lut_num,
-			   upd_desc->upd_data.waveform_mode,
-			   upd_desc->upd_data.update_mode,
-			   (upd_desc->upd_data.flags
-				& EPDC_FLAG_TEST_COLLISION) ? true : false,
-			   false, 0);
-
-#endif
-	mutex_unlock(&priv->queue_mutex);
 	return 0;
 }
 
@@ -1196,17 +1011,14 @@ static void epdc_intr_work_func(struct work_struct *work)
 	struct mxc_epdc *priv =
 		container_of(work, struct mxc_epdc, epdc_intr_work);
 	struct update_data_list *collision_update;
-	struct mxcfb_rect *next_upd_region;
 	struct update_marker_data *next_marker;
 	struct update_marker_data *temp;
-	int temp_index;
 	u64 temp_mask;
 	u32 lut;
 	bool ignore_collision = false;
 	int i;
 	bool wb_lut_done = false;
 	bool free_update = true;
-	int next_lut, epdc_next_lut_15;
 	u32 epdc_luts_active, epdc_wb_busy, epdc_luts_avail, epdc_lut_cancelled;
 	u32 epdc_collision;
 	u64 epdc_irq_stat;
@@ -1412,6 +1224,8 @@ static void epdc_intr_work_func(struct work_struct *work)
 			}
 		} else if (epdc_collision) {
 			/* Real update (no dry-run), collision occurred */
+			struct mxcfb_rect *cur_upd_rect =
+				&priv->cur_update->update_desc->upd_data.update_region;
 
 			/* Check list of colliding LUTs, and add to our collision mask */
 			priv->cur_update->collision_mask =
@@ -1428,40 +1242,33 @@ static void epdc_intr_work_func(struct work_struct *work)
 			 * For EPDC 2.0 and later, minimum collision bounds
 			 * are provided by HW.  Recompute new bounds here.
 			 */
-			if (priv->upd_scheme != UPDATE_SCHEME_SNAPSHOT) {
-				u32 xres, yres;
-				struct mxcfb_rect *cur_upd_rect =
-					&priv->cur_update->update_desc->upd_data.update_region;
 
-				/* Get collision region coords from EPDC */
-				coll_coord = epdc_read(priv, EPDC_UPD_COL_CORD);
-				coll_size = epdc_read(priv, EPDC_UPD_COL_SIZE);
-				coll_region.left =
-					(coll_coord & EPDC_UPD_COL_CORD_XCORD_MASK)
-						>> EPDC_UPD_COL_CORD_XCORD_OFFSET;
-				coll_region.top =
-					(coll_coord & EPDC_UPD_COL_CORD_YCORD_MASK)
-						>> EPDC_UPD_COL_CORD_YCORD_OFFSET;
-				coll_region.width =
-					(coll_size & EPDC_UPD_COL_SIZE_WIDTH_MASK)
-						>> EPDC_UPD_COL_SIZE_WIDTH_OFFSET;
-				coll_region.height =
-					(coll_size & EPDC_UPD_COL_SIZE_HEIGHT_MASK)
-						>> EPDC_UPD_COL_SIZE_HEIGHT_OFFSET;
-				dev_dbg(priv->drm.dev, "Coll region: l = %d, "
-					"t = %d, w = %d, h = %d\n",
-					coll_region.left, coll_region.top,
-					coll_region.width, coll_region.height);
+			coll_coord = epdc_read(priv, EPDC_UPD_COL_CORD);
+			coll_size = epdc_read(priv, EPDC_UPD_COL_SIZE);
+			coll_region.left =
+				(coll_coord & EPDC_UPD_COL_CORD_XCORD_MASK)
+					>> EPDC_UPD_COL_CORD_XCORD_OFFSET;
+			coll_region.top =
+				(coll_coord & EPDC_UPD_COL_CORD_YCORD_MASK)
+					>> EPDC_UPD_COL_CORD_YCORD_OFFSET;
+			coll_region.width =
+				(coll_size & EPDC_UPD_COL_SIZE_WIDTH_MASK)
+					>> EPDC_UPD_COL_SIZE_WIDTH_OFFSET;
+			coll_region.height =
+				(coll_size & EPDC_UPD_COL_SIZE_HEIGHT_MASK)
+					>> EPDC_UPD_COL_SIZE_HEIGHT_OFFSET;
+			dev_dbg(priv->drm.dev, "Coll region: l = %d, "
+				"t = %d, w = %d, h = %d\n",
+				coll_region.left, coll_region.top,
+				coll_region.width, coll_region.height);
 
-				/* Convert coords back to orig orientation */
-				*cur_upd_rect = coll_region;
+			*cur_upd_rect = coll_region;
 
-				dev_dbg(priv->drm.dev, "Adj coll region: l = %d, "
-					"t = %d, w = %d, h = %d\n",
-					cur_upd_rect->left, cur_upd_rect->top,
-					cur_upd_rect->width,
-					cur_upd_rect->height);
-			}
+			dev_dbg(priv->drm.dev, "Adj coll region: l = %d, "
+				"t = %d, w = %d, h = %d\n",
+				cur_upd_rect->left, cur_upd_rect->top,
+				cur_upd_rect->width,
+				cur_upd_rect->height);
 
 			/*
 			 * If we collide with newer updates, then
@@ -1567,120 +1374,17 @@ static void epdc_intr_work_func(struct work_struct *work)
 		epdc_clear_working_buf_irq(priv);
 	}
 
-	if (priv->upd_scheme != UPDATE_SCHEME_SNAPSHOT) {
-		/* Queued update scheme processing */
+	/* Queued update scheme processing */
 
-		/* Schedule task to submit collision and pending update */
-		if (!priv->powering_down)
-			queue_work(priv->epdc_submit_workqueue,
-				&priv->epdc_submit_work);
-
-		/* Release buffer queues */
-		mutex_unlock(&priv->queue_mutex);
-
-		return;
-	}
-
-	/* Snapshot update scheme processing */
-
-	/* Check to see if any LUTs are free */
-	if (!epdc_luts_avail) {
-		dev_dbg(priv->drm.dev, "No luts available.\n");
-		mutex_unlock(&priv->queue_mutex);
-		return;
-	}
-
-	epdc_next_lut_15 = epdc_choose_next_lut(priv, &next_lut);
-	/*
-	 * Are any of our collision updates able to go now?
-	 * Go through all updates in the collision list and check to see
-	 * if the collision mask has been fully cleared
-	 */
-	list_for_each_entry(collision_update,
-			    &priv->upd_buf_collision_list, list) {
-
-		if (collision_update->collision_mask != 0)
-			continue;
-
-		dev_dbg(priv->drm.dev, "A collision update is ready to go!\n");
-		/*
-		 * We have a collision cleared, so select it
-		 * and we will retry the update
-		 */
-		priv->cur_update = collision_update;
-		list_del_init(&priv->cur_update->list);
-		break;
-	}
-
-	/*
-	 * If we didn't find a collision update ready to go,
-	 * we try to grab one from the update queue
-	 */
-	if (priv->cur_update == NULL) {
-		/* Is update list empty? */
-		if (list_empty(&priv->upd_buf_queue)) {
-			dev_dbg(priv->drm.dev, "No pending updates.\n");
-
-			/* No updates pending, so we are done */
-			mutex_unlock(&priv->queue_mutex);
-			return;
-		}
-		dev_dbg(priv->drm.dev, "Found a pending update!\n");
-
-		/* Process next item in update list */
-		priv->cur_update =
-		    list_entry(priv->upd_buf_queue.next,
-			       struct update_data_list, list);
-		list_del_init(&priv->cur_update->list);
-	}
-
-	/* Use LUT selected above */
-	priv->cur_update->lut_num = next_lut;
-
-	/* Associate LUT with update markers */
-	list_for_each_entry_safe(next_marker, temp,
-		&priv->cur_update->update_desc->upd_marker_list, upd_list)
-		next_marker->lut_num = priv->cur_update->lut_num;
-
-	/* Mark LUT as containing new update */
-	priv->lut_update_order[priv->cur_update->lut_num] =
-		priv->cur_update->update_desc->update_order;
-
-	/* Enable Collision and WB complete IRQs */
-	epdc_working_buf_intr(priv, true);
-	epdc_lut_complete_intr(priv, priv->cur_update->lut_num, true);
-
-	/* Program EPDC update to process buffer */
-	next_upd_region =
-		&priv->cur_update->update_desc->upd_data.update_region;
-	if (priv->cur_update->update_desc->upd_data.temp
-		!= TEMP_USE_AMBIENT) {
-		temp_index = mxc_epdc_fb_get_temp_index(priv,
-			priv->cur_update->update_desc->upd_data.temp);
-		epdc_write(priv, EPDC_TEMP, temp_index);
-	} else
-		epdc_write(priv, EPDC_TEMP, priv->temp_index);
-
-	epdc_set_update_area(priv, priv->cur_update->phys_addr +
-			     priv->cur_update->update_desc->epdc_offs,
-			     next_upd_region->left, next_upd_region->top,
-			     next_upd_region->width, next_upd_region->height,
-			     priv->cur_update->update_desc->epdc_stride);
-
-	if (priv->wv_modes_update &&
-		(priv->cur_update->update_desc->upd_data.waveform_mode
-			== WAVEFORM_MODE_AUTO)) {
-		mxc_epdc_set_update_waveform(priv, &priv->wv_modes);
-		priv->wv_modes_update = false;
-	}
-
-	epdc_submit_update(priv, priv->cur_update->lut_num,
-			   priv->cur_update->update_desc->upd_data.waveform_mode,
-			   priv->cur_update->update_desc->upd_data.update_mode,
-			   false, false, 0);
+	/* Schedule task to submit collision and pending update */
+	if (!priv->powering_down)
+		queue_work(priv->epdc_submit_workqueue,
+			&priv->epdc_submit_work);
 
 	/* Release buffer queues */
 	mutex_unlock(&priv->queue_mutex);
+
+	return;
 }
 
 
@@ -1697,7 +1401,6 @@ int mxc_epdc_init_update(struct mxc_epdc *priv)
 	 */
 	priv->num_luts = EPDC_V2_NUM_LUTS;
 	priv->max_num_updates = EPDC_V2_MAX_NUM_UPDATES;
-	priv->upd_scheme = UPDATE_SCHEME_QUEUE_AND_MERGE;
 
 	INIT_LIST_HEAD(&priv->upd_pending_list);
 	INIT_LIST_HEAD(&priv->upd_buf_queue);
