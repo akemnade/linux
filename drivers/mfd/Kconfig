@@ -1551,6 +1551,14 @@ config MFD_TPS6518X
 	  additional drivers must be enabled in order to use the
 	  functionality of the device.
 
+config MFD_SY7636
+	tristate "Silergy SY7636 EPD PMIC core"
+	depends on I2C
+	select MFD_CORE
+	help
+	  This is the SY7636 EPD PMIC support. It includes
+	  core support for communication with the SY7636 chip.
+
 config MFD_TPS65217
 	tristate "TI TPS65217 Power Management / White LED chips"
 	depends on I2C && OF
