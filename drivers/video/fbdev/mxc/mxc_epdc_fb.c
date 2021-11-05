@@ -53,6 +53,7 @@
 #include <linux/mxcfb_epdc.h>
 #include <linux/gpio.h>
 #include <linux/regulator/driver.h>
+#include <linux/thermal.h>
 #include <linux/fsl_devices.h>
 #include <linux/bitops.h>
 #include <linux/pinctrl/consumer.h>
@@ -229,6 +230,7 @@ struct mxc_epdc_fb_data {
 	dma_cookie_t cookie;
 	struct scatterlist sg[2];
 	struct mutex pxp_mutex; /* protects access to PxP */
+        struct thermal_zone_device *thermal;
 };
 
 struct waveform_data_header {
@@ -784,6 +786,7 @@ static int mxc_epdc_fb_get_temp_index(struct mxc_epdc_fb_data *fb_data,
 static void mxc_epdc_fb_flush_updates(struct mxc_epdc_fb_data *fb_data);
 static int mxc_epdc_fb_blank(int blank, struct fb_info *info);
 static int mxc_epdc_fb_init_hw(struct fb_info *info);
+static int mxc_epdc_fb_set_temperature(int temperature, struct fb_info *info);
 static int pxp_process_update(struct mxc_epdc_fb_data *fb_data,
 			      u32 src_width, u32 src_height,
 			      struct mxcfb_rect *update_region);
@@ -1633,6 +1636,17 @@ static void epdc_powerup(struct mxc_epdc_fb_data *fb_data)
 	fb_data->power_state = POWER_STATE_ON;
 
 	mutex_unlock(&fb_data->power_mutex);
+
+	if (fb_data->thermal) {
+		int temp;
+		if (thermal_zone_get_temp(fb_data->thermal, &temp)) {
+			dev_err(fb_data->dev,
+				"reading temperature failed");
+		} else {
+			mxc_epdc_fb_set_temperature(temp / 1000, &fb_data->info);
+		}
+	}
+
 }
 
 static void epdc_powerdown(struct mxc_epdc_fb_data *fb_data)
@@ -2271,7 +2285,7 @@ static int mxc_epdc_fb_get_temp_index(struct mxc_epdc_fb_data *fb_data, int temp
 	return index;
 }
 
-int mxc_epdc_fb_set_temperature(int temperature, struct fb_info *info)
+static int mxc_epdc_fb_set_temperature(int temperature, struct fb_info *info)
 {
 	struct mxc_epdc_fb_data *fb_data = info ?
 		(struct mxc_epdc_fb_data *)info:g_fb_data;
@@ -2283,7 +2297,6 @@ int mxc_epdc_fb_set_temperature(int temperature, struct fb_info *info)
 
 	return 0;
 }
-EXPORT_SYMBOL(mxc_epdc_fb_set_temperature);
 
 int mxc_epdc_fb_set_auto_update(u32 auto_mode, struct fb_info *info)
 {
@@ -4945,6 +4958,7 @@ int mxc_epdc_fb_probe(struct platform_device *pdev)
 	unsigned long x_mem_size = 0;
 	u32 val;
 	int irq;
+	const char *thermal;
 	struct device_node *np = pdev->dev.of_node;
 
 	fb_data = (struct mxc_epdc_fb_data *)framebuffer_alloc(
@@ -4997,11 +5011,21 @@ int mxc_epdc_fb_probe(struct platform_device *pdev)
 			ret = -EPROBE_DEFER;
 			goto out_fbdata;
 		}
+
 		dev_err(&pdev->dev, "Unable to get V3P3 regulator."
 			"err = 0x%x\n", (int)fb_data->vcom_regulator);
 		ret = -ENODEV;
 		goto out_fbdata;
 	}
+
+	of_property_read_string(pdev->dev.of_node,
+				"epd-thermal-zone", &thermal);
+	if (thermal) {
+		fb_data->thermal = thermal_zone_get_zone_by_name(thermal);
+		if (IS_ERR(fb_data->thermal))
+			return dev_err_probe(&pdev->dev, PTR_ERR(fb_data->thermal),
+					     "unable to get thermal");
+        }
 
 	fb_data->tce_prevent = 0;
 
