@@ -59,6 +59,7 @@
 #include <linux/regmap.h>
 #include <linux/regulator/driver.h>
 // #include <linux/mfd/max17135.h>
+#include <linux/thermal.h>
 #include <linux/fsl_devices.h>
 #include <linux/bitops.h>
 #include <linux/pinctrl/consumer.h>
@@ -191,7 +192,6 @@ struct mxc_epdc_fb_data {
 	struct regulator *display_regulator;
 	struct regulator *vcom_regulator;
 	struct regulator *v3p3_regulator;
-	struct regulator *tmst_regulator;
 	bool fw_default_load;
 	int rev;
 
@@ -301,6 +301,7 @@ struct mxc_epdc_fb_data {
 	u32 waveform_trc;
 
 	u32 dwSafeTicksEP3V3; // the safe ticks we must to wait for EP3V3 .
+        struct thermal_zone_device *thermal;
 };
 
 struct waveform_data_header {
@@ -2188,10 +2189,13 @@ static void epdc_powerup(struct mxc_epdc_fb_data *fb_data)
 
 	mutex_unlock(&fb_data->power_mutex);
 
-	if (!IS_ERR(fb_data->tmst_regulator)) {
-		int temp = regulator_get_voltage(fb_data->tmst_regulator);
-		if (temp != 0xFF) {
-			mxc_epdc_fb_set_temperature(temp, &fb_data->info);
+	if (fb_data->thermal) {
+		int temp;
+		if (thermal_zone_get_temp(fb_data->thermal, &temp)) {
+			dev_err(fb_data->dev,
+				"reading temperature failed");
+		} else {
+			mxc_epdc_fb_set_temperature(temp / 1000, &fb_data->info);
 		}
 	}
 
@@ -6077,7 +6081,7 @@ static int mxc_epdc_fb_probe(struct platform_device *pdev)
 	enum of_gpio_flags flag;
 	unsigned short *wk_p;
 	unsigned int dwSafeTicksTurnoffEP3V3;
-
+	const char *thermal = NULL;
 
 	if (!np)
 		return -EINVAL;
@@ -6196,11 +6200,15 @@ static int mxc_epdc_fb_probe(struct platform_device *pdev)
 		ret = -ENODEV;
 		goto out_fbdata;
 	}
-	fb_data->tmst_regulator = devm_regulator_get(&pdev->dev, "TMST");
-	if (IS_ERR(fb_data->tmst_regulator)) {
-		dev_info(&pdev->dev, "Unable to get TMST regulator."
-			"err = 0x%x\n", (int)fb_data->tmst_regulator);
-	}
+
+	of_property_read_string(pdev->dev.of_node,
+				"epd-thermal-zone", &thermal);
+	if (thermal) {
+		fb_data->thermal = thermal_zone_get_zone_by_name(thermal);
+		if (IS_ERR(fb_data->thermal))
+			return dev_err_probe(&pdev->dev, PTR_ERR(fb_data->thermal),
+					     "unable to get thermal");
+        }
 
 	fb_data->epdc_wb_mode = 1;
 	fb_data->tce_prevent = 0;
