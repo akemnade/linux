@@ -30,7 +30,7 @@
 #include <linux/timer.h>
 #include <linux/kthread.h>
 
-#define CY_CORE_STARTUP_RETRY_COUNT		3
+#define CY_CORE_STARTUP_RETRY_COUNT		5
 
 MODULE_FIRMWARE(CY_FW_FILE_NAME);
 
