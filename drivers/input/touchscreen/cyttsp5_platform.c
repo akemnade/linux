@@ -177,7 +177,7 @@ int cyttsp5_xres(struct cyttsp5_core_platform_data *pdata,
 	gpiod_set_value_cansleep(pdata->rst_gpio, 1);
 	msleep(40);
 	gpiod_set_value_cansleep(pdata->rst_gpio, 0);
-	msleep(20);
+	msleep(80);
 	dev_info(dev,
 		"%s: RESET CYTTSP r=%d\n", __func__,
 		rc);
