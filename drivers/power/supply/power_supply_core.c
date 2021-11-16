@@ -693,6 +693,8 @@ int power_supply_dev_get_battery_info(struct device *dev,
 			dev_warn(dev, "%s unknown battery type\n", value);
 	}
 
+	fwnode_property_read_u32(fwnode, "degrade-cycle-microamp-hours",
+			     &info->degrade_cycle_uah);
 	fwnode_property_read_u32(fwnode, "energy-full-design-microwatt-hours",
 			     &info->energy_full_design_uwh);
 	fwnode_property_read_u32(fwnode, "charge-full-design-microamp-hours",

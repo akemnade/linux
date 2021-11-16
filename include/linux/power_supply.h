@@ -781,6 +781,7 @@ struct power_supply_battery_info {
 	int resist_table_size;
 	int temp_dgrd_values;
 	struct power_supply_temp_degr *temp_dgrd;
+	int degrade_cycle_uah;
 	const struct power_supply_vbat_ri_table *vbat2ri_discharging;
 	int vbat2ri_discharging_size;
 	const struct power_supply_vbat_ri_table *vbat2ri_charging;
