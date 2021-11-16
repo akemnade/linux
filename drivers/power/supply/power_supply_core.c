@@ -573,10 +573,12 @@ struct power_supply *devm_power_supply_get_by_phandle(struct device *dev,
 EXPORT_SYMBOL_GPL(devm_power_supply_get_by_phandle);
 #endif /* CONFIG_OF */
 
+#define POWER_SUPPLY_TEMP_DGRD_MAX_VALUES 100
 int power_supply_get_battery_info(struct power_supply *psy,
 				  struct power_supply_battery_info **info_out)
 {
 	struct power_supply_resistance_temp_table *resist_table;
+	u32 *dgrd_table;
 	struct power_supply_battery_info *info;
 	struct device_node *battery_np = NULL;
 	struct fwnode_reference_args args;
@@ -740,6 +742,104 @@ int power_supply_get_battery_info(struct power_supply *psy,
 	 */
 	if (!battery_np)
 		goto out_ret_pointer;
+
+	len = of_property_count_u32_elems(battery_np, "temp-degrade-table");
+	if (len == -EINVAL)
+		len = 0;
+	if (len < 0) {
+		err = len;
+		goto out_put_node;
+	}
+	/* table should consist of value pairs - maximum of 100 pairs */
+	if (len % 3 || len / 3 > POWER_SUPPLY_TEMP_DGRD_MAX_VALUES) {
+		dev_warn(&psy->dev,
+			 "bad amount of temperature-capacity degrade values\n");
+		err = -EINVAL;
+		goto out_put_node;
+	}
+	info->temp_dgrd_values = len / 3;
+	if (info->temp_dgrd_values) {
+		info->temp_dgrd = devm_kcalloc(&psy->dev,
+					       info->temp_dgrd_values,
+					       sizeof(*info->temp_dgrd),
+					       GFP_KERNEL);
+		if (!info->temp_dgrd) {
+			err = -ENOMEM;
+			goto out_put_node;
+		}
+		dgrd_table = kcalloc(len, sizeof(*dgrd_table), GFP_KERNEL);
+		if (!dgrd_table) {
+			err = -ENOMEM;
+			goto out_put_node;
+		}
+		err = of_property_read_u32_array(battery_np,
+						 "temp-degrade-table",
+						 dgrd_table, len);
+		if (err) {
+			dev_warn(&psy->dev,
+				 "bad temperature - capacity degrade values %d\n", err);
+			kfree(dgrd_table);
+			info->temp_dgrd_values = 0;
+			goto out_put_node;
+		}
+		for (index = 0; index < info->temp_dgrd_values; index++) {
+			struct power_supply_temp_degr *d = &info->temp_dgrd[index];
+
+			d->temp_degrade_1C = dgrd_table[index * 3];
+			d->degrade_at_set = dgrd_table[index * 3 + 1];
+			d->temp_set_point = dgrd_table[index * 3 + 2];
+		}
+		kfree(dgrd_table);
+	}
+
+	len = of_property_count_u32_elems(battery_np, "temp-degrade-table");
+	if (len == -EINVAL)
+		len = 0;
+	if (len < 0) {
+		err = len;
+		goto out_put_node;
+	}
+	/* table should consist of value pairs - maximum of 100 pairs */
+	if (len % 3 || len / 3 > POWER_SUPPLY_TEMP_DGRD_MAX_VALUES) {
+		dev_warn(&psy->dev,
+			 "bad amount of temperature-capacity degrade values\n");
+		err = -EINVAL;
+		goto out_put_node;
+	}
+	info->temp_dgrd_values = len / 3;
+	if (info->temp_dgrd_values) {
+		info->temp_dgrd = devm_kcalloc(&psy->dev,
+					       info->temp_dgrd_values,
+					       sizeof(*info->temp_dgrd),
+					       GFP_KERNEL);
+		if (!info->temp_dgrd) {
+			err = -ENOMEM;
+			goto out_put_node;
+		}
+		dgrd_table = kcalloc(len, sizeof(*dgrd_table), GFP_KERNEL);
+		if (!dgrd_table) {
+			err = -ENOMEM;
+			goto out_put_node;
+		}
+		err = of_property_read_u32_array(battery_np,
+						 "temp-degrade-table",
+						 dgrd_table, len);
+		if (err) {
+			dev_warn(&psy->dev,
+				 "bad temperature - capacity degrade values %d\n", err);
+			kfree(dgrd_table);
+			info->temp_dgrd_values = 0;
+			goto out_put_node;
+		}
+		for (index = 0; index < info->temp_dgrd_values; index++) {
+			struct power_supply_temp_degr *d = &info->temp_dgrd[index];
+
+			d->temp_degrade_1C = dgrd_table[index * 3];
+			d->degrade_at_set = dgrd_table[index * 3 + 1];
+			d->temp_set_point = dgrd_table[index * 3 + 2];
+		}
+		kfree(dgrd_table);
+	}
 
 	len = of_property_count_u32_elems(battery_np, "ocv-capacity-celsius");
 	if (len < 0 && len != -EINVAL) {
