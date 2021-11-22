@@ -870,10 +870,12 @@ void mxc_epdc_draw_mode0(struct mxc_epdc *priv)
 	xres = priv->epdc_mem_width;
 	yres = priv->epdc_mem_height;
 
-	if (priv->rev < 30)
-		epdc_clear_lower_nibble((u8 *)upd_buf_ptr, 0, 0, xres, yres, 0);
-	else
-		epdc_shift2((u8 *)upd_buf_ptr, 0, 0, xres, yres, 0);
+	if (priv->buf_pix_fmt == EPDC_FORMAT_BUF_PIXEL_FORMAT_P5N) {
+		if (priv->rev < 30)
+			epdc_clear_lower_nibble((u8 *)upd_buf_ptr, 0, 0, xres, yres, 0);
+		else
+			epdc_shift2((u8 *)upd_buf_ptr, 0, 0, xres, yres, 0);
+	}
 
 	/* Program EPDC update to process buffer */
 	epdc_set_update_area(priv, priv->epdc_mem_phys, 0, 0, xres, yres, 0);
@@ -937,12 +939,22 @@ int mxc_epdc_fb_send_single_update(struct mxcfb_update_data *upd_data,
 		return -EINVAL;
 	}
 
-	epdc_clear_lower_nibble(priv->epdc_mem_virt,
-				upd_data->update_region.left,
-				upd_data->update_region.top,
-				upd_data->update_region.width,
-				upd_data->update_region.height,
-				priv->epdc_mem_width);
+	if (priv->buf_pix_fmt == EPDC_FORMAT_BUF_PIXEL_FORMAT_P5N) {
+		if (priv->rev < 30)
+			epdc_clear_lower_nibble((u8 *)priv->epdc_mem_virt,
+						upd_data->update_region.left,
+						upd_data->update_region.top,
+						upd_data->update_region.width,
+						upd_data->update_region.height,
+						priv->epdc_mem_width);
+		else
+			epdc_shift2((u8 *)priv->epdc_mem_virt,
+				    upd_data->update_region.left,
+				    upd_data->update_region.top,
+				    upd_data->update_region.width,
+				    upd_data->update_region.height,
+				    priv->epdc_mem_width);
+	}
 
 	/*
 	 * If we are waiting to go into suspend, or the FB is blanked,
