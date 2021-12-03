@@ -417,7 +417,7 @@ static void epdc_shift2(u8 *buf, int x, int y, int w, int h, int stride)
 	buf += x;
 	for (y = 0; y < h; y++) {
 		for (x = 0; x < w; x++)
-			buf[x] = (buf[x] << 2) | 0xC0;
+			buf[x] = (buf[x] >> 2) | 0xC0;
 
 		buf += stride;
 	}
