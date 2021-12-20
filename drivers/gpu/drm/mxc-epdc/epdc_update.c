@@ -388,40 +388,57 @@ static int epdc_submit_merge(struct update_desc_list *upd_desc_list,
 	return MERGE_OK;
 }
 
-/* done in Tolino 3.0.x kernels via PXP_LUT_AA */
-static void epdc_clear_lower_nibble(u8 *buf, int x, int y, int w, int h, int stride)
+static void epdc_from_rgb_clear_lower_nibble(struct drm_rect *clip, void *vaddr, int pitch, u8 *dst, int dst_pitch)
 {
-	flush_cache_all();
-	if (stride == 0)
-		stride = w;
+	unsigned int x, y;
 
-	buf += y * stride;
-	buf += x;
-	for (y = 0; y < h; y++) {
-		for (x = 0; x < w; x++)
-			buf[x] &= 0xF0;
+	dst += clip->y1 * dst_pitch;
 
-		buf += stride;
+	for (y = clip->y1; y < clip->y2; y++, dst += dst_pitch) {
+		u32 *src;
+		src = vaddr + (y * pitch);
+		src += clip->x1;
+		for (x = clip->x1; x < clip->x2; x++) {
+			u8 r = (*src & 0x00ff0000) >> 16;
+			u8 g = (*src & 0x0000ff00) >> 8;
+			u8 b =  *src & 0x000000ff;
+
+			/* ITU BT.601: Y = 0.299 R + 0.587 G + 0.114 B */
+			u8 gray = (3 * r + 6 * g + b) / 10;
+
+			/*
+			 * done in Tolino 3.0.x kernels via PXP_LUT_AA
+			 * needed for 5 bit waveforms 
+			 */
+
+			dst[x] = gray & 0xF0;
+			src++;
+		}
 	}
-	flush_cache_all();
 }
 
 /* found by experimentation, reduced number of levels of gray */
-static void epdc_shift2(u8 *buf, int x, int y, int w, int h, int stride)
+static void epdc_from_rgb_shift(struct drm_rect *clip, void *vaddr, int pitch, u8 *dst, int dst_pitch)
 {
-	flush_cache_all();
-	if (stride == 0)
-		stride = w;
+	unsigned int x, y;
 
-	buf += y * stride;
-	buf += x;
-	for (y = 0; y < h; y++) {
-		for (x = 0; x < w; x++)
-			buf[x] = (buf[x] >> 2) | 0xC0;
+	dst += clip->y1 * dst_pitch;
 
-		buf += stride;
+	for (y = clip->y1; y < clip->y2; y++, dst += dst_pitch) {
+		u32 *src;
+		src = vaddr + (y * pitch);
+		src += clip->x1;
+		for (x = clip->x1; x < clip->x2; x++) {
+			u8 r = (*src & 0x00ff0000) >> 16;
+			u8 g = (*src & 0x0000ff00) >> 8;
+			u8 b =  *src & 0x000000ff;
+
+			/* ITU BT.601: Y = 0.299 R + 0.587 G + 0.114 B */
+			u8 gray = (3 * r + 6 * g + b) / 10;
+			dst[x] = (gray >> 2) | 0xC0;
+			src++;
+		}
 	}
-	flush_cache_all();
 }
 
 static void epdc_submit_update(struct mxc_epdc *priv,
@@ -870,13 +887,6 @@ void mxc_epdc_draw_mode0(struct mxc_epdc *priv)
 	xres = priv->epdc_mem_width;
 	yres = priv->epdc_mem_height;
 
-	if (priv->buf_pix_fmt == EPDC_FORMAT_BUF_PIXEL_FORMAT_P5N) {
-		if (priv->rev < 30)
-			epdc_clear_lower_nibble((u8 *)upd_buf_ptr, 0, 0, xres, yres, 0);
-		else
-			epdc_shift2((u8 *)upd_buf_ptr, 0, 0, xres, yres, 0);
-	}
-
 	/* Program EPDC update to process buffer */
 	epdc_set_update_area(priv, priv->epdc_mem_phys, 0, 0, xres, yres, 0);
 	epdc_submit_update(priv, 0, priv->wv_modes.mode_init, UPDATE_MODE_FULL,
@@ -898,11 +908,20 @@ void mxc_epdc_draw_mode0(struct mxc_epdc *priv)
 }
 
 
-int mxc_epdc_fb_send_single_update(struct mxcfb_update_data *upd_data,
-				   struct mxc_epdc *priv)
+int mxc_epdc_send_single_update(struct drm_rect *clip, int pitch, void *vaddr,
+				struct mxc_epdc *priv)
 {
 	struct update_desc_list *upd_desc;
 	struct update_marker_data *marker_data;
+
+	if (priv->rev < 30) 
+		epdc_from_rgb_clear_lower_nibble(clip, vaddr, pitch,
+						 (u8 *)priv->epdc_mem_virt,
+						 priv->epdc_mem_width);
+	else
+		epdc_from_rgb_shift(clip, vaddr, pitch,
+				    (u8 *)priv->epdc_mem_virt,
+				    priv->epdc_mem_width);
 
 	/* Has EPDC HW been initialized? */
 	if (!priv->hw_ready) {
@@ -912,54 +931,8 @@ int mxc_epdc_fb_send_single_update(struct mxcfb_update_data *upd_data,
 		return -EPERM;
 	}
 
-	/* Check validity of update params */
-	if ((upd_data->update_mode != UPDATE_MODE_PARTIAL) &&
-		(upd_data->update_mode != UPDATE_MODE_FULL)) {
-		dev_err(priv->drm.dev,
-			"Update mode 0x%x is invalid.  Aborting update.\n",
-			upd_data->update_mode);
-		return -EINVAL;
-	}
-	if ((upd_data->waveform_mode > 255) &&
-		(upd_data->waveform_mode != WAVEFORM_MODE_AUTO)) {
-		dev_err(priv->drm.dev,
-			"Update waveform mode 0x%x is invalid. Aborting update.\n",
-			upd_data->waveform_mode);
-		return -EINVAL;
-	}
-
 	mutex_lock(&priv->queue_mutex);
-	if ((upd_data->update_region.left +
-	     upd_data->update_region.width > priv->epdc_mem_width) ||
-	    (upd_data->update_region.top +
-	     upd_data->update_region.height > priv->epdc_mem_height)) {
-		mutex_unlock(&priv->queue_mutex);
-		dev_err(priv->drm.dev,
-			"Update region is outside bounds of framebuffer. Aborting update.\n");
-		return -EINVAL;
-	}
 
-	if (priv->buf_pix_fmt == EPDC_FORMAT_BUF_PIXEL_FORMAT_P5N) {
-		if (priv->rev < 30)
-			epdc_clear_lower_nibble((u8 *)priv->epdc_mem_virt,
-						upd_data->update_region.left,
-						upd_data->update_region.top,
-						upd_data->update_region.width,
-						upd_data->update_region.height,
-						priv->epdc_mem_width);
-		else
-			epdc_shift2((u8 *)priv->epdc_mem_virt,
-				    upd_data->update_region.left,
-				    upd_data->update_region.top,
-				    upd_data->update_region.width,
-				    upd_data->update_region.height,
-				    priv->epdc_mem_width);
-	}
-
-	/*
-	 * If we are waiting to go into suspend, or the FB is blanked,
-	 * we do not accept new updates
-	 */
 	if (priv->waiting_for_idle) {
 		dev_dbg(priv->drm.dev, "EPDC not active. Update request abort.\n");
 		mutex_unlock(&priv->queue_mutex);
@@ -978,31 +951,16 @@ int mxc_epdc_fb_send_single_update(struct mxcfb_update_data *upd_data,
 	}
 	/* Initialize per-update marker list */
 	INIT_LIST_HEAD(&upd_desc->upd_marker_list);
-	upd_desc->upd_data = *upd_data;
+	upd_desc->upd_data.update_region.left = clip->x1;
+	upd_desc->upd_data.update_region.top = clip->y1;
+	upd_desc->upd_data.update_region.width = clip->x2 - clip->x1;
+	upd_desc->upd_data.update_region.height = clip->y2 - clip->y1;
+	upd_desc->upd_data.waveform_mode = WAVEFORM_MODE_AUTO;
+	upd_desc->upd_data.temp = TEMP_USE_AMBIENT;
+	upd_desc->upd_data.update_mode = UPDATE_MODE_PARTIAL;
+	upd_desc->upd_data.flags = 0;
 	upd_desc->update_order = priv->order_cnt++;
 	list_add_tail(&upd_desc->list, &priv->upd_pending_list);
-
-	/* If marker specified, associate it with a completion */
-	if (upd_data->update_marker != 0) {
-		/* Allocate new update marker and set it up */
-		marker_data = kzalloc(sizeof(struct update_marker_data),
-				GFP_KERNEL);
-		if (!marker_data) {
-			mutex_unlock(&priv->queue_mutex);
-			return -ENOMEM;
-		}
-		list_add_tail(&marker_data->upd_list,
-			&upd_desc->upd_marker_list);
-		marker_data->update_marker = upd_data->update_marker;
-		if (upd_desc->upd_data.flags & EPDC_FLAG_TEST_COLLISION)
-			marker_data->lut_num = DRY_RUN_NO_LUT;
-		else
-			marker_data->lut_num = INVALID_LUT;
-		init_completion(&marker_data->update_completion);
-		/* Add marker to master marker list */
-		list_add_tail(&marker_data->full_list,
-			&priv->full_marker_list);
-	}
 
 	/* Queued update scheme processing */
 

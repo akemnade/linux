@@ -246,35 +246,12 @@ static void mxc_epdc_pipe_update(struct drm_simple_display_pipe *pipe,
 	gem = drm_fb_cma_get_gem_obj(old_state->fb, 0);
 	drm_atomic_helper_damage_iter_init(&iter, old_state, pipe->plane.state);
 	drm_atomic_for_each_plane_damage(&iter, &clip) {
-		struct mxcfb_update_data upd_region;
-		struct drm_rect clip_line;
-		u8 *dst;
-		int y;
 
 		dev_dbg(priv->drm.dev, "damaged: %d,%d-%d,%d\n",
 			clip.x1, clip.y1, clip.x2, clip.y2);
 
-		dst = priv->epdc_mem_virt;
-		dst += clip.y1 * priv->epdc_mem_width + clip.x1;
-		for (y = clip.y1; y < clip.y2 ; y++) {
-			clip_line.x1 = clip.x1;
-			clip_line.x2 = clip.x2;
-			clip_line.y1 = y;
-			clip_line.y2 = y + 1;
-			drm_fb_xrgb8888_to_gray8(dst,
-						 gem->vaddr, old_state->fb,
-						 &clip_line);
-			dst += priv->epdc_mem_width;
-		}
-		upd_region.update_region.left = clip.x1;
-		upd_region.update_region.top = clip.y1;
-		upd_region.update_region.width = clip.x2 - clip.x1;
-		upd_region.update_region.height = clip.y2 - clip.y1;
-		upd_region.waveform_mode = WAVEFORM_MODE_AUTO;
-		upd_region.temp = TEMP_USE_AMBIENT;
-		upd_region.update_mode = UPDATE_MODE_PARTIAL;
-		upd_region.flags = 0;
-		mxc_epdc_fb_send_single_update(&upd_region, priv);
+		mxc_epdc_send_single_update(&clip, old_state->fb->pitches[0],
+					    gem->vaddr, priv);
 	}
 
 	return;
