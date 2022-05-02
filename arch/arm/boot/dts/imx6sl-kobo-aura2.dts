@@ -91,8 +91,10 @@
 	status = "okay";
 
 	lm3630a: backlight@36 {
-		reg = <0x36>;
 		compatible = "ti,lm3630a";
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_lm3630a_bl_gpio>;
+		reg = <0x36>;
 
                 #address-cells = <1>;
                 #size-cells = <0>;
@@ -381,6 +383,12 @@
 	pinctrl_led: ledgrp {
 		fsl,pins = <
 			MX6SL_PAD_SD1_DAT6__GPIO5_IO07 0x17059
+		>;
+	};
+
+	pinctrl_lm3630a_bl_gpio: lm3630a-bl-gpiogrp {
+		fsl,pins = <
+			MX6SL_PAD_EPDC_PWRCTRL3__GPIO2_IO10             0x10059 /* HWEN */
 		>;
 	};
 
