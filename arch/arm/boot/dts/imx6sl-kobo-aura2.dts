@@ -95,6 +95,7 @@
 		pinctrl-names = "default";
 		pinctrl-0 = <&pinctrl_lm3630a_bl_gpio>;
 		reg = <0x36>;
+		enable-gpios = <&gpio2 10 GPIO_ACTIVE_HIGH>;
 
                 #address-cells = <1>;
                 #size-cells = <0>;
