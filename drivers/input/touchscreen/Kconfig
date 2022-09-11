@@ -1379,4 +1379,38 @@ config TOUCHSCREEN_ZINITIX
 	  To compile this driver as a module, choose M here: the
 	  module will be called zinitix.
 
+config TOUCHSCREEN_CYPRESS_CYTTSP5
+        tristate "Parade TrueTouch Gen5 Touchscreen Driver"
+        help
+          Core driver for Parade TrueTouch(tm) Standard Product
+          Geneartion5 touchscreen controllers.
+
+          Say Y here if you have a Parade Gen5 touchscreen.
+
+          If unsure, say N.
+
+          To compile this driver as a module, choose M here: the
+          module will be called cyttsp5.
+
+config TOUCHSCREEN_CYPRESS_CYTTSP5_DEVICETREE_SUPPORT
+        bool "Enable Device Tree support"
+        depends on TOUCHSCREEN_CYPRESS_CYTTSP5 && OF
+        help
+          Say Y here to enable support for device tree.
+
+          If unsure, say N.
+
+config TOUCHSCREEN_CYPRESS_CYTTSP5_I2C
+        tristate "Parade TrueTouch Gen5 I2C"
+        depends on TOUCHSCREEN_CYPRESS_CYTTSP5
+        select I2C
+        help
+          Say Y here to enable I2C bus interface to Parade TrueTouch(tm)
+          Standard Product Generation5 touchscreen controller.
+
+          If unsure, say Y.
+
+          To compile this driver as a module, choose M here: the
+          module will be called cyttsp5_i2c.
+
 endif

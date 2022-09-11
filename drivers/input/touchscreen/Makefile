@@ -116,3 +116,11 @@ obj-$(CONFIG_TOUCHSCREEN_ROHM_BU21023)	+= rohm_bu21023.o
 obj-$(CONFIG_TOUCHSCREEN_RASPBERRYPI_FW)	+= raspberrypi-ts.o
 obj-$(CONFIG_TOUCHSCREEN_IQS5XX)	+= iqs5xx.o
 obj-$(CONFIG_TOUCHSCREEN_ZINITIX)	+= zinitix.o
+obj-$(CONFIG_TOUCHSCREEN_CYPRESS_CYTTSP5)       += cyttsp5.o
+cyttsp5-y := cyttsp5_core.o cyttsp5_mt_common.o cyttsp5_mtb.o
+obj-$(CONFIG_TOUCHSCREEN_CYPRESS_CYTTSP5_DEVICETREE_SUPPORT) += cyttsp5_devtree.o
+ifdef CONFIG_TOUCHSCREEN_CYPRESS_CYTTSP5
+obj-y += cyttsp5_platform.o
+endif
+obj-$(CONFIG_TOUCHSCREEN_CYPRESS_CYTTSP5_I2C)   += cyttsp5_i2c.o
+obj-$(CONFIG_TOUCHSCREEN_CYPRESS_CYTTSP5_SPI)   += cyttsp5_spi.o
