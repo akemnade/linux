@@ -29,7 +29,7 @@
 #include <linux/module.h>
 #include <linux/pxp_device.h>
 #include <linux/atomic.h>
-#include <linux/platform_data/dma-imx.h>
+#include <linux/dma/imx-dma.h>
 
 #define BUFFER_HASH_ORDER 4
 
