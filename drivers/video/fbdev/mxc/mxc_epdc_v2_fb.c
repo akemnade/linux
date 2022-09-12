@@ -63,7 +63,7 @@
 #include <linux/fsl_devices.h>
 #include <linux/bitops.h>
 #include <linux/pinctrl/consumer.h>
-#include <linux/platform_data/dma-imx.h>
+#include <linux/dma/imx-dma.h>
 #include <asm/cacheflush.h>
 #define DISPLAY_RESOLUTION 5 /* gptHWCFG->m_val.bDisplayResolution */
 #define DISPLAY_BUS_WIDTH 0 /* gptHWCFG->m_val.bDisplayBusWidth */
