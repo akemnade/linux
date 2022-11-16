@@ -4,6 +4,7 @@
  */
 /dts-v1/;
 
+#include <dt-bindings/input/input.h>
 #include "omap4460.dtsi"
 
 / {
@@ -35,6 +36,19 @@
 
 };
 
+&keypad {
+	pinctrl-names = "default";
+	pinctrl-0 = <&keypad_pins>;
+	keypad,num-rows = <2>;
+	keypad,num-columns = <3>;
+	linux,keypad-no-autorepeat;
+	linux,keymap = <MATRIX_KEY(0, 0, KEY_MENU)
+			MATRIX_KEY(0, 1, KEY_HOME)
+			MATRIX_KEY(0, 2, KEY_BACK)
+			MATRIX_KEY(1, 0, KEY_ESC)
+			MATRIX_KEY(1, 1, KEY_VOLUMEDOWN)
+			MATRIX_KEY(1, 2, KEY_VOLUMEUP)>;
+};
 
 &omap4_pmx_core {
 	
@@ -72,6 +86,23 @@ i2c4_pins: pinmux_i2c4_pins {
 			   OMAP4_IOPAD(0x130, PIN_INPUT | MUX_MODE0)	/* i2c4_sda */
 			   >;
 	   };		
+
+	keypad_pins: pinmux_keypad_pins {
+		pinctrl-single,pins = <
+			/* kpd_row0 */
+			OMAP4_IOPAD(0x0050, PIN_INPUT_PULLUP | MUX_MODE1)
+			/* kpd_row1 */
+			OMAP4_IOPAD(0x0052, PIN_INPUT_PULLUP | MUX_MODE1)
+			/* kpd_row2 */
+			OMAP4_IOPAD(0x0054, PIN_INPUT_PULLUP | MUX_MODE1)
+			/* kpd_col0 */
+			OMAP4_IOPAD(0x0058, PIN_OUTPUT | MUX_MODE1)
+			/* kpd_col1 */
+			OMAP4_IOPAD(0x005a, PIN_OUTPUT | MUX_MODE1)
+			/* kpd_col2 */
+			OMAP4_IOPAD(0x005c, PIN_OUTPUT | MUX_MODE1)
+		>;
+	};
 
 uart3_pins: pinmux_uart3_pins {
 		    pinctrl-single,pins = <
