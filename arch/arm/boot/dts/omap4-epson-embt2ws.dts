@@ -1,0 +1,227 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Copyright (C) 2012 Texas Instruments Incorporated - http://www.ti.com/
+ */
+/dts-v1/;
+
+#include "omap4460.dtsi"
+
+/ {
+	model = "Epson Moverio BT-200";
+	compatible = "epson,embt2ws", "ti,omap4460", "ti,omap4430", "ti,omap4";
+		
+	memory@80000000 {
+                device_type = "memory";
+                reg = <0x80000000 0x40000000>; /* 1024M */
+        };
+
+        chosen {
+                stdout-path = &uart3;
+        };
+
+       /* regulator for wl12xx on sdio5 */
+        wl12xx_vmmc: wl12xx_vmmc {
+                pinctrl-names = "default";
+                pinctrl-0 = <&wl12xx_gpio>;
+                compatible = "regulator-fixed";
+                regulator-name = "vwl1271";
+                regulator-min-microvolt = <1800000>;
+                regulator-max-microvolt = <1800000>;
+                gpio = <&gpio1 24 GPIO_ACTIVE_HIGH>;
+                startup-delay-us = <70000>;
+                enable-active-high;
+        };
+
+
+};
+
+
+&omap4_pmx_core {
+	
+	twl6040_pins: pinmux_twl6040_pins {
+			      pinctrl-single,pins = <
+				      OMAP4_IOPAD(0x120, PIN_OUTPUT | MUX_MODE3)	/* hdq_sio.gpio_127 */
+				      OMAP4_IOPAD(0x1a0, PIN_INPUT | MUX_MODE0)	/* sys_nirq2.sys_nirq2 */
+				      >;
+		      };
+
+i2c1_pins: pinmux_i2c1_pins {
+		   pinctrl-single,pins = <
+			   OMAP4_IOPAD(0x122, PIN_INPUT_PULLUP | MUX_MODE0)	/* i2c1_scl */
+			   OMAP4_IOPAD(0x124, PIN_INPUT_PULLUP | MUX_MODE0)	/* i2c1_sda */
+			   >;
+	   };
+
+i2c2_pins: pinmux_i2c2_pins {
+		   pinctrl-single,pins = <
+			   OMAP4_IOPAD(0x126, PIN_INPUT | MUX_MODE0)	/* i2c2_scl */
+			   OMAP4_IOPAD(0x128, PIN_INPUT | MUX_MODE0)	/* i2c2_sda */
+			   >;
+	   };
+
+i2c3_pins: pinmux_i2c3_pins {
+		   pinctrl-single,pins = <
+			   OMAP4_IOPAD(0x12a, PIN_INPUT | MUX_MODE0)	/* i2c3_scl */
+			   OMAP4_IOPAD(0x12c, PIN_INPUT | MUX_MODE0)	/* i2c3_sda */
+			   >;
+	   };
+
+i2c4_pins: pinmux_i2c4_pins {
+		   pinctrl-single,pins = <
+			   OMAP4_IOPAD(0x12e, PIN_INPUT | MUX_MODE0)	/* i2c4_scl */
+			   OMAP4_IOPAD(0x130, PIN_INPUT | MUX_MODE0)	/* i2c4_sda */
+			   >;
+	   };		
+
+uart3_pins: pinmux_uart3_pins {
+		    pinctrl-single,pins = <
+			    OMAP4_IOPAD(0x144, PIN_INPUT | MUX_MODE0)               /* uart3_rx_irrx */
+			    OMAP4_IOPAD(0x146, PIN_OUTPUT | MUX_MODE0)              /* uart3_tx_irtx */
+			    >;
+	    };
+
+	usb_otg_hs_pins: pinmux_usb_otg_hs_pins {
+			 pinctrl-single,pins = <
+				 OMAP4_IOPAD(0x194, PIN_OUTPUT_PULLDOWN | MUX_MODE0)     /* usba0_otg_ce */
+				 OMAP4_IOPAD(0x196, PIN_INPUT | MUX_MODE0)               /* usba0_otg_dp */
+				 OMAP4_IOPAD(0x198, PIN_INPUT | MUX_MODE0)               /* usba0_otg_dm */
+				 >;
+		 };
+
+	wl12xx_pins: pinmux_wl12xx_pins {
+		pinctrl-single,pins = <
+				OMAP4_IOPAD(0x01c6, PIN_INPUT | MUX_MODE3) /* IRQ */
+				/* sdmmc3_dat2 */
+				OMAP4_IOPAD(0x00ce, PIN_INPUT_PULLUP | MUX_MODE2)
+				/* sdmmc3_dat1 */
+				OMAP4_IOPAD(0x00d0, PIN_INPUT_PULLUP | MUX_MODE2)
+/* sdmmc3_dat0 */
+				OMAP4_IOPAD(0x00d2, PIN_INPUT_PULLUP | MUX_MODE2)
+/* sdmmc3_dat3 */
+				OMAP4_IOPAD(0x00d4, PIN_INPUT_PULLUP | MUX_MODE2)
+/* sdmmc3_cmd */
+				OMAP4_IOPAD(0x00d6, PIN_INPUT_PULLUP | MUX_MODE2)
+/* sdmmc3_clk */
+				OMAP4_IOPAD(0x00d8, PIN_INPUT_PULLUP | MUX_MODE2)
+				>;
+
+	};
+
+	wl12xx_gpio: pinmux_wl12xx_gpio {
+		pinctrl-single,pins = <
+			OMAP4_IOPAD(0x01c8, PIN_OUTPUT | MUX_MODE3)  /* WLAN_EN */
+				>;
+	};
+};
+
+&i2c1 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&i2c1_pins>;
+
+	clock-frequency = <400000>;
+
+twl: twl@48 {
+	     reg = <0x48>;
+	     /* IRQ# = 7 */
+	     interrupts = <GIC_SPI 7 IRQ_TYPE_LEVEL_HIGH>; /* IRQ_SYS_1N cascaded to gic */
+     };
+};
+
+#include "twl6030.dtsi"
+#include "twl6030_omap4.dtsi"
+
+&twl_usb_comparator {
+	usb-supply = <&vusb>;
+};
+
+
+&i2c2 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&i2c2_pins>;
+
+	clock-frequency = <400000>;
+};	
+
+&i2c3 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&i2c3_pins>;
+
+	clock-frequency = <100000>;
+};
+
+&i2c4 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&i2c4_pins>;
+
+	clock-frequency = <400000>;
+};
+
+
+&mmc1 {
+	/* sdcard */
+	vmmc-supply = <&vmmc>;
+	bus-width = <4>;
+};
+
+&mmc2 {
+	/* emmc */
+	vmmc-supply = <&vaux1>;
+	bus-width = <8>;
+};
+
+&mmc3 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&wl12xx_pins>;
+	vmmc-supply = <&wl12xx_vmmc>;
+/*
+	interrupts-extended = <&wakeupgen GIC_SPI 94 IRQ_TYPE_LEVEL_HIGH
+			       &omap4_pmx_core 0xxxxx>;
+*/
+	non-removable;
+	bus-width = <4>;
+	cap-power-off-card;
+	status = "ok";
+
+	#address-cells = <1>;
+	#size-cells = <0>;
+	wlcore: wlcore@2 {
+		compatible = "ti,wl1271";
+		reg = <2>;
+		/* gpio_23 with XXXXX pad as wakeup */
+		interrupts-extended = <&gpio1 23 IRQ_TYPE_LEVEL_HIGH>
+				      /* <&omap4_pmx_core 0x3a> */;
+		interrupt-names = "irq" /*, "wakeup" */;
+		ref-clock-frequency = <38400000>;
+	};
+
+};
+
+&mmc4 {
+	status = "disabled";
+};
+
+&mmc5 {
+	status = "disabled";
+};
+
+&uart2 {
+	interrupts-extended = <&wakeupgen GIC_SPI 73 IRQ_TYPE_LEVEL_HIGH
+			       &omap4_pmx_core OMAP4_UART2_RX>;
+};
+
+&uart3 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&uart3_pins>;
+	interrupts-extended = <&wakeupgen GIC_SPI 74 IRQ_TYPE_LEVEL_HIGH
+			       &omap4_pmx_core OMAP4_UART3_RX>;
+};
+
+&usb_otg_hs {
+	pinctrl-names = "default";
+	pinctrl-0 = <&usb_otg_hs_pins>;
+
+	interface-type = <1>;
+	mode = <3>;
+	power = <50>;
+};
+
