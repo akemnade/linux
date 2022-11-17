@@ -104,7 +104,19 @@
 		>;
 	};
 
-uart3_pins: pinmux_uart3_pins {
+	mpu9150_pins: pinmux_mpu9150_pins {
+		pinctrl-single,pins = <
+			OMAP4_IOPAD(0x5e, PIN_INPUT_PULLUP | MUX_MODE3)
+		>;
+	};
+
+	mpu9150h_pins: pinmux_mpu9150h_pins {
+		pinctrl-single,pins = <
+                        OMAP4_IOPAD(0x76, PIN_INPUT_PULLUP | MUX_MODE3)
+		>;
+	};
+
+	uart3_pins: pinmux_uart3_pins {
 		    pinctrl-single,pins = <
 			    OMAP4_IOPAD(0x144, PIN_INPUT | MUX_MODE0)               /* uart3_rx_irrx */
 			    OMAP4_IOPAD(0x146, PIN_OUTPUT | MUX_MODE0)              /* uart3_tx_irtx */
@@ -172,6 +184,24 @@ twl: twl@48 {
 
 	clock-frequency = <200000>;
 
+	mpu9150h: imu@68 {
+		compatible = "invensense,mpu9150";
+		reg = <0x68>;
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&mpu9150h_pins>;
+		interrupt-parent = <&gpio2>;
+		interrupt = <19 IRQ_TYPE_LEVEL_HIGH>;
+
+		i2c-gate {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			magnetometer@c {
+				compatible = "asahi-kasei,ak8975";
+				reg = <0x0c>;
+			};
+		};
+	};
 };	
 
 &i2c3 {
@@ -186,6 +216,25 @@ twl: twl@48 {
 	pinctrl-0 = <&i2c4_pins>;
 
 	clock-frequency = <360000>;
+
+	mpu9150: imu@68 {
+		compatible = "invensense,mpu9150";
+		reg = <0x68>;
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&mpu9150_pins>;
+		interrupt-parent = <&gpio2>;
+		interrupt = <7 IRQ_TYPE_LEVEL_HIGH>;
+
+		i2c-gate {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			magnetometer@c {
+				compatible = "asahi-kasei,ak8975";
+				reg = <0x0c>;
+			};
+		};
+	};
 };
 
 
