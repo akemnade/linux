@@ -59,6 +59,12 @@
 				      >;
 	};
 
+	bt_pins: pinmux_bt_pins {
+		pinctrl-single,pins = <
+			OMAP4_IOPAD(0x1ca, PIN_OUTPUT | MUX_MODE3) /* gpio25 */
+		>;
+	};
+
 	i2c1_pins: pinmux_i2c1_pins {
 		pinctrl-single,pins = <
 			   OMAP4_IOPAD(0x122, PIN_INPUT_PULLUP | MUX_MODE0)	/* i2c1_scl */
@@ -115,6 +121,15 @@
                         OMAP4_IOPAD(0x76, PIN_INPUT_PULLUP | MUX_MODE3)
 		>;
 	};
+
+        uart2_pins: pinmux_uart2_pins {
+                pinctrl-single,pins = <
+                        OMAP4_IOPAD(0x118, PIN_INPUT_PULLUP | MUX_MODE0)  /* uart2_cts.uart2_cts */
+                        OMAP4_IOPAD(0x11a, PIN_OUTPUT | MUX_MODE0)              /* uart2_rts.uart2_rts */
+                        OMAP4_IOPAD(0x11c, PIN_INPUT_PULLUP | MUX_MODE0)        /* uart2_rx.uart2_rx */
+                        OMAP4_IOPAD(0x11e, PIN_OUTPUT | MUX_MODE0)              /* uart2_tx.uart2_tx */
+                >;
+        };
 
 	uart3_pins: pinmux_uart3_pins {
 		    pinctrl-single,pins = <
@@ -289,8 +304,15 @@ twl: twl@48 {
 };
 
 &uart2 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&uart2_pins &bt_pins>;
 	interrupts-extended = <&wakeupgen GIC_SPI 73 IRQ_TYPE_LEVEL_HIGH
 			       &omap4_pmx_core OMAP4_UART2_RX>;
+
+	bluetooth: tiwi {
+		compatible = "ti,wl1271-st";
+		enable-gpios = <&gpio1 25 GPIO_ACTIVE_HIGH>;	/* GPIO_25 */
+	};
 };
 
 &uart3 {
