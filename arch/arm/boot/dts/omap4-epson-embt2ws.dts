@@ -184,6 +184,7 @@ twl: twl@48 {
 
 	clock-frequency = <200000>;
 
+	/* at head/glasses */
 	mpu9150h: imu@68 {
 		compatible = "invensense,mpu9150";
 		reg = <0x68>;
@@ -217,6 +218,7 @@ twl: twl@48 {
 
 	clock-frequency = <360000>;
 
+	/* TODO: does not fully initialize */
 	mpu9150: imu@68 {
 		compatible = "invensense,mpu9150";
 		reg = <0x68>;
@@ -265,6 +267,7 @@ twl: twl@48 {
 
 	#address-cells = <1>;
 	#size-cells = <0>;
+	/* TODO: does not show up */
 	wlcore: wlcore@2 {
 		compatible = "ti,wl1271";
 		reg = <2>;
