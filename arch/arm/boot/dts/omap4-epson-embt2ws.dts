@@ -41,13 +41,13 @@
 	pinctrl-0 = <&keypad_pins>;
 	keypad,num-rows = <2>;
 	keypad,num-columns = <3>;
-	linux,keypad-no-autorepeat;
 	linux,keymap = <MATRIX_KEY(0, 0, KEY_MENU)
 			MATRIX_KEY(0, 1, KEY_HOME)
 			MATRIX_KEY(0, 2, KEY_BACK)
 			MATRIX_KEY(1, 0, KEY_ESC)
 			MATRIX_KEY(1, 1, KEY_VOLUMEDOWN)
 			MATRIX_KEY(1, 2, KEY_VOLUMEUP)>;
+	linux,input-no-autorepeat;
 };
 
 &omap4_pmx_core {
