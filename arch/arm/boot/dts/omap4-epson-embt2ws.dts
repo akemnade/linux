@@ -178,18 +178,105 @@
 
 	clock-frequency = <400000>;
 
-twl: twl@48 {
-	     reg = <0x48>;
-	     /* IRQ# = 7 */
-	     interrupts = <GIC_SPI 7 IRQ_TYPE_LEVEL_HIGH>; /* IRQ_SYS_1N cascaded to gic */
-     };
+	twl: twl@48 {
+		compatible = "ti,twl6032";
+		reg = <0x48>;
+		/* IRQ# = 7 */
+		interrupts = <GIC_SPI 7 IRQ_TYPE_LEVEL_HIGH>; /* IRQ_SYS_1N cascaded to gic */
+		interrupt-controller;
+		#interrupt-cells = <1>;
+
+		rtc {
+			compatible = "ti,twl4030-rtc";
+			interrupts = <11>;
+		};
+
+		ldo2: regulator-ldo2 {
+			compatible = "ti,twl6032-ldo2";
+			regulator-min-microvolt = <1000000>;
+			regulator-max-microvolt = <3000000>;
+		};
+
+		ldo4: regulator-ldo4 {
+			compatible = "ti,twl6032-ldo4";
+			regulator-min-microvolt = <1200000>;
+			regulator-max-microvolt = <2800000>;
+		};
+
+		ldo3: regulator-ldo3 {
+			compatible = "ti,twl6032-ldo3";
+			regulator-min-microvolt = <1000000>;
+			regulator-max-microvolt = <3000000>;
+		};
+
+		ldo5: regulator-ldo5 {
+			compatible = "ti,twl6032-ldo5";
+			regulator-min-microvolt = <1200000>;
+			regulator-max-microvolt = <3000000>;
+		};
+
+		ldo1: regulator-ldo1 {
+			compatible = "ti,twl6032-ldo1";
+			regulator-min-microvolt = <1800000>;
+			regulator-max-microvolt = <2500000>;
+		};
+
+		ldo7: regulator-ldo7 {
+			compatible = "ti,twl6032-ldo7";
+			regulator-min-microvolt = <1200000>;
+			regulator-max-microvolt = <2900000>;
+		};
+
+		ldoln: regulator-ldoln {
+			compatible = "ti,twl6032-ldoln";
+			regulator-always-on;
+		};
+
+		ldo6: regulator-ldo6 {
+			compatible = "ti,twl6032-ldo6";
+			regulator-always-on;
+		};
+
+		ldousb: regulator-ldousb {
+			compatible = "ti,twl6032-ldousb";
+			regulator-always-on;
+		};
+
+		vio: regulator-vio {
+			compatible = "ti,twl6032-vio";
+			regulator-always-on;
+		};
+
+		twl_usb_comparator: usb-comparator {
+			compatible = "ti,twl6030-usb";
+			interrupts = <4>, <10>;
+		};
+
+		twl_pwm: pwm {
+			/* provides two PWMs (id 0, 1 for PWM1 and PWM2) */
+			compatible = "ti,twl6030-pwm";
+			#pwm-cells = <2>;
+		};
+
+		twl_pwmled: pwmled {
+			/* provides one PWM (id 0 for Charging indicator LED) */
+			compatible = "ti,twl6030-pwmled";
+			#pwm-cells = <2>;
+		};
+
+		gpadc {
+			compatible = "ti,twl6032-gpadc";
+			interrupts = <3>;
+			#io-channel-cells = <1>;
+		};
+
+	};
 };
 
-#include "twl6030.dtsi"
 #include "twl6030_omap4.dtsi"
 
 &twl_usb_comparator {
-	usb-supply = <&vusb>;
+	usb-supply = <&ldousb>;
 };
 
 
@@ -257,13 +344,13 @@ twl: twl@48 {
 
 &mmc1 {
 	/* sdcard */
-	vmmc-supply = <&vmmc>;
+	vmmc-supply = <&ldo5>;
 	bus-width = <4>;
 };
 
 &mmc2 {
 	/* emmc */
-	vmmc-supply = <&vaux1>;
+	vmmc-supply = <&ldo2>;
 	bus-width = <8>;
 };
 
