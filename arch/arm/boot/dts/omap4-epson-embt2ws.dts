@@ -410,3 +410,6 @@
 	power = <50>;
 };
 
+&usbhshost {
+	status = "disabled";
+};
