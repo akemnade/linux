@@ -148,27 +148,20 @@
 
 	wl12xx_pins: pinmux_wl12xx_pins {
 		pinctrl-single,pins = <
-				OMAP4_IOPAD(0x01c6, PIN_INPUT | MUX_MODE3) /* IRQ */
-				/* sdmmc3_dat2 */
-				OMAP4_IOPAD(0x00ce, PIN_INPUT_PULLUP | MUX_MODE2)
-				/* sdmmc3_dat1 */
-				OMAP4_IOPAD(0x00d0, PIN_INPUT_PULLUP | MUX_MODE2)
-/* sdmmc3_dat0 */
-				OMAP4_IOPAD(0x00d2, PIN_INPUT_PULLUP | MUX_MODE2)
-/* sdmmc3_dat3 */
-				OMAP4_IOPAD(0x00d4, PIN_INPUT_PULLUP | MUX_MODE2)
-/* sdmmc3_cmd */
-				OMAP4_IOPAD(0x00d6, PIN_INPUT_PULLUP | MUX_MODE2)
-/* sdmmc3_clk */
-				OMAP4_IOPAD(0x00d8, PIN_INPUT_PULLUP | MUX_MODE2)
-				>;
-
+			OMAP4_IOPAD(0x1c6, PIN_INPUT | MUX_MODE3) /* gpio_23 / IRQ */
+			OMAP4_IOPAD(0x16c, PIN_INPUT_PULLUP | MUX_MODE2) /* sdmmc3_dat2 */
+			OMAP4_IOPAD(0x16e, PIN_INPUT_PULLUP | MUX_MODE2) /* sdmmc3_dat1 */
+			OMAP4_IOPAD(0x170, PIN_INPUT_PULLUP | MUX_MODE2) /* sdmmc3_dat0 */
+			OMAP4_IOPAD(0x172, PIN_INPUT_PULLUP | MUX_MODE2) /* sdmmc3_dat3 */
+			OMAP4_IOPAD(0x174, PIN_INPUT_PULLUP | MUX_MODE2) /* sdmmc3_cmd */
+			OMAP4_IOPAD(0x176, PIN_INPUT_PULLUP | MUX_MODE2) /* sdmmc3_clk */
+		>;
 	};
 
 	wl12xx_gpio: pinmux_wl12xx_gpio {
 		pinctrl-single,pins = <
-			OMAP4_IOPAD(0x01c8, PIN_OUTPUT | MUX_MODE3)  /* WLAN_EN */
-				>;
+			OMAP4_IOPAD(0x1c8, PIN_OUTPUT | MUX_MODE3)  /* gpio_24 / WLAN_EN */
+		>;
 	};
 };
 
@@ -365,7 +358,6 @@
 	non-removable;
 	bus-width = <4>;
 	cap-power-off-card;
-	status = "ok";
 
 	#address-cells = <1>;
 	#size-cells = <0>;
@@ -377,9 +369,9 @@
 		interrupts-extended = <&gpio1 23 IRQ_TYPE_LEVEL_HIGH>
 				      /* <&omap4_pmx_core 0x3a> */;
 		interrupt-names = "irq" /*, "wakeup" */;
-		ref-clock-frequency = <38400000>;
+		ref-clock-frequency = <26000000>;
+		tcxo-clock-frequency = <26000000>;
 	};
-
 };
 
 &mmc4 {
