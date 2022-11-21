@@ -901,6 +901,9 @@ twl_probe(struct i2c_client *client)
 				 TWL4030_DCDC_GLOBAL_CFG);
 	}
 
+	/* CLK32KAUDIO needed for bluetooth on embt2ws */
+	twl_i2c_write_u8(TWL_MODULE_PM_RECEIVER, 0x01, 0x8F + 2);
+
 	status = of_platform_populate(node, NULL, twl_auxdata_lookup,
 				      &client->dev);
 
