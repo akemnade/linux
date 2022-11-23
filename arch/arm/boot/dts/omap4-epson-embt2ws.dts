@@ -363,7 +363,7 @@
 	#size-cells = <0>;
 	/* TODO: does not show up */
 	wlcore: wlcore@2 {
-		compatible = "ti,wl1271";
+		compatible = "ti,wl1283";
 		reg = <2>;
 		/* gpio_23 with XXXXX pad as wakeup */
 		interrupts-extended = <&gpio1 23 IRQ_TYPE_LEVEL_HIGH>
@@ -389,7 +389,7 @@
 			       &omap4_pmx_core OMAP4_UART2_RX>;
 
 	bluetooth: tiwi {
-		compatible = "ti,wl1271-st";
+		compatible = "ti,wl1283-st";
 		enable-gpios = <&gpio1 25 GPIO_ACTIVE_HIGH>;	/* GPIO_25 */
 	};
 };
