@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (C) 2012 Texas Instruments Incorporated - http://www.ti.com/
+ * Copyright (C) 2022 Andreas Kemnade
  */
 /dts-v1/;
 
@@ -171,7 +171,7 @@
 
 	clock-frequency = <400000>;
 
-	twl: twl@48 {
+	twl: pmic@48 {
 		compatible = "ti,twl6032";
 		reg = <0x48>;
 		/* IRQ# = 7 */
