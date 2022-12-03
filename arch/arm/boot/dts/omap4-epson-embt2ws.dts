@@ -64,14 +64,6 @@
 };
 
 &omap4_pmx_core {
-	
-	twl6040_pins: pinmux_twl6040_pins {
-			      pinctrl-single,pins = <
-				      OMAP4_IOPAD(0x120, PIN_OUTPUT | MUX_MODE3)	/* hdq_sio.gpio_127 */
-				      OMAP4_IOPAD(0x1a0, PIN_INPUT | MUX_MODE0)	/* sys_nirq2.sys_nirq2 */
-				      >;
-	};
-
 	bt_pins: pinmux_bt_pins {
 		pinctrl-single,pins = <
 			OMAP4_IOPAD(0x1ca, PIN_OUTPUT | MUX_MODE3) /* gpio25 */
@@ -88,29 +80,29 @@
 		pinctrl-single,pins = <
 			   OMAP4_IOPAD(0x122, PIN_INPUT_PULLUP | MUX_MODE0)	/* i2c1_scl */
 			   OMAP4_IOPAD(0x124, PIN_INPUT_PULLUP | MUX_MODE0)	/* i2c1_sda */
-			   >;
-	   };
+		>;
+	};
 
 	i2c2_pins: pinmux_i2c2_pins {
-		   pinctrl-single,pins = <
-			   OMAP4_IOPAD(0x126, PIN_INPUT | MUX_MODE0)	/* i2c2_scl */
-			   OMAP4_IOPAD(0x128, PIN_INPUT | MUX_MODE0)	/* i2c2_sda */
-			   >;
-	   };
+		pinctrl-single,pins = <
+			OMAP4_IOPAD(0x126, PIN_INPUT | MUX_MODE0)	/* i2c2_scl */
+			OMAP4_IOPAD(0x128, PIN_INPUT | MUX_MODE0)	/* i2c2_sda */
+		>;
+	};
 
 	i2c3_pins: pinmux_i2c3_pins {
-		   pinctrl-single,pins = <
-			   OMAP4_IOPAD(0x12a, PIN_INPUT | MUX_MODE0)	/* i2c3_scl */
-			   OMAP4_IOPAD(0x12c, PIN_INPUT | MUX_MODE0)	/* i2c3_sda */
-			   >;
-	   };
+		pinctrl-single,pins = <
+			OMAP4_IOPAD(0x12a, PIN_INPUT | MUX_MODE0)	/* i2c3_scl */
+			OMAP4_IOPAD(0x12c, PIN_INPUT | MUX_MODE0)	/* i2c3_sda */
+		>;
+	};
 
 	i2c4_pins: pinmux_i2c4_pins {
-		   pinctrl-single,pins = <
-			   OMAP4_IOPAD(0x12e, PIN_INPUT | MUX_MODE0)	/* i2c4_scl */
-			   OMAP4_IOPAD(0x130, PIN_INPUT | MUX_MODE0)	/* i2c4_sda */
-			   >;
-	   };		
+		pinctrl-single,pins = <
+			OMAP4_IOPAD(0x12e, PIN_INPUT | MUX_MODE0)	/* i2c4_scl */
+			OMAP4_IOPAD(0x130, PIN_INPUT | MUX_MODE0)	/* i2c4_sda */
+		>;
+	};
 
 	keypad_pins: pinmux_keypad_pins {
 		pinctrl-single,pins = <
