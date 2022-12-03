@@ -20,8 +20,21 @@
                 stdout-path = &uart3;
         };
 
-       /* regulator for wl12xx on sdio5 */
-        wl12xx_vmmc: wl12xx_vmmc {
+	gpio-keys {
+		compatible = "gpio-keys";
+		pinctrl-names = "default";
+		pinctrl-0 = <&gpio_keys_pins>;
+		
+		key-lock {
+			label = "Lock";
+			gpios = <&gpio2 3 GPIO_ACTIVE_LOW>;
+			linux,code = <SW_ROTATE_LOCK>; /* SW_TOUCHPAD_LOCK */
+			linux,input-type = <EV_SW>;
+		};
+	};
+	
+       /* regulator for wl12xx on sdio2 */
+        wl12xx_vmmc: wl12xx-vmmc {
                 pinctrl-names = "default";
                 pinctrl-0 = <&wl12xx_gpio>;
                 compatible = "regulator-fixed";
@@ -62,6 +75,12 @@
 	bt_pins: pinmux_bt_pins {
 		pinctrl-single,pins = <
 			OMAP4_IOPAD(0x1ca, PIN_OUTPUT | MUX_MODE3) /* gpio25 */
+		>;
+	};
+
+	gpio_keys_pins: pinmux-gpio-key-pins {
+		pinctrl-single,pins = <
+			OMAP4_IOPAD(0x56, PIN_INPUT_PULLUP | MUX_MODE3) /* gpio35 */
 		>;
 	};
 
