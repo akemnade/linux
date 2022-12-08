@@ -57,8 +57,6 @@
                 startup-delay-us = <70000>;
                 enable-active-high;
         };
-
-
 };
 
 &keypad {
