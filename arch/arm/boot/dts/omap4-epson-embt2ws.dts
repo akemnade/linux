@@ -16,6 +16,18 @@
                 reg = <0x80000000 0x40000000>; /* 1024M */
         };
 
+	backlight-left {
+		compatible = "pwm-backlight";
+		label = "backlight_left";
+		pwms = <&twl_pwm 1 7812500>;
+	};
+
+	backlight-right {
+		compatible = "pwm-backlight";
+		label = "backlight_right";
+		pwms = <&twl_pwm 0 7812500>;
+	};
+
         chosen {
                 stdout-path = &uart3;
         };
