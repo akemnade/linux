@@ -2028,7 +2028,6 @@ static const struct snd_soc_component_driver soc_component_dev_wm5102 = {
 	.num_dapm_routes	= ARRAY_SIZE(wm5102_dapm_routes),
 	.use_pmdown_time	= 1,
 	.endianness		= 1,
-	.non_legacy_dai_naming	= 1,
 };
 
 static int wm5102_probe(struct platform_device *pdev)
@@ -2143,6 +2142,7 @@ err_dsp_irq:
 	arizona_set_irq_wake(arizona, ARIZONA_IRQ_DSP_IRQ1, 0);
 	arizona_free_irq(arizona, ARIZONA_IRQ_DSP_IRQ1, wm5102);
 err_jack_codec_dev:
+	pm_runtime_disable(&pdev->dev);
 	arizona_jack_codec_dev_remove(&wm5102->core);
 
 	return ret;

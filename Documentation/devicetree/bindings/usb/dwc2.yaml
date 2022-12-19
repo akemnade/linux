@@ -11,6 +11,7 @@ maintainers:
 
 allOf:
   - $ref: usb-drd.yaml#
+  - $ref: usb-hcd.yaml#
 
 properties:
   compatible:
@@ -31,6 +32,7 @@ properties:
           - enum:
               - rockchip,px30-usb
               - rockchip,rk3036-usb
+              - rockchip,rk3128-usb
               - rockchip,rk3188-usb
               - rockchip,rk3228-usb
               - rockchip,rk3288-usb
@@ -160,6 +162,8 @@ properties:
       using the OF graph bindings specified, if the "usb-role-switch"
       property is used.
     $ref: /schemas/graph.yaml#/properties/port
+
+  tpl-support: true
 
 dependencies:
   port: [ usb-role-switch ]

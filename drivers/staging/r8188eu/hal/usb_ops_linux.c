@@ -5,7 +5,6 @@
 #include "../include/drv_types.h"
 #include "../include/osdep_intf.h"
 #include "../include/usb_ops.h"
-#include "../include/recv_osdep.h"
 #include "../include/rtl8188e_hal.h"
 
 static int usb_read(struct intf_hdl *intf, u16 value, void *data, u8 size)
@@ -94,40 +93,47 @@ static int usb_write(struct intf_hdl *intf, u16 value, void *data, u8 size)
 	return status;
 }
 
-u8 rtw_read8(struct adapter *adapter, u32 addr)
+int __must_check rtw_read8(struct adapter *adapter, u32 addr, u8 *data)
 {
 	struct io_priv *io_priv = &adapter->iopriv;
 	struct intf_hdl *intf = &io_priv->intf;
 	u16 value = addr & 0xffff;
-	u8 data;
 
-	usb_read(intf, value, &data, 1);
-
-	return data;
+	return usb_read(intf, value, data, 1);
 }
 
-u16 rtw_read16(struct adapter *adapter, u32 addr)
+int __must_check rtw_read16(struct adapter *adapter, u32 addr, u16 *data)
 {
 	struct io_priv *io_priv = &adapter->iopriv;
 	struct intf_hdl *intf = &io_priv->intf;
 	u16 value = addr & 0xffff;
-	__le16 data;
+	__le16 le_data;
+	int res;
 
-	usb_read(intf, value, &data, 2);
+	res = usb_read(intf, value, &le_data, 2);
+	if (res)
+		return res;
 
-	return le16_to_cpu(data);
+	*data = le16_to_cpu(le_data);
+
+	return 0;
 }
 
-u32 rtw_read32(struct adapter *adapter, u32 addr)
+int __must_check rtw_read32(struct adapter *adapter, u32 addr, u32 *data)
 {
 	struct io_priv *io_priv = &adapter->iopriv;
 	struct intf_hdl *intf = &io_priv->intf;
 	u16 value = addr & 0xffff;
-	__le32 data;
+	__le32 le_data;
+	int res;
 
-	usb_read(intf, value, &data, 4);
+	res = usb_read(intf, value, &le_data, 4);
+	if (res)
+		return res;
 
-	return le32_to_cpu(data);
+	*data = le32_to_cpu(le_data);
+
+	return 0;
 }
 
 int rtw_write8(struct adapter *adapter, u32 addr, u8 val)
@@ -181,6 +187,20 @@ int rtw_writeN(struct adapter *adapter, u32 addr, u32 length, u8 *data)
 	ret = usb_write(intf, value, data, length);
 
 	return RTW_STATUS_CODE(ret);
+}
+
+static void handle_txrpt_ccx_88e(struct adapter *adapter, u8 *buf)
+{
+	struct txrpt_ccx_88e *txrpt_ccx = (struct txrpt_ccx_88e *)buf;
+
+	if (txrpt_ccx->int_ccx) {
+		if (txrpt_ccx->pkt_ok)
+			rtw_ack_tx_done(&adapter->xmitpriv,
+					RTW_SCTX_DONE_SUCCESS);
+		else
+			rtw_ack_tx_done(&adapter->xmitpriv,
+					RTW_SCTX_DONE_CCX_PKT_FAIL);
+	}
 }
 
 static int recvbuf2recvframe(struct adapter *adapt, struct sk_buff *pskb)

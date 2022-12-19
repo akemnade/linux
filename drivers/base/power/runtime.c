@@ -792,10 +792,13 @@ static int rpm_resume(struct device *dev, int rpmflags)
 		DEFINE_WAIT(wait);
 
 		if (rpmflags & (RPM_ASYNC | RPM_NOWAIT)) {
-			if (dev->power.runtime_status == RPM_SUSPENDING)
+			if (dev->power.runtime_status == RPM_SUSPENDING) {
 				dev->power.deferred_resume = true;
-			else
+				if (rpmflags & RPM_NOWAIT)
+					retval = -EINPROGRESS;
+			} else {
 				retval = -EINPROGRESS;
+			}
 			goto out;
 		}
 
@@ -1862,9 +1865,12 @@ int pm_runtime_force_suspend(struct device *dev)
 
 	callback = RPM_GET_CALLBACK(dev, runtime_suspend);
 
+	dev_pm_enable_wake_irq_check(dev, true);
 	ret = callback ? callback(dev) : 0;
 	if (ret)
 		goto err;
+
+	dev_pm_enable_wake_irq_complete(dev);
 
 	/*
 	 * If the device can stay in suspend after the system-wide transition
@@ -1882,6 +1888,7 @@ int pm_runtime_force_suspend(struct device *dev)
 	return 0;
 
 err:
+	dev_pm_disable_wake_irq_check(dev, true);
 	pm_runtime_enable(dev);
 	return ret;
 }
@@ -1915,9 +1922,11 @@ int pm_runtime_force_resume(struct device *dev)
 
 	callback = RPM_GET_CALLBACK(dev, runtime_resume);
 
+	dev_pm_disable_wake_irq_check(dev, false);
 	ret = callback ? callback(dev) : 0;
 	if (ret) {
 		pm_runtime_set_suspended(dev);
+		dev_pm_enable_wake_irq_check(dev, false);
 		goto out;
 	}
 

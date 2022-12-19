@@ -508,21 +508,6 @@ config KEXEC_SIG
 	  verification for the corresponding kernel image type being
 	  loaded in order for this to work.
 
-config ARCH_RANDOM
-	def_bool y
-	prompt "s390 architectural random number generation API"
-	help
-	  Enable the s390 architectural random number generation API
-	  to provide random data for all consumers within the Linux
-	  kernel.
-
-	  When enabled the arch_random_* functions declared in linux/random.h
-	  are implemented. The implementation is based on the s390 CPACF
-	  instruction subfunction TRNG which provides a real true random
-	  number generator.
-
-	  If unsure, say Y.
-
 config KERNEL_NOBP
 	def_bool n
 	prompt "Enable modified branch prediction for the kernel by default"
@@ -583,8 +568,7 @@ config EXPOLINE_FULL
 endchoice
 
 config RELOCATABLE
-	bool "Build a relocatable kernel"
-	default y
+	def_bool y
 	help
 	  This builds a kernel image that retains relocation information
 	  so it can be loaded at an arbitrary address.
@@ -593,10 +577,11 @@ config RELOCATABLE
 	  bootup process.
 	  The relocations make the kernel image about 15% larger (compressed
 	  10%), but are discarded at runtime.
+	  Note: this option exists only for documentation purposes, please do
+	  not remove it.
 
 config RANDOMIZE_BASE
 	bool "Randomize the address of the kernel image (KASLR)"
-	depends on RELOCATABLE
 	default y
 	help
 	  In support of Kernel Address Space Layout Randomization (KASLR),

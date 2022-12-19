@@ -9,6 +9,7 @@
  */
 
 #include <linux/bitfield.h>
+#include <linux/ethtool.h>
 #include <linux/interrupt.h>
 #include <linux/io.h>
 #include <linux/kernel.h>
@@ -741,7 +742,7 @@ static int m_can_handle_state_change(struct net_device *dev,
 	switch (new_state) {
 	case CAN_STATE_ERROR_WARNING:
 		/* error warning state */
-		cf->can_id |= CAN_ERR_CRTL;
+		cf->can_id |= CAN_ERR_CRTL | CAN_ERR_CNT;
 		cf->data[1] = (bec.txerr > bec.rxerr) ?
 			CAN_ERR_CRTL_TX_WARNING :
 			CAN_ERR_CRTL_RX_WARNING;
@@ -750,7 +751,7 @@ static int m_can_handle_state_change(struct net_device *dev,
 		break;
 	case CAN_STATE_ERROR_PASSIVE:
 		/* error passive state */
-		cf->can_id |= CAN_ERR_CRTL;
+		cf->can_id |= CAN_ERR_CRTL | CAN_ERR_CNT;
 		ecr = m_can_read(cdev, M_CAN_ECR);
 		if (ecr & ECR_RP)
 			cf->data[1] |= CAN_ERR_CRTL_RX_PASSIVE;
@@ -1348,8 +1349,8 @@ static void m_can_chip_config(struct net_device *dev)
 	/* set bittiming params */
 	m_can_set_bittiming(dev);
 
-	/* enable internal timestamp generation, with a prescalar of 16. The
-	 * prescalar is applied to the nominal bit timing
+	/* enable internal timestamp generation, with a prescaler of 16. The
+	 * prescaler is applied to the nominal bit timing
 	 */
 	m_can_write(cdev, M_CAN_TSCC,
 		    FIELD_PREP(TSCC_TCP_MASK, 0xf) |
@@ -1466,8 +1467,7 @@ static int m_can_dev_setup(struct m_can_classdev *cdev)
 	}
 
 	if (!cdev->is_peripheral)
-		netif_napi_add(dev, &cdev->napi,
-			       m_can_poll, NAPI_POLL_WEIGHT);
+		netif_napi_add(dev, &cdev->napi, m_can_poll);
 
 	/* Shared properties of all M_CAN versions */
 	cdev->version = m_can_version;
@@ -1721,7 +1721,7 @@ static netdev_tx_t m_can_start_xmit(struct sk_buff *skb,
 {
 	struct m_can_classdev *cdev = netdev_priv(dev);
 
-	if (can_dropped_invalid_skb(dev, skb))
+	if (can_dev_dropped_skb(dev, skb))
 		return NETDEV_TX_OK;
 
 	if (cdev->is_peripheral) {
@@ -1829,10 +1829,15 @@ static const struct net_device_ops m_can_netdev_ops = {
 	.ndo_change_mtu = can_change_mtu,
 };
 
+static const struct ethtool_ops m_can_ethtool_ops = {
+	.get_ts_info = ethtool_op_get_ts_info,
+};
+
 static int register_m_can_dev(struct net_device *dev)
 {
 	dev->flags |= IFF_ECHO;	/* we support local echo */
 	dev->netdev_ops = &m_can_netdev_ops;
+	dev->ethtool_ops = &m_can_ethtool_ops;
 
 	return register_candev(dev);
 }
@@ -1904,7 +1909,7 @@ int m_can_class_get_clocks(struct m_can_classdev *cdev)
 	cdev->hclk = devm_clk_get(cdev->dev, "hclk");
 	cdev->cclk = devm_clk_get(cdev->dev, "cclk");
 
-	if (IS_ERR(cdev->cclk)) {
+	if (IS_ERR(cdev->hclk) || IS_ERR(cdev->cclk)) {
 		dev_err(cdev->dev, "no clock found\n");
 		ret = -ENODEV;
 	}

@@ -5,7 +5,6 @@
 
 #include "../include/osdep_service.h"
 #include "../include/drv_types.h"
-#include "../include/recv_osdep.h"
 #include "../include/rtw_ioctl_set.h"
 
 /*
@@ -42,14 +41,6 @@ Otherwise, there will be racing condition.
 Caller must check if the list is empty before calling rtw_list_delete
 */
 
-void rtw_usleep_os(int us)
-{
-	if (1 < (us / 1000))
-		msleep(1);
-	else
-		msleep((us / 1000) + 1);
-}
-
 static const struct device_type wlan_type = {
 	.name = "wlan",
 };
@@ -62,14 +53,13 @@ struct net_device *rtw_alloc_etherdev_with_old_priv(int sizeof_priv,
 
 	pnetdev = alloc_etherdev_mq(sizeof(struct rtw_netdev_priv_indicator), 4);
 	if (!pnetdev)
-		goto RETURN;
+		return NULL;
 
 	pnetdev->dev.type = &wlan_type;
 	pnpi = netdev_priv(pnetdev);
 	pnpi->priv = old_priv;
 	pnpi->sizeof_priv = sizeof_priv;
 
-RETURN:
 	return pnetdev;
 }
 
@@ -80,19 +70,18 @@ struct net_device *rtw_alloc_etherdev(int sizeof_priv)
 
 	pnetdev = alloc_etherdev_mq(sizeof(struct rtw_netdev_priv_indicator), 4);
 	if (!pnetdev)
-		goto RETURN;
+		return NULL;
 
 	pnpi = netdev_priv(pnetdev);
 
 	pnpi->priv = vzalloc(sizeof_priv);
 	if (!pnpi->priv) {
 		free_netdev(pnetdev);
-		pnetdev = NULL;
-		goto RETURN;
+		return NULL;
 	}
 
 	pnpi->sizeof_priv = sizeof_priv;
-RETURN:
+
 	return pnetdev;
 }
 

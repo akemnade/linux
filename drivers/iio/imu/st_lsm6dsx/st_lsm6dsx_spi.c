@@ -105,6 +105,10 @@ static const struct of_device_id st_lsm6dsx_spi_of_match[] = {
 		.compatible = "st,asm330lhhx",
 		.data = (void *)ST_ASM330LHHX_ID,
 	},
+	{
+		.compatible = "st,lsm6dstx",
+		.data = (void *)ST_LSM6DSTX_ID,
+	},
 	{},
 };
 MODULE_DEVICE_TABLE(of, st_lsm6dsx_spi_of_match);
@@ -127,6 +131,7 @@ static const struct spi_device_id st_lsm6dsx_spi_id_table[] = {
 	{ ST_LSM6DST_DEV_NAME, ST_LSM6DST_ID },
 	{ ST_LSM6DSOP_DEV_NAME, ST_LSM6DSOP_ID },
 	{ ST_ASM330LHHX_DEV_NAME, ST_ASM330LHHX_ID },
+	{ ST_LSM6DSTX_DEV_NAME, ST_LSM6DSTX_ID },
 	{},
 };
 MODULE_DEVICE_TABLE(spi, st_lsm6dsx_spi_id_table);
@@ -134,7 +139,7 @@ MODULE_DEVICE_TABLE(spi, st_lsm6dsx_spi_id_table);
 static struct spi_driver st_lsm6dsx_driver = {
 	.driver = {
 		.name = "st_lsm6dsx_spi",
-		.pm = &st_lsm6dsx_pm_ops,
+		.pm = pm_sleep_ptr(&st_lsm6dsx_pm_ops),
 		.of_match_table = st_lsm6dsx_spi_of_match,
 	},
 	.probe = st_lsm6dsx_spi_probe,
@@ -146,3 +151,4 @@ MODULE_AUTHOR("Lorenzo Bianconi <lorenzo.bianconi@st.com>");
 MODULE_AUTHOR("Denis Ciocca <denis.ciocca@st.com>");
 MODULE_DESCRIPTION("STMicroelectronics st_lsm6dsx spi driver");
 MODULE_LICENSE("GPL v2");
+MODULE_IMPORT_NS(IIO_LSM6DSX);

@@ -127,7 +127,7 @@ struct admv1014_state {
 	unsigned int			quad_se_mode;
 	unsigned int			p1db_comp;
 	bool				det_en;
-	u8				data[3] ____cacheline_aligned;
+	u8				data[3] __aligned(IIO_DMA_MINALIGN);
 };
 
 static const int mixer_vgate_table[] = {106, 107, 108, 110, 111, 112, 113, 114,
@@ -669,8 +669,7 @@ static int admv1014_init(struct admv1014_state *st)
 	chip_id = FIELD_GET(ADMV1014_CHIP_ID_MSK, chip_id);
 	if (chip_id != ADMV1014_CHIP_ID) {
 		dev_err(&spi->dev, "Invalid Chip ID.\n");
-		ret = -EINVAL;
-		return ret;
+		return -EINVAL;
 	}
 
 	ret = __admv1014_spi_update_bits(st, ADMV1014_REG_QUAD,

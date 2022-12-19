@@ -329,7 +329,7 @@ static int get_syms(char ***symsp, size_t *cntp)
 	struct hashmap *map;
 	char buf[256];
 	FILE *f;
-	int err;
+	int err = 0;
 
 	/*
 	 * The available_filter_functions contains many duplicates,
@@ -358,11 +358,15 @@ static int get_syms(char ***symsp, size_t *cntp)
 		 * We attach to almost all kernel functions and some of them
 		 * will cause 'suspicious RCU usage' when fprobe is attached
 		 * to them. Filter out the current culprits - arch_cpu_idle
-		 * and rcu_* functions.
+		 * default_idle and rcu_* functions.
 		 */
 		if (!strcmp(name, "arch_cpu_idle"))
 			continue;
+		if (!strcmp(name, "default_idle"))
+			continue;
 		if (!strncmp(name, "rcu_", 4))
+			continue;
+		if (!strcmp(name, "bpf_dispatcher_xdp_func"))
 			continue;
 		if (!strncmp(name, "__ftrace_invalid_address__",
 			     sizeof("__ftrace_invalid_address__") - 1))
@@ -398,7 +402,7 @@ error:
 	return err;
 }
 
-static void test_bench_attach(void)
+void serial_test_kprobe_multi_bench_attach(void)
 {
 	LIBBPF_OPTS(bpf_kprobe_multi_opts, opts);
 	struct kprobe_multi_empty *skel = NULL;
@@ -407,7 +411,7 @@ static void test_bench_attach(void)
 	double attach_delta, detach_delta;
 	struct bpf_link *link = NULL;
 	char **syms = NULL;
-	size_t cnt, i;
+	size_t cnt = 0, i;
 
 	if (!ASSERT_OK(get_syms(&syms, &cnt), "get_syms"))
 		return;
@@ -466,6 +470,4 @@ void test_kprobe_multi_test(void)
 		test_attach_api_syms();
 	if (test__start_subtest("attach_api_fails"))
 		test_attach_api_fails();
-	if (test__start_subtest("bench_attach"))
-		test_bench_attach();
 }

@@ -591,7 +591,7 @@ int amdgpu_bo_create(struct amdgpu_device *adev,
 	if (!bp->destroy)
 		bp->destroy = &amdgpu_bo_destroy;
 
-	r = ttm_bo_init_reserved(&adev->mman.bdev, &bo->tbo, size, bp->type,
+	r = ttm_bo_init_reserved(&adev->mman.bdev, &bo->tbo, bp->type,
 				 &bo->placement, page_align, &ctx,  NULL,
 				 bp->resv, bp->destroy);
 	if (unlikely(r != 0))
@@ -688,13 +688,16 @@ int amdgpu_bo_create_vm(struct amdgpu_device *adev,
 	 * num of amdgpu_vm_pt entries.
 	 */
 	BUG_ON(bp->bo_ptr_size < sizeof(struct amdgpu_bo_vm));
-	bp->destroy = &amdgpu_bo_vm_destroy;
 	r = amdgpu_bo_create(adev, bp, &bo_ptr);
 	if (r)
 		return r;
 
 	*vmbo_ptr = to_amdgpu_bo_vm(bo_ptr);
 	INIT_LIST_HEAD(&(*vmbo_ptr)->shadow_list);
+	/* Set destroy callback to amdgpu_bo_vm_destroy after vmbo->shadow_list
+	 * is initialized.
+	 */
+	bo_ptr->tbo.destroy = &amdgpu_bo_vm_destroy;
 	return r;
 }
 
@@ -881,6 +884,10 @@ int amdgpu_bo_pin_restricted(struct amdgpu_bo *bo, u32 domain,
 
 	if (WARN_ON_ONCE(min_offset > max_offset))
 		return -EINVAL;
+
+	/* Check domain to be pinned to against preferred domains */
+	if (bo->preferred_domains & domain)
+		domain = bo->preferred_domains & domain;
 
 	/* A shared bo cannot be migrated to VRAM */
 	if (bo->tbo.base.import_attach) {
@@ -1305,7 +1312,7 @@ void amdgpu_bo_release_notify(struct ttm_buffer_object *bo)
 	if (bo->base.resv == &bo->base._resv)
 		amdgpu_amdkfd_remove_fence_on_pt_pd_bos(abo);
 
-	if (bo->resource->mem_type != TTM_PL_VRAM ||
+	if (!bo->resource || bo->resource->mem_type != TTM_PL_VRAM ||
 	    !(abo->flags & AMDGPU_GEM_CREATE_VRAM_WIPE_ON_RELEASE) ||
 	    adev->in_suspend || adev->shutdown)
 		return;

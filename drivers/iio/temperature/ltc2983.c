@@ -204,11 +204,11 @@ struct ltc2983_data {
 	u8 num_channels;
 	u8 iio_channels;
 	/*
-	 * DMA (thus cache coherency maintenance) requires the
+	 * DMA (thus cache coherency maintenance) may require the
 	 * transfer buffers to live in their own cache lines.
 	 * Holds the converted temperature
 	 */
-	__be32 temp ____cacheline_aligned;
+	__be32 temp __aligned(IIO_DMA_MINALIGN);
 };
 
 struct ltc2983_sensor {
@@ -1385,13 +1385,6 @@ static int ltc2983_setup(struct ltc2983_data *st, bool assign_iio)
 		return ret;
 	}
 
-	st->iio_chan = devm_kzalloc(&st->spi->dev,
-				    st->iio_channels * sizeof(*st->iio_chan),
-				    GFP_KERNEL);
-
-	if (!st->iio_chan)
-		return -ENOMEM;
-
 	ret = regmap_update_bits(st->regmap, LTC2983_GLOBAL_CONFIG_REG,
 				 LTC2983_NOTCH_FREQ_MASK,
 				 LTC2983_NOTCH_FREQ(st->filter_notch_freq));
@@ -1514,6 +1507,12 @@ static int ltc2983_probe(struct spi_device *spi)
 		gpiod_set_value_cansleep(gpio, 0);
 	}
 
+	st->iio_chan = devm_kzalloc(&spi->dev,
+				    st->iio_channels * sizeof(*st->iio_chan),
+				    GFP_KERNEL);
+	if (!st->iio_chan)
+		return -ENOMEM;
+
 	ret = ltc2983_setup(st, true);
 	if (ret)
 		return ret;
@@ -1534,7 +1533,7 @@ static int ltc2983_probe(struct spi_device *spi)
 	return devm_iio_device_register(&spi->dev, indio_dev);
 }
 
-static int __maybe_unused ltc2983_resume(struct device *dev)
+static int ltc2983_resume(struct device *dev)
 {
 	struct ltc2983_data *st = spi_get_drvdata(to_spi_device(dev));
 	int dummy;
@@ -1545,14 +1544,15 @@ static int __maybe_unused ltc2983_resume(struct device *dev)
 	return ltc2983_setup(st, false);
 }
 
-static int __maybe_unused ltc2983_suspend(struct device *dev)
+static int ltc2983_suspend(struct device *dev)
 {
 	struct ltc2983_data *st = spi_get_drvdata(to_spi_device(dev));
 
 	return regmap_write(st->regmap, LTC2983_STATUS_REG, LTC2983_SLEEP);
 }
 
-static SIMPLE_DEV_PM_OPS(ltc2983_pm_ops, ltc2983_suspend, ltc2983_resume);
+static DEFINE_SIMPLE_DEV_PM_OPS(ltc2983_pm_ops, ltc2983_suspend,
+				ltc2983_resume);
 
 static const struct spi_device_id ltc2983_id_table[] = {
 	{ "ltc2983" },
@@ -1570,7 +1570,7 @@ static struct spi_driver ltc2983_driver = {
 	.driver = {
 		.name = "ltc2983",
 		.of_match_table = ltc2983_of_match,
-		.pm = &ltc2983_pm_ops,
+		.pm = pm_sleep_ptr(&ltc2983_pm_ops),
 	},
 	.probe = ltc2983_probe,
 	.id_table = ltc2983_id_table,

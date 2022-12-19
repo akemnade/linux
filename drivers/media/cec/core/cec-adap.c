@@ -1027,6 +1027,7 @@ static const u8 cec_msg_size[256] = {
 	[CEC_MSG_REPORT_SHORT_AUDIO_DESCRIPTOR] = 2 | DIRECTED,
 	[CEC_MSG_REQUEST_SHORT_AUDIO_DESCRIPTOR] = 2 | DIRECTED,
 	[CEC_MSG_SET_SYSTEM_AUDIO_MODE] = 3 | BOTH,
+	[CEC_MSG_SET_AUDIO_VOLUME_LEVEL] = 3 | DIRECTED,
 	[CEC_MSG_SYSTEM_AUDIO_MODE_REQUEST] = 2 | DIRECTED,
 	[CEC_MSG_SYSTEM_AUDIO_MODE_STATUS] = 3 | DIRECTED,
 	[CEC_MSG_SET_AUDIO_RATE] = 3 | DIRECTED,
@@ -1309,8 +1310,11 @@ static int cec_config_log_addr(struct cec_adapter *adap,
 	 * we assume that something is really weird and that it is not a
 	 * good idea to try and claim this logical address.
 	 */
-	if (i == max_retries)
+	if (i == max_retries) {
+		dprintk(0, "polling for LA %u failed with tx_status=0x%04x\n",
+			log_addr, msg.tx_status);
 		return 0;
+	}
 
 	/*
 	 * Message not acknowledged, so this logical

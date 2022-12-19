@@ -10,10 +10,12 @@
 #include <linux/i2c.h>
 #include <linux/interrupt.h>
 #include <linux/io.h>
+#include <linux/iopoll.h>
 #include <linux/module.h>
 #include <linux/platform_device.h>
 #include <linux/of.h>
 #include <linux/pm_runtime.h>
+#include <linux/pinctrl/consumer.h>
 
 /* Register offsets for the I2C device. */
 #define CDNS_I2C_CR_OFFSET		0x00 /* Control Register, RW */
@@ -127,6 +129,8 @@
 #define CDNS_I2C_TIMEOUT_MAX	0xFF
 
 #define CDNS_I2C_BROKEN_HOLD_BIT	BIT(0)
+#define CDNS_I2C_POLL_US	100000
+#define CDNS_I2C_TIMEOUT_US	500000
 
 #define cdns_i2c_readreg(offset)       readl_relaxed(id->membase + offset)
 #define cdns_i2c_writereg(val, offset) writel_relaxed(val, id->membase + offset)
@@ -204,6 +208,7 @@ struct cdns_i2c {
 	struct notifier_block clk_rate_change_nb;
 	u32 quirks;
 	u32 ctrl_reg;
+	struct i2c_bus_recovery_info rinfo;
 #if IS_ENABLED(CONFIG_I2C_SLAVE)
 	u16 ctrl_reg_diva_divb;
 	struct i2c_client *slave;
@@ -573,8 +578,13 @@ static void cdns_i2c_mrecv(struct cdns_i2c *id)
 	ctrl_reg = cdns_i2c_readreg(CDNS_I2C_CR_OFFSET);
 	ctrl_reg |= CDNS_I2C_CR_RW | CDNS_I2C_CR_CLR_FIFO;
 
+	/*
+	 * Receive up to I2C_SMBUS_BLOCK_MAX data bytes, plus one message length
+	 * byte, plus one checksum byte if PEC is enabled. p_msg->len will be 2 if
+	 * PEC is enabled, otherwise 1.
+	 */
 	if (id->p_msg->flags & I2C_M_RECV_LEN)
-		id->recv_count = I2C_SMBUS_BLOCK_MAX + 1;
+		id->recv_count = I2C_SMBUS_BLOCK_MAX + id->p_msg->len;
 
 	id->curr_recv_count = id->recv_count;
 
@@ -789,6 +799,9 @@ static int cdns_i2c_process_msg(struct cdns_i2c *id, struct i2c_msg *msg,
 	if (id->err_status & CDNS_I2C_IXR_ARB_LOST)
 		return -EAGAIN;
 
+	if (msg->flags & I2C_M_RECV_LEN)
+		msg->len += min_t(unsigned int, msg->buf[0], I2C_SMBUS_BLOCK_MAX);
+
 	return 0;
 }
 
@@ -832,8 +845,15 @@ static int cdns_i2c_master_xfer(struct i2c_adapter *adap, struct i2c_msg *msgs,
 #endif
 
 	/* Check if the bus is free */
-	if (cdns_i2c_readreg(CDNS_I2C_SR_OFFSET) & CDNS_I2C_SR_BA) {
+
+	ret = readl_relaxed_poll_timeout(id->membase + CDNS_I2C_SR_OFFSET,
+					 reg,
+					 !(reg & CDNS_I2C_SR_BA),
+					 CDNS_I2C_POLL_US, CDNS_I2C_TIMEOUT_US);
+	if (ret) {
 		ret = -EAGAIN;
+		if (id->adap.bus_recovery_info)
+			i2c_recover_bus(adap);
 		goto out;
 	}
 
@@ -1240,6 +1260,17 @@ static int cdns_i2c_probe(struct platform_device *pdev)
 	if (match && match->data) {
 		const struct cdns_platform_data *data = match->data;
 		id->quirks = data->quirks;
+	}
+
+	id->rinfo.pinctrl = devm_pinctrl_get(&pdev->dev);
+	if (IS_ERR(id->rinfo.pinctrl)) {
+		int err = PTR_ERR(id->rinfo.pinctrl);
+
+		dev_info(&pdev->dev, "can't get pinctrl, bus recovery not supported\n");
+		if (err != -ENODEV)
+			return err;
+	} else {
+		id->adap.bus_recovery_info = &id->rinfo;
 	}
 
 	id->membase = devm_platform_get_and_ioremap_resource(pdev, 0, &r_mem);

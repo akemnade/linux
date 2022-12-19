@@ -103,7 +103,7 @@ static char *__dentry_name(struct dentry *dentry, char *name)
 	 */
 	BUG_ON(p + strlen(p) + 1 != name + PATH_MAX);
 
-	strlcpy(name, root, PATH_MAX);
+	strscpy(name, root, PATH_MAX);
 	if (len > p - name) {
 		__putname(name);
 		return NULL;
@@ -416,15 +416,15 @@ static int hostfs_writepage(struct page *page, struct writeback_control *wbc)
 
 	err = write_file(HOSTFS_I(inode)->fd, &base, buffer, count);
 	if (err != count) {
-		ClearPageUptodate(page);
+		if (err >= 0)
+			err = -EIO;
+		mapping_set_error(mapping, err);
 		goto out;
 	}
 
 	if (base > inode->i_size)
 		inode->i_size = base;
 
-	if (PageError(page))
-		ClearPageError(page);
 	err = 0;
 
  out:

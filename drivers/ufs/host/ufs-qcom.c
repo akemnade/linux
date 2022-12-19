@@ -58,19 +58,6 @@ static void ufs_qcom_dump_regs_wrapper(struct ufs_hba *hba, int offset, int len,
 	ufshcd_dump_regs(hba, offset, len * 4, prefix);
 }
 
-static int ufs_qcom_get_connected_tx_lanes(struct ufs_hba *hba, u32 *tx_lanes)
-{
-	int err = 0;
-
-	err = ufshcd_dme_get(hba,
-			UIC_ARG_MIB(PA_CONNECTEDTXDATALANES), tx_lanes);
-	if (err)
-		dev_err(hba->dev, "%s: couldn't read PA_CONNECTEDTXDATALANES %d\n",
-				__func__, err);
-
-	return err;
-}
-
 static int ufs_qcom_host_clk_get(struct device *dev,
 		const char *name, struct clk **clk_out, bool optional)
 {
@@ -192,13 +179,6 @@ static int ufs_qcom_init_lane_clks(struct ufs_qcom_host *host)
 	}
 out:
 	return err;
-}
-
-static int ufs_qcom_link_startup_post_change(struct ufs_hba *hba)
-{
-	u32 tx_lanes;
-
-	return ufs_qcom_get_connected_tx_lanes(hba, &tx_lanes);
 }
 
 static int ufs_qcom_check_hibern8(struct ufs_hba *hba)
@@ -570,9 +550,6 @@ static int ufs_qcom_link_startup_notify(struct ufs_hba *hba,
 			err = ufshcd_disable_host_tx_lcc(hba);
 
 		break;
-	case POST_CHANGE:
-		ufs_qcom_link_startup_post_change(hba);
-		break;
 	default:
 		break;
 	}
@@ -869,7 +846,7 @@ static void ufs_qcom_set_caps(struct ufs_hba *hba)
 	struct ufs_qcom_host *host = ufshcd_get_variant(hba);
 
 	hba->caps |= UFSHCD_CAP_CLK_GATING | UFSHCD_CAP_HIBERN8_WITH_CLK_GATING;
-	hba->caps |= UFSHCD_CAP_CLK_SCALING;
+	hba->caps |= UFSHCD_CAP_CLK_SCALING | UFSHCD_CAP_WB_WITH_CLK_SCALING;
 	hba->caps |= UFSHCD_CAP_AUTO_BKOPS_SUSPEND;
 	hba->caps |= UFSHCD_CAP_WB_EN;
 	hba->caps |= UFSHCD_CAP_CRYPTO;

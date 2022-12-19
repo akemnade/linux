@@ -55,17 +55,13 @@ static void __activate_traps(struct kvm_vcpu *vcpu)
 
 	val |= CPTR_EL2_TAM;
 
-	if (update_fp_enabled(vcpu)) {
+	if (guest_owns_fp_regs(vcpu)) {
 		if (vcpu_has_sve(vcpu))
 			val |= CPACR_EL1_ZEN_EL0EN | CPACR_EL1_ZEN_EL1EN;
 	} else {
 		val &= ~(CPACR_EL1_FPEN_EL0EN | CPACR_EL1_FPEN_EL1EN);
 		__activate_traps_fpsimd32(vcpu);
 	}
-
-	if (cpus_have_final_cap(ARM64_SME))
-		write_sysreg(read_sysreg(sctlr_el2) & ~SCTLR_ELx_ENTP2,
-			     sctlr_el2);
 
 	write_sysreg(val, cpacr_el1);
 
@@ -87,10 +83,6 @@ static void __deactivate_traps(struct kvm_vcpu *vcpu)
 	 * the host.
 	 */
 	asm(ALTERNATIVE("nop", "isb", ARM64_WORKAROUND_SPECULATIVE_AT));
-
-	if (cpus_have_final_cap(ARM64_SME))
-		write_sysreg(read_sysreg(sctlr_el2) | SCTLR_ELx_ENTP2,
-			     sctlr_el2);
 
 	write_sysreg(CPACR_EL1_DEFAULT, cpacr_el1);
 
@@ -175,7 +167,7 @@ static int __kvm_vcpu_run_vhe(struct kvm_vcpu *vcpu)
 
 	sysreg_restore_host_state_vhe(host_ctxt);
 
-	if (vcpu->arch.flags & KVM_ARM64_FP_ENABLED)
+	if (vcpu->arch.fp_state == FP_STATE_GUEST_OWNED)
 		__fpsimd_save_fpexc32(vcpu);
 
 	__debug_switch_to_host(vcpu);
@@ -249,5 +241,5 @@ void __noreturn hyp_panic(void)
 
 asmlinkage void kvm_unexpected_el2_exception(void)
 {
-	return __kvm_unexpected_el2_exception();
+	__kvm_unexpected_el2_exception();
 }

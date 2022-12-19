@@ -46,7 +46,6 @@ static struct smsc_hw_stat smsc_hw_stats[] = {
 struct smsc_phy_priv {
 	u16 intmask;
 	bool energy_enable;
-	struct clk *refclk;
 };
 
 static int smsc_phy_ack_interrupt(struct phy_device *phydev)
@@ -121,10 +120,7 @@ static int smsc_phy_config_init(struct phy_device *phydev)
 	/* Enable energy detect mode for this SMSC Transceivers */
 	rc = phy_write(phydev, MII_LAN83C185_CTRL_STATUS,
 		       rc | MII_LAN83C185_EDPWRDOWN);
-	if (rc < 0)
-		return rc;
-
-	return smsc_phy_ack_interrupt(phydev);
+	return rc;
 }
 
 static int smsc_phy_reset(struct phy_device *phydev)
@@ -144,11 +140,6 @@ static int smsc_phy_reset(struct phy_device *phydev)
 
 	/* reset the phy */
 	return genphy_soft_reset(phydev);
-}
-
-static int lan911x_config_init(struct phy_device *phydev)
-{
-	return smsc_phy_ack_interrupt(phydev);
 }
 
 static int lan87xx_config_aneg(struct phy_device *phydev)
@@ -293,20 +284,12 @@ static void smsc_get_stats(struct phy_device *phydev,
 		data[i] = smsc_get_stat(phydev, i);
 }
 
-static void smsc_phy_remove(struct phy_device *phydev)
-{
-	struct smsc_phy_priv *priv = phydev->priv;
-
-	clk_disable_unprepare(priv->refclk);
-	clk_put(priv->refclk);
-}
-
 static int smsc_phy_probe(struct phy_device *phydev)
 {
 	struct device *dev = &phydev->mdio.dev;
 	struct device_node *of_node = dev->of_node;
 	struct smsc_phy_priv *priv;
-	int ret;
+	struct clk *refclk;
 
 	priv = devm_kzalloc(dev, sizeof(*priv), GFP_KERNEL);
 	if (!priv)
@@ -320,22 +303,12 @@ static int smsc_phy_probe(struct phy_device *phydev)
 	phydev->priv = priv;
 
 	/* Make clk optional to keep DTB backward compatibility. */
-	priv->refclk = clk_get_optional(dev, NULL);
-	if (IS_ERR(priv->refclk))
-		return dev_err_probe(dev, PTR_ERR(priv->refclk),
+	refclk = devm_clk_get_optional_enabled(dev, NULL);
+	if (IS_ERR(refclk))
+		return dev_err_probe(dev, PTR_ERR(refclk),
 				     "Failed to request clock\n");
 
-	ret = clk_prepare_enable(priv->refclk);
-	if (ret)
-		return ret;
-
-	ret = clk_set_rate(priv->refclk, 50 * 1000 * 1000);
-	if (ret) {
-		clk_disable_unprepare(priv->refclk);
-		return ret;
-	}
-
-	return 0;
+	return clk_set_rate(refclk, 50 * 1000 * 1000);
 }
 
 static struct phy_driver smsc_phy_driver[] = {
@@ -420,9 +393,6 @@ static struct phy_driver smsc_phy_driver[] = {
 
 	.probe		= smsc_phy_probe,
 
-	/* basic functions */
-	.config_init	= lan911x_config_init,
-
 	/* IRQ related */
 	.config_intr	= smsc_phy_config_intr,
 	.handle_interrupt = smsc_phy_handle_interrupt,
@@ -440,7 +410,6 @@ static struct phy_driver smsc_phy_driver[] = {
 	/* PHY_BASIC_FEATURES */
 
 	.probe		= smsc_phy_probe,
-	.remove		= smsc_phy_remove,
 
 	/* basic functions */
 	.read_status	= lan87xx_read_status,

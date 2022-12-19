@@ -358,7 +358,11 @@ struct v4l2_mbus_frame_desc_entry {
 	} bus;
 };
 
-#define V4L2_FRAME_DESC_ENTRY_MAX	4
+ /*
+  * If this number is too small, it should be dropped altogether and the
+  * API switched to a dynamic number of frame descriptor entries.
+  */
+#define V4L2_FRAME_DESC_ENTRY_MAX	8
 
 /**
  * enum v4l2_mbus_frame_desc_type - media bus frame description type
@@ -1046,6 +1050,8 @@ v4l2_subdev_get_pad_format(struct v4l2_subdev *sd,
 			   struct v4l2_subdev_state *state,
 			   unsigned int pad)
 {
+	if (WARN_ON(!state))
+		return NULL;
 	if (WARN_ON(pad >= sd->entity.num_pads))
 		pad = 0;
 	return &state->pads[pad].try_fmt;
@@ -1064,6 +1070,8 @@ v4l2_subdev_get_pad_crop(struct v4l2_subdev *sd,
 			 struct v4l2_subdev_state *state,
 			 unsigned int pad)
 {
+	if (WARN_ON(!state))
+		return NULL;
 	if (WARN_ON(pad >= sd->entity.num_pads))
 		pad = 0;
 	return &state->pads[pad].try_crop;
@@ -1082,6 +1090,8 @@ v4l2_subdev_get_pad_compose(struct v4l2_subdev *sd,
 			    struct v4l2_subdev_state *state,
 			    unsigned int pad)
 {
+	if (WARN_ON(!state))
+		return NULL;
 	if (WARN_ON(pad >= sd->entity.num_pads))
 		pad = 0;
 	return &state->pads[pad].try_compose;
@@ -1431,6 +1441,40 @@ extern const struct v4l2_subdev_ops v4l2_subdev_call_wrappers;
 		if (state)						\
 			v4l2_subdev_unlock_state(state);		\
 		__result;						\
+	})
+
+/**
+ * v4l2_subdev_call_state_try - call an operation of a v4l2_subdev which
+ *				takes state as a parameter, passing the
+ *				subdev a newly allocated try state.
+ *
+ * @sd: pointer to the &struct v4l2_subdev
+ * @o: name of the element at &struct v4l2_subdev_ops that contains @f.
+ *     Each element there groups a set of callbacks functions.
+ * @f: callback function to be called.
+ *     The callback functions are defined in groups, according to
+ *     each element at &struct v4l2_subdev_ops.
+ * @args: arguments for @f.
+ *
+ * This is similar to v4l2_subdev_call_state_active(), except that as this
+ * version allocates a new state, this is only usable for
+ * V4L2_SUBDEV_FORMAT_TRY use cases.
+ *
+ * Note: only legacy non-MC drivers may need this macro.
+ */
+#define v4l2_subdev_call_state_try(sd, o, f, args...)                 \
+	({                                                            \
+		int __result;                                         \
+		static struct lock_class_key __key;                   \
+		const char *name = KBUILD_BASENAME                    \
+			":" __stringify(__LINE__) ":state->lock";     \
+		struct v4l2_subdev_state *state =                     \
+			__v4l2_subdev_state_alloc(sd, name, &__key);  \
+		v4l2_subdev_lock_state(state);                        \
+		__result = v4l2_subdev_call(sd, o, f, state, ##args); \
+		v4l2_subdev_unlock_state(state);                      \
+		__v4l2_subdev_state_free(state);                      \
+		__result;                                             \
 	})
 
 /**

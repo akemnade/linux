@@ -14,6 +14,7 @@
 
 #include <dt-bindings/sound/tlv320adc3xxx.h>
 #include <linux/clk.h>
+#include <linux/gpio/consumer.h>
 #include <linux/module.h>
 #include <linux/moduleparam.h>
 #include <linux/io.h>
@@ -1025,7 +1026,9 @@ static const struct gpio_chip adc3xxx_gpio_chip = {
 
 static void adc3xxx_free_gpio(struct adc3xxx *adc3xxx)
 {
+#ifdef CONFIG_GPIOLIB
 	gpiochip_remove(&adc3xxx->gpio_chip);
+#endif
 }
 
 static void adc3xxx_init_gpio(struct adc3xxx *adc3xxx)
@@ -1252,8 +1255,7 @@ static int adc3xxx_set_dai_fmt(struct snd_soc_dai *codec_dai, unsigned int fmt)
 	int master = 0;
 	int ret;
 
-	/* set master/slave audio interface */
-	switch (fmt & SND_SOC_DAIFMT_MASTER_MASK) {
+	switch (fmt & SND_SOC_DAIFMT_CLOCK_PROVIDER_MASK) {
 	case SND_SOC_DAIFMT_CBP_CFP:
 		master = 1;
 		clkdir = ADC3XXX_BCLK_MASTER | ADC3XXX_WCLK_MASTER;
@@ -1427,7 +1429,7 @@ err_unprepare_mclk:
 	return ret;
 }
 
-static int __exit adc3xxx_i2c_remove(struct i2c_client *client)
+static void __exit adc3xxx_i2c_remove(struct i2c_client *client)
 {
 	struct adc3xxx *adc3xxx = i2c_get_clientdata(client);
 
@@ -1435,7 +1437,6 @@ static int __exit adc3xxx_i2c_remove(struct i2c_client *client)
 		clk_disable_unprepare(adc3xxx->mclk);
 	adc3xxx_free_gpio(adc3xxx);
 	snd_soc_unregister_component(&client->dev);
-	return 0;
 }
 
 static const struct of_device_id tlv320adc3xxx_of_match[] = {
@@ -1451,7 +1452,7 @@ static struct i2c_driver adc3xxx_i2c_driver = {
 		   .of_match_table = tlv320adc3xxx_of_match,
 		  },
 	.probe_new = adc3xxx_i2c_probe,
-	.remove = adc3xxx_i2c_remove,
+	.remove = __exit_p(adc3xxx_i2c_remove),
 	.id_table = adc3xxx_i2c_id,
 };
 

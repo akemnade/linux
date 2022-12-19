@@ -106,6 +106,7 @@ enum scmi_optee_pta_cmd {
  * @channel_id: OP-TEE channel ID used for this transport
  * @tee_session: TEE session identifier
  * @caps: OP-TEE SCMI channel capabilities
+ * @rx_len: Response size
  * @mu: Mutex protection on channel access
  * @cinfo: SCMI channel information
  * @shmem: Virtual base address of the shared memory
@@ -497,7 +498,7 @@ static int scmi_optee_send_message(struct scmi_chan_info *cinfo,
 		msg_tx_prepare(channel->req.msg, xfer);
 		ret = invoke_process_msg_channel(channel, msg_command_size(xfer));
 	} else {
-		shmem_tx_prepare(channel->req.shmem, xfer);
+		shmem_tx_prepare(channel->req.shmem, xfer, cinfo);
 		ret = invoke_process_smt_channel(channel);
 	}
 

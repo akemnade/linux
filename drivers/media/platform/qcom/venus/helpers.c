@@ -671,8 +671,7 @@ int venus_helper_get_bufreq(struct venus_inst *inst, u32 type,
 	unsigned int i;
 	int ret;
 
-	if (req)
-		memset(req, 0, sizeof(*req));
+	memset(req, 0, sizeof(*req));
 
 	if (type == HFI_BUFFER_OUTPUT || type == HFI_BUFFER_OUTPUT2)
 		req->count_min = inst->fw_min_cnt;
@@ -694,8 +693,7 @@ int venus_helper_get_bufreq(struct venus_inst *inst, u32 type,
 		if (hprop.bufreq[i].type != type)
 			continue;
 
-		if (req)
-			memcpy(req, &hprop.bufreq[i], sizeof(*req));
+		memcpy(req, &hprop.bufreq[i], sizeof(*req));
 		ret = 0;
 		break;
 	}
@@ -1802,7 +1800,7 @@ bool venus_helper_check_format(struct venus_inst *inst, u32 v4l2_pixfmt)
 	struct venus_core *core = inst->core;
 	u32 fmt = to_hfi_raw_fmt(v4l2_pixfmt);
 	struct hfi_plat_caps *caps;
-	u32 buftype;
+	bool found;
 
 	if (!fmt)
 		return false;
@@ -1811,12 +1809,13 @@ bool venus_helper_check_format(struct venus_inst *inst, u32 v4l2_pixfmt)
 	if (!caps)
 		return false;
 
-	if (inst->session_type == VIDC_SESSION_TYPE_DEC)
-		buftype = HFI_BUFFER_OUTPUT2;
-	else
-		buftype = HFI_BUFFER_OUTPUT;
+	found = find_fmt_from_caps(caps, HFI_BUFFER_OUTPUT, fmt);
+	if (found)
+		goto done;
 
-	return find_fmt_from_caps(caps, buftype, fmt);
+	found = find_fmt_from_caps(caps, HFI_BUFFER_OUTPUT2, fmt);
+done:
+	return found;
 }
 EXPORT_SYMBOL_GPL(venus_helper_check_format);
 

@@ -8,6 +8,7 @@
 
 #include <linux/clk.h>
 #include <linux/errno.h>
+#include <linux/ethtool.h>
 #include <linux/if_arp.h>
 #include <linux/interrupt.h>
 #include <linux/kernel.h>
@@ -451,7 +452,7 @@ static netdev_tx_t at91_start_xmit(struct sk_buff *skb, struct net_device *dev)
 	unsigned int mb, prio;
 	u32 reg_mid, reg_mcr;
 
-	if (can_dropped_invalid_skb(dev, skb))
+	if (can_dev_dropped_skb(dev, skb))
 		return NETDEV_TX_OK;
 
 	mb = get_tx_next_mb(priv);
@@ -1152,6 +1153,10 @@ static const struct net_device_ops at91_netdev_ops = {
 	.ndo_change_mtu = can_change_mtu,
 };
 
+static const struct ethtool_ops at91_ethtool_ops = {
+	.get_ts_info = ethtool_op_get_ts_info,
+};
+
 static ssize_t mb0_id_show(struct device *dev,
 			   struct device_attribute *attr, char *buf)
 {
@@ -1293,6 +1298,7 @@ static int at91_can_probe(struct platform_device *pdev)
 	}
 
 	dev->netdev_ops	= &at91_netdev_ops;
+	dev->ethtool_ops = &at91_ethtool_ops;
 	dev->irq = irq;
 	dev->flags |= IFF_ECHO;
 

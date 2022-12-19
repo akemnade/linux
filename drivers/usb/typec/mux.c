@@ -29,7 +29,7 @@ static int switch_fwnode_match(struct device *dev, const void *fwnode)
 	if (!is_typec_switch_dev(dev))
 		return 0;
 
-	return dev_fwnode(dev) == fwnode;
+	return device_match_fwnode(dev, fwnode);
 }
 
 static void *typec_switch_match(struct fwnode_handle *fwnode, const char *id,
@@ -259,7 +259,7 @@ static int mux_fwnode_match(struct device *dev, const void *fwnode)
 	if (!is_typec_mux_dev(dev))
 		return 0;
 
-	return dev_fwnode(dev) == fwnode;
+	return device_match_fwnode(dev, fwnode);
 }
 
 static void *typec_mux_match(struct fwnode_handle *fwnode, const char *id,
@@ -281,9 +281,13 @@ static void *typec_mux_match(struct fwnode_handle *fwnode, const char *id,
 	if (match)
 		goto find_mux;
 
-	/* Accessory Mode muxes */
 	if (!desc) {
-		match = fwnode_property_present(fwnode, "accessory");
+		/*
+		 * Accessory Mode muxes & muxes which explicitly specify
+		 * the required identifier can avoid SVID matching.
+		 */
+		match = fwnode_property_present(fwnode, "accessory") ||
+			fwnode_property_present(fwnode, id);
 		if (match)
 			goto find_mux;
 		return NULL;

@@ -414,7 +414,7 @@ removeseg:
 	kill_dax(dev_info->dax_dev);
 	put_dax(dev_info->dax_dev);
 	del_gendisk(dev_info->gd);
-	blk_cleanup_disk(dev_info->gd);
+	put_disk(dev_info->gd);
 	up_write(&dcssblk_devices_sem);
 
 	if (device_remove_file_self(dev, attr)) {
@@ -614,7 +614,7 @@ dcssblk_add_store(struct device *dev, struct device_attribute *attr, const char 
 		rc = -ENAMETOOLONG;
 		goto seg_list_del;
 	}
-	strlcpy(local_buf, buf, i + 1);
+	strscpy(local_buf, buf, i + 1);
 	dev_info->num_of_segments = num_of_segments;
 	rc = dcssblk_is_continuous(dev_info);
 	if (rc < 0)
@@ -636,6 +636,7 @@ dcssblk_add_store(struct device *dev, struct device_attribute *attr, const char 
 	dev_info->gd->minors = DCSSBLK_MINORS_PER_DISK;
 	dev_info->gd->fops = &dcssblk_devops;
 	dev_info->gd->private_data = dev_info;
+	dev_info->gd->flags |= GENHD_FL_NO_PART;
 	blk_queue_logical_block_size(dev_info->gd->queue, 4096);
 	blk_queue_flag_set(QUEUE_FLAG_DAX, dev_info->gd->queue);
 
@@ -712,7 +713,7 @@ out_dax:
 	put_dax(dev_info->dax_dev);
 put_dev:
 	list_del(&dev_info->lh);
-	blk_cleanup_disk(dev_info->gd);
+	put_disk(dev_info->gd);
 	list_for_each_entry(seg_info, &dev_info->seg_list, lh) {
 		segment_unload(seg_info->segment_name);
 	}
@@ -722,7 +723,7 @@ put_dev:
 dev_list_del:
 	list_del(&dev_info->lh);
 release_gd:
-	blk_cleanup_disk(dev_info->gd);
+	put_disk(dev_info->gd);
 	up_write(&dcssblk_devices_sem);
 seg_list_del:
 	if (dev_info == NULL)
@@ -790,7 +791,7 @@ dcssblk_remove_store(struct device *dev, struct device_attribute *attr, const ch
 	kill_dax(dev_info->dax_dev);
 	put_dax(dev_info->dax_dev);
 	del_gendisk(dev_info->gd);
-	blk_cleanup_disk(dev_info->gd);
+	put_disk(dev_info->gd);
 
 	/* unload all related segments */
 	list_for_each_entry(entry, &dev_info->seg_list, lh)
@@ -863,7 +864,7 @@ dcssblk_submit_bio(struct bio *bio)
 	unsigned long source_addr;
 	unsigned long bytes_done;
 
-	blk_queue_split(&bio);
+	bio = bio_split_to_limits(bio);
 
 	bytes_done = 0;
 	dev_info = bio->bi_bdev->bd_disk->private_data;

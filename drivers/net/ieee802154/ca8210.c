@@ -885,7 +885,7 @@ static int ca8210_spi_transfer(
 
 	dev_dbg(&spi->dev, "%s called\n", __func__);
 
-	cas_ctl = kmalloc(sizeof(*cas_ctl), GFP_ATOMIC);
+	cas_ctl = kzalloc(sizeof(*cas_ctl), GFP_ATOMIC);
 	if (!cas_ctl)
 		return -ENOMEM;
 
@@ -2293,7 +2293,7 @@ static int ca8210_set_csma_params(
  * @retries:  Number of retries
  *
  * Sets the number of times to retry a transmission if no acknowledgment was
- * was received from the other end when one was requested.
+ * received from the other end when one was requested.
  *
  * Return: 0 or linux error code
  */

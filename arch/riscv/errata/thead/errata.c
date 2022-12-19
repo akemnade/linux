@@ -14,40 +14,49 @@
 #include <asm/patch.h>
 #include <asm/vendorid_list.h>
 
-struct errata_info {
-	char name[ERRATA_STRING_LENGTH_MAX];
-	bool (*check_func)(unsigned long arch_id, unsigned long impid);
-	unsigned int stage;
-};
-
-static bool errata_mt_check_func(unsigned long  arch_id, unsigned long impid)
+static bool errata_probe_pbmt(unsigned int stage,
+			      unsigned long arch_id, unsigned long impid)
 {
+	if (!IS_ENABLED(CONFIG_ERRATA_THEAD_PBMT))
+		return false;
+
 	if (arch_id != 0 || impid != 0)
 		return false;
+
+	if (stage == RISCV_ALTERNATIVES_EARLY_BOOT ||
+	    stage == RISCV_ALTERNATIVES_MODULE)
+		return true;
+
+	return false;
+}
+
+static bool errata_probe_cmo(unsigned int stage,
+			     unsigned long arch_id, unsigned long impid)
+{
+	if (!IS_ENABLED(CONFIG_ERRATA_THEAD_CMO))
+		return false;
+
+	if (arch_id != 0 || impid != 0)
+		return false;
+
+	if (stage == RISCV_ALTERNATIVES_EARLY_BOOT)
+		return false;
+
+	riscv_cbom_block_size = L1_CACHE_BYTES;
+	riscv_noncoherent_supported();
 	return true;
 }
 
-static const struct errata_info errata_list[ERRATA_THEAD_NUMBER] = {
-	{
-		.name = "memory-types",
-		.stage = RISCV_ALTERNATIVES_EARLY_BOOT,
-		.check_func = errata_mt_check_func
-	},
-};
-
-static u32 thead_errata_probe(unsigned int stage, unsigned long archid, unsigned long impid)
+static u32 thead_errata_probe(unsigned int stage,
+			      unsigned long archid, unsigned long impid)
 {
-	const struct errata_info *info;
 	u32 cpu_req_errata = 0;
-	int idx;
 
-	for (idx = 0; idx < ERRATA_THEAD_NUMBER; idx++) {
-		info = &errata_list[idx];
+	if (errata_probe_pbmt(stage, archid, impid))
+		cpu_req_errata |= BIT(ERRATA_THEAD_PBMT);
 
-		if ((stage == RISCV_ALTERNATIVES_MODULE ||
-		     info->stage == stage) && info->check_func(archid, impid))
-			cpu_req_errata |= (1U << idx);
-	}
+	if (errata_probe_cmo(stage, archid, impid))
+		cpu_req_errata |= BIT(ERRATA_THEAD_CMO);
 
 	return cpu_req_errata;
 }
