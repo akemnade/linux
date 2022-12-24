@@ -13,13 +13,15 @@
 #include <drm/drm_atomic_helper.h>
 #include <drm/drm_crtc_helper.h>
 #include <drm/drm_drv.h>
-#include <drm/drm_fb_cma_helper.h>
+#include <drm/drm_fb_dma_helper.h>
 #include <drm/drm_fb_helper.h>
 #include <drm/drm_file.h>
 #include <drm/drm_format_helper.h>
+#include <drm/drm_framebuffer.h>
 #include <drm/drm_gem_atomic_helper.h>
-#include <drm/drm_gem_cma_helper.h>
+#include <drm/drm_gem_dma_helper.h>
 #include <drm/drm_gem_framebuffer_helper.h>
+
 #include <drm/drm_ioctl.h>
 #include <drm/drm_panel.h>
 #include <drm/drm_prime.h>
@@ -92,7 +94,7 @@ static void mxc_epdc_setup_mode_config(struct drm_device *drm)
 }
 
 
-DEFINE_DRM_GEM_CMA_FOPS(fops);
+DEFINE_DRM_GEM_DMA_FOPS(fops);
 
 static int mxc_epdc_get_modes(struct drm_connector *connector)
 {
@@ -186,10 +188,10 @@ static const uint32_t mxc_epdc_formats[] = {
 static struct drm_driver mxc_epdc_driver = {
 	.driver_features = DRIVER_GEM | DRIVER_MODESET | DRIVER_ATOMIC,
 	.fops = &fops,
-	.dumb_create	    = drm_gem_cma_dumb_create,
+	.dumb_create	    = drm_gem_dma_dumb_create,
 	.prime_handle_to_fd     = drm_gem_prime_handle_to_fd,
 	.prime_fd_to_handle     = drm_gem_prime_fd_to_handle,
-	.gem_prime_import_sg_table = drm_gem_cma_prime_import_sg_table,
+	.gem_prime_import_sg_table = drm_gem_dma_prime_import_sg_table,
 	.gem_prime_mmap	 = drm_gem_prime_mmap,
 
 	.name = DRIVER_NAME,
