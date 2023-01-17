@@ -44,6 +44,33 @@
 			linux,input-type = <EV_SW>;
 		};
 	};
+
+       sound {
+                compatible = "simple-audio-card";
+                simple-audio-card,name = "BT2 Sound";
+                //simple-audio-card,widgets =
+                //        "Speaker", "Speaker";
+               // simple-audio-card,routing =
+               //         "Speaker Amp INL", "HPL",
+               //         "Speaker Amp INR", "HPR",
+               //         "Speaker", "Speaker Amp OUTL",
+               //         "Speaker", "Speaker Amp OUTR";
+                simple-audio-card,format = "left_j";
+                simple-audio-card,bitclock-master = <&sound_master>;
+                simple-audio-card,frame-master = <&sound_master>;
+                //simple-audio-card,aux-devs = <&speaker_amp>;
+
+                sound_master: simple-audio-card,cpu {
+                        sound-dai = <&mcbsp2>;
+                };
+
+                simple-audio-card,codec {
+			clocks = <&auxclk1_ck>;
+                        sound-dai = <&tlv320aic3x>;
+                        system-clock-frequency = <24000000>;
+                };
+        };
+
 	
        /* regulator for wl12xx on sdio2 */
         wl12xx_vmmc: wl12xx-vmmc {
@@ -131,6 +158,15 @@
 		>;
 	};
 
+	mcbsp2_pins: pinmux_mcbsp2_pins {
+		pinctrl-single,pins = <
+			OMAP4_IOPAD(0x0f6, PIN_INPUT | MUX_MODE0)       /* abe_mcbsp2_clkx */
+			OMAP4_IOPAD(0x0f8, PIN_INPUT | MUX_MODE0)       /* abe_mcbsp2_dr */
+			OMAP4_IOPAD(0x0fa, PIN_OUTPUT | MUX_MODE0)      /* abe_mcbsp2_dx */
+			OMAP4_IOPAD(0x0fc, PIN_INPUT | MUX_MODE0)       /* abe_mcbsp2_fsx */
+		>;
+	};
+
 	mpu9150_pins: pinmux_mpu9150_pins {
 		pinctrl-single,pins = <
 			OMAP4_IOPAD(0x5e, PIN_INPUT_PULLUP | MUX_MODE3)
@@ -140,6 +176,12 @@
 	mpu9150h_pins: pinmux_mpu9150h_pins {
 		pinctrl-single,pins = <
                         OMAP4_IOPAD(0x76, PIN_INPUT_PULLUP | MUX_MODE3)
+		>;
+	};
+
+	tlv320aic3x_pins: pinmux-tlv320aic3x-pins {
+		pinctrl-single,pins = <
+			OMAP4_IOPAD(0x7e, PIN_OUTPUT | MUX_MODE3)
 		>;
 	};
 
@@ -334,6 +376,16 @@
 
 	clock-frequency = <360000>;
 
+	tlv320aic3x: codec@18 {
+		compatible = "ti,tlv320aic3x";
+	        reg = <0x18>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&tlv320aic3x_pins>;
+                #sound-dai-cells = <0>;
+
+		reset-gpios = <&gpio2 23 GPIO_ACTIVE_LOW>;
+	};
+
 	/* TODO: does not fully initialize */
 	mpu9150: imu@68 {
 		compatible = "invensense,mpu9150";
@@ -353,6 +405,13 @@
 			};
 		};
 	};
+};
+
+&mcbsp2 {
+	#sound-dai-cells = <0>;
+        pinctrl-names = "default";
+        pinctrl-0 = <&mcbsp2_pins>;
+        status = "okay";
 };
 
 
