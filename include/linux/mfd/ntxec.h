@@ -35,4 +35,8 @@ static inline u16 ntxec_reg8(u8 value)
 #define NTXEC_VERSION_KOBO_AURA	0xd726	/* found in Kobo Aura */
 #define NTXEC_VERSION_TOLINO_SHINE2 0xf110 /* found in Tolino Shine 2 HD */
 
+/*
+ * found in Tolino Vision, contains RTC, ADC, PWM, home pad
+ */
+#define NTXEC_VERSION_TOLINO_VISION 0xe135
 #endif
