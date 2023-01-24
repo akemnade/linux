@@ -75,21 +75,19 @@
 		pinctrl-0 = <&pinctrl_led>;
 
 		led-0 {
-			label = "tolinovision:white:on";
+			label = "tolinovision:white:home";
 			gpios = <&gpio5 10 GPIO_ACTIVE_LOW>;
-			linux,default-trigger = "timer";
 		};
 
 		led-1 {
-			label = "tolinovision:white:home";
+			label = "tolinovision:white:on";
 			gpios = <&gpio5 7 GPIO_ACTIVE_LOW>;
 			linux,default-trigger = "timer";
 		};
 
 		led-2 {
-			label = "tolinoshine2hd:white:backlightboost";
+			label = "tolinovision:white:backlightboost";
 			gpios = <&gpio1 29 GPIO_ACTIVE_HIGH>;
-			linux,default-trigger = "off";
 		};
 	};
 
