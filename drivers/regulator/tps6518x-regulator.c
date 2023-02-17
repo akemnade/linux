@@ -638,7 +638,7 @@ static int tps6518x_regulator_probe(struct platform_device *pdev)
 		config.driver_data = tps6518x;
 		config.of_node = pdata->regulators[i].reg_node;
 
-		rdev[i] = regulator_register(&tps6518x_reg[id], &config);
+		rdev[i] = devm_regulator_register(&pdev->dev, &tps6518x_reg[id], &config);
 		if (IS_ERR(rdev[i])) {
 			ret = PTR_ERR(rdev[i]);
 			dev_err(&pdev->dev, "regulator init failed for %d\n",
@@ -665,25 +665,11 @@ static int tps6518x_regulator_probe(struct platform_device *pdev)
 	dev_dbg(tps6518x->dev, "tps6518x_regulator_probe success\n");
 	return 0;
 err:
-	while (--i >= 0)
-		regulator_unregister(rdev[i]);
 	return ret;
-}
-
-static int tps6518x_regulator_remove(struct platform_device *pdev)
-{
-	struct tps6518x_data *priv = platform_get_drvdata(pdev);
-	struct regulator_dev **rdev = priv->rdev;
-	int i;
-
-	for (i = 0; i < priv->num_regulators; i++)
-		regulator_unregister(rdev[i]);
-	return 0;
 }
 
 static struct platform_driver tps6518x_regulator_driver = {
 	.probe = tps6518x_regulator_probe,
-	.remove = tps6518x_regulator_remove,
 	.driver = {
 		.name = "tps6518x-regulator",
 	},
