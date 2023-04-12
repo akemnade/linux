@@ -60,7 +60,7 @@ extern char * strchrnul(const char *, int);
 #include "../../../../lib/decompress_unlz4.c"
 #endif
 
-int do_decompress(u8 *input, int len, u8 *output, void (*error)(char *x))
+int do_decompress(u8 *input, int len, u8 *output, int outlen, void (*error)(char *x))
 {
-	return __decompress(input, len, NULL, NULL, output, 0, NULL, error);
+	return __decompress(input, len, NULL, NULL, output, outlen, NULL, error);
 }
