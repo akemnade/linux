@@ -108,7 +108,6 @@
 	status = "disabled";
 };
 
-#if 0
 &epdc {
 	safe-ticks-turnoff-ep3v3=<400>;
 	pinctrl-names = "default";
@@ -116,10 +115,31 @@
 	V3P3-supply = <&V3P3_reg>;
 	VCOM-supply = <&VCOM_reg>;
 	DISPLAY-supply = <&DISPLAY_reg>;
-	TMST-supply = <&TMST_reg>;
+
+	vscan-holdoff = <4>;
+	sdoed-width = <10>;
+	sdoed-delay = <20>;
+	sdoez-width = <10>;
+	sdoez-delay = <20>;
+	gdclk-hp-offs = <524>;
+	gdsp-offs = <25>;
+	gdoe-offs = <0>;
+	gdclk-offs = <19>;
+	num-ce = <1>;
 	status = "okay";
+
+	timing {
+		clock-frequency = <80000000>;
+		hactive = <1024>;
+		hback-porch = <12>;
+		hfront-porch = <76>;
+		hsync-len = <12>;
+		vactive = <758>;
+		vback-porch = <4>;
+		vfront-porch = <5>;
+		vsync-len = <2>;
+	};
 };
-#endif
 
 &fec1 {
 	status = "disabled";
@@ -305,37 +325,35 @@
 };
 
 &iomuxc {
-#if 0
 	pinctrl_epdc0: epdcgrp0 {
 		fsl,pins = <
-				MX6UL_PAD_ENET2_RX_DATA0__EPDC_SDDO08	0x10b1
-				MX6UL_PAD_ENET2_RX_DATA1__EPDC_SDDO09	0x10b1
-				MX6UL_PAD_ENET2_RX_EN__EPDC_SDDO10   	0x10b1
-				MX6UL_PAD_ENET2_TX_DATA0__EPDC_SDDO11	0x10b1
-				MX6UL_PAD_ENET2_TX_DATA1__EPDC_SDDO12	0x10b1
-				MX6UL_PAD_ENET2_TX_EN__EPDC_SDDO13   	0x10b1
-				MX6UL_PAD_ENET2_TX_CLK__EPDC_SDDO14  	0x10b1
-				MX6UL_PAD_ENET2_RX_ER__EPDC_SDDO15   	0x10b1
-				MX6UL_PAD_LCD_CLK__EPDC_SDCLK		0x10b1
-				MX6UL_PAD_LCD_ENABLE__EPDC_SDLE      	0x10b1
-				MX6UL_PAD_LCD_HSYNC__EPDC_SDOE       	0x10b1
-				MX6UL_PAD_LCD_VSYNC__EPDC_SDCE0      	0x10b1
-				MX6UL_PAD_LCD_DATA00__EPDC_SDDO00    	0x10b1
-				MX6UL_PAD_LCD_DATA01__EPDC_SDDO01    	0x10b1
-				MX6UL_PAD_LCD_DATA02__EPDC_SDDO02    	0x10b1
-				MX6UL_PAD_LCD_DATA03__EPDC_SDDO03    	0x10b1
-				MX6UL_PAD_LCD_DATA04__EPDC_SDDO04    	0x10b1
-				MX6UL_PAD_LCD_DATA05__EPDC_SDDO05    	0x10b1
-				MX6UL_PAD_LCD_DATA06__EPDC_SDDO06    	0x10b1
-				MX6UL_PAD_LCD_DATA07__EPDC_SDDO07    	0x10b1
-				MX6UL_PAD_LCD_DATA14__EPDC_SDSHR     	0x10b1
-				MX6UL_PAD_LCD_DATA15__EPDC_GDRL      	0x10b1
-				MX6UL_PAD_LCD_DATA16__EPDC_GDCLK     	0x10b1
-				MX6UL_PAD_LCD_DATA17__EPDC_GDSP      	0x10b1
-				MX6UL_PAD_LCD_RESET__EPDC_GDOE       	0x10b1
-	    >;
+				MX6ULL_PAD_ENET2_RX_DATA0__EPDC_SDDO08	0x10b1
+				MX6ULL_PAD_ENET2_RX_DATA1__EPDC_SDDO09	0x10b1
+				MX6ULL_PAD_ENET2_RX_EN__EPDC_SDDO10   	0x10b1
+				MX6ULL_PAD_ENET2_TX_DATA0__EPDC_SDDO11	0x10b1
+				MX6ULL_PAD_ENET2_TX_DATA1__EPDC_SDDO12	0x10b1
+				MX6ULL_PAD_ENET2_TX_EN__EPDC_SDDO13   	0x10b1
+				MX6ULL_PAD_ENET2_TX_CLK__EPDC_SDDO14  	0x10b1
+				MX6ULL_PAD_ENET2_RX_ER__EPDC_SDDO15   	0x10b1
+				MX6ULL_PAD_LCD_CLK__EPDC_SDCLK		0x10b1
+				MX6ULL_PAD_LCD_ENABLE__EPDC_SDLE      	0x10b1
+				MX6ULL_PAD_LCD_HSYNC__EPDC_SDOE       	0x10b1
+				MX6ULL_PAD_LCD_VSYNC__EPDC_SDCE0      	0x10b1
+				MX6ULL_PAD_LCD_DATA00__EPDC_SDDO00    	0x10b1
+				MX6ULL_PAD_LCD_DATA01__EPDC_SDDO01    	0x10b1
+				MX6ULL_PAD_LCD_DATA02__EPDC_SDDO02    	0x10b1
+				MX6ULL_PAD_LCD_DATA03__EPDC_SDDO03    	0x10b1
+				MX6ULL_PAD_LCD_DATA04__EPDC_SDDO04    	0x10b1
+				MX6ULL_PAD_LCD_DATA05__EPDC_SDDO05    	0x10b1
+				MX6ULL_PAD_LCD_DATA06__EPDC_SDDO06    	0x10b1
+				MX6ULL_PAD_LCD_DATA07__EPDC_SDDO07    	0x10b1
+				MX6ULL_PAD_LCD_DATA14__EPDC_SDSHR     	0x10b1
+				MX6ULL_PAD_LCD_DATA15__EPDC_GDRL      	0x10b1
+				MX6ULL_PAD_LCD_DATA16__EPDC_GDCLK     	0x10b1
+				MX6ULL_PAD_LCD_DATA17__EPDC_GDSP      	0x10b1
+				MX6ULL_PAD_LCD_RESET__EPDC_GDOE       	0x10b1
+		>;
 	};
-#endif
 
 	pinctrl_i2c1: i2c1grp {
 		fsl,pins = <
@@ -691,28 +709,27 @@
 
 	/* gpio_pmic_v3p3 = <&gpio2 14 GPIO_ACTIVE_HIGH>; */
 	gpio_pmic_pwrall = <&gpio3 14 GPIO_ACTIVE_HIGH>;
-	status = "disabled";
 
 	regulators {
-		DISPLAY_SY7636_reg: DISPLAY_SY7636 {
-			regulator-name = "DISPLAY_SY7636";
+		DISPLAY_reg: DISPLAY {
+			regulator-name = "DISPLAY";
 		};
  
-		VCOM_SY7636_reg: VCOM_SY7636 {
-			regulator-name = "VCOM_SY7636";
-			/* 2's-compliment, -4325000 */
-			regulator-min-microvolt = <0xffbe0178>;
-			/* 2's-compliment, -500000 */
-			regulator-max-microvolt = <0xfff85ee0>;
+		VCOM_reg: VCOM {
+			regulator-name = "VCOM";
+			regulator-min-microvolt = <2750000>;
+			regulator-max-microvolt = <2750000>;
 		};
 
-		V3P3_SY7636_reg: V3P3_SY7636 {
-			regulator-name = "V3P3_SY7636";
+		V3P3_reg: V3P3 {
+			regulator-name = "V3P3";
 		};
 
-		TMST_SY7636_reg: TMST_SY7636 {
-			regulator-name = "TMST_SY7636";
+#if 0
+		TMST_reg: TMST {
+			regulator-name = "TMST";
 		};
+#endif
 	};
 };
 };
