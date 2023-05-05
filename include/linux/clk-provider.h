@@ -44,6 +44,7 @@ struct dentry;
  *
  * Should be initialized by calling clk_hw_init_rate_request().
  *
+ * @core: 		Pointer to the struct clk_core affected by this request
  * @rate:		Requested clock rate. This field will be adjusted by
  *			clock drivers according to hardware capabilities.
  * @min_rate:		Minimum rate imposed by clk users.
@@ -55,6 +56,7 @@ struct dentry;
  *
  */
 struct clk_rate_request {
+	struct clk_core *core;
 	unsigned long rate;
 	unsigned long min_rate;
 	unsigned long max_rate;
@@ -1361,7 +1363,13 @@ struct clk_hw_onecell_data {
 	struct clk_hw *hws[];
 };
 
-#define CLK_OF_DECLARE(name, compat, fn) OF_DECLARE_1(clk, name, compat, fn)
+#define CLK_OF_DECLARE(name, compat, fn) \
+	static void __init __##name##_of_clk_init_declare(struct device_node *np) \
+	{								\
+		fn(np);							\
+		fwnode_dev_initialized(of_fwnode_handle(np), true);	\
+	}								\
+	OF_DECLARE_1(clk, name, compat, __##name##_of_clk_init_declare)
 
 /*
  * Use this macro when you have a driver that requires two initialization

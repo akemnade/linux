@@ -29,7 +29,7 @@
 #define CY_MAX_INPUT				512
 #define CYTTSP5_PREALLOCATED_CMD_BUFFER		32
 #define CY_BITS_PER_BTN				1
-#define CY_NUM_BTN_EVENT_ID			GENMASK(CY_BITS_PER_BTN, 0)
+#define CY_NUM_BTN_EVENT_ID			GENMASK(CY_BITS_PER_BTN - 1, 0)
 
 #define MAX_AREA				255
 #define HID_OUTPUT_BL_SOP			0x1
@@ -111,6 +111,7 @@ struct cyttsp5_sensing_conf_data_dev {
 	__le16 max_z;
 	u8 origin_x;
 	u8 origin_y;
+	u8 panel_id;
 	u8 btn;
 	u8 scan_mode;
 	u8 max_num_of_tch_per_refresh_cycle;
@@ -855,8 +856,7 @@ static int cyttsp5_probe(struct device *dev, struct regmap *regmap, int irq,
 	return cyttsp5_setup_input_device(dev);
 }
 
-static int cyttsp5_i2c_probe(struct i2c_client *client,
-			     const struct i2c_device_id *id)
+static int cyttsp5_i2c_probe(struct i2c_client *client)
 {
 	struct regmap *regmap;
 	static const struct regmap_config config = {
@@ -891,7 +891,7 @@ static struct i2c_driver cyttsp5_i2c_driver = {
 		.name = CYTTSP5_NAME,
 		.of_match_table = cyttsp5_of_match,
 	},
-	.probe = cyttsp5_i2c_probe,
+	.probe_new = cyttsp5_i2c_probe,
 	.id_table = cyttsp5_i2c_id,
 };
 module_i2c_driver(cyttsp5_i2c_driver);

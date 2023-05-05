@@ -170,10 +170,10 @@ static void __io_rsrc_put_work(struct io_rsrc_node *ref_node)
 		if (prsrc->tag) {
 			if (ctx->flags & IORING_SETUP_IOPOLL) {
 				mutex_lock(&ctx->uring_lock);
-				io_post_aux_cqe(ctx, prsrc->tag, 0, 0, true);
+				io_post_aux_cqe(ctx, prsrc->tag, 0, 0);
 				mutex_unlock(&ctx->uring_lock);
 			} else {
-				io_post_aux_cqe(ctx, prsrc->tag, 0, 0, true);
+				io_post_aux_cqe(ctx, prsrc->tag, 0, 0);
 			}
 		}
 
@@ -202,6 +202,14 @@ void io_rsrc_put_work(struct work_struct *work)
 		__io_rsrc_put_work(ref_node);
 		node = next;
 	}
+}
+
+void io_rsrc_put_tw(struct callback_head *cb)
+{
+	struct io_ring_ctx *ctx = container_of(cb, struct io_ring_ctx,
+					       rsrc_put_tw);
+
+	io_rsrc_put_work(&ctx->rsrc_put_work.work);
 }
 
 void io_wait_rsrc_data(struct io_rsrc_data *data)
@@ -242,8 +250,15 @@ static __cold void io_rsrc_node_ref_zero(struct percpu_ref *ref)
 	}
 	spin_unlock_irqrestore(&ctx->rsrc_ref_lock, flags);
 
-	if (first_add)
-		mod_delayed_work(system_wq, &ctx->rsrc_put_work, delay);
+	if (!first_add)
+		return;
+
+	if (ctx->submitter_task) {
+		if (!task_work_add(ctx->submitter_task, &ctx->rsrc_put_tw,
+				   ctx->notify_method))
+			return;
+	}
+	mod_delayed_work(system_wq, &ctx->rsrc_put_work, delay);
 }
 
 static struct io_rsrc_node *io_rsrc_node_alloc(void)
@@ -309,41 +324,41 @@ __cold static int io_rsrc_ref_quiesce(struct io_rsrc_data *data,
 	/* As we may drop ->uring_lock, other task may have started quiesce */
 	if (data->quiesce)
 		return -ENXIO;
+	ret = io_rsrc_node_switch_start(ctx);
+	if (ret)
+		return ret;
+	io_rsrc_node_switch(ctx, data);
+
+	/* kill initial ref, already quiesced if zero */
+	if (atomic_dec_and_test(&data->refs))
+		return 0;
 
 	data->quiesce = true;
+	mutex_unlock(&ctx->uring_lock);
 	do {
-		ret = io_rsrc_node_switch_start(ctx);
-		if (ret)
+		ret = io_run_task_work_sig(ctx);
+		if (ret < 0) {
+			atomic_inc(&data->refs);
+			/* wait for all works potentially completing data->done */
+			flush_delayed_work(&ctx->rsrc_put_work);
+			reinit_completion(&data->done);
+			mutex_lock(&ctx->uring_lock);
 			break;
-		io_rsrc_node_switch(ctx, data);
+		}
 
-		/* kill initial ref, already quiesced if zero */
-		if (atomic_dec_and_test(&data->refs))
-			break;
-		mutex_unlock(&ctx->uring_lock);
 		flush_delayed_work(&ctx->rsrc_put_work);
 		ret = wait_for_completion_interruptible(&data->done);
 		if (!ret) {
 			mutex_lock(&ctx->uring_lock);
-			if (atomic_read(&data->refs) > 0) {
-				/*
-				 * it has been revived by another thread while
-				 * we were unlocked
-				 */
-				mutex_unlock(&ctx->uring_lock);
-			} else {
+			if (atomic_read(&data->refs) <= 0)
 				break;
-			}
+			/*
+			 * it has been revived by another thread while
+			 * we were unlocked
+			 */
+			mutex_unlock(&ctx->uring_lock);
 		}
-
-		atomic_inc(&data->refs);
-		/* wait for all works potentially completing data->done */
-		flush_delayed_work(&ctx->rsrc_put_work);
-		reinit_completion(&data->done);
-
-		ret = io_run_task_work_sig(ctx);
-		mutex_lock(&ctx->uring_lock);
-	} while (ret >= 0);
+	} while (1);
 	data->quiesce = false;
 
 	return ret;
@@ -395,7 +410,7 @@ __cold static int io_rsrc_data_alloc(struct io_ring_ctx *ctx,
 				     unsigned nr, struct io_rsrc_data **pdata)
 {
 	struct io_rsrc_data *data;
-	int ret = -ENOMEM;
+	int ret = 0;
 	unsigned i;
 
 	data = kzalloc(sizeof(*data), GFP_KERNEL);
@@ -779,6 +794,7 @@ void __io_sqe_files_unregister(struct io_ring_ctx *ctx)
 	}
 #endif
 	io_free_file_tables(&ctx->file_table);
+	io_file_table_set_alloc_range(ctx, 0, 0);
 	io_rsrc_data_free(ctx->file_data);
 	ctx->file_data = NULL;
 	ctx->nr_user_files = 0;
@@ -1147,14 +1163,17 @@ struct page **io_pin_pages(unsigned long ubuf, unsigned long len, int *npages)
 	pret = pin_user_pages(ubuf, nr_pages, FOLL_WRITE | FOLL_LONGTERM,
 			      pages, vmas);
 	if (pret == nr_pages) {
+		struct file *file = vmas[0]->vm_file;
+
 		/* don't support file backed memory */
 		for (i = 0; i < nr_pages; i++) {
-			struct vm_area_struct *vma = vmas[i];
-
-			if (vma_is_shmem(vma))
+			if (vmas[i]->vm_file != file) {
+				ret = -EINVAL;
+				break;
+			}
+			if (!file)
 				continue;
-			if (vma->vm_file &&
-			    !is_file_hugepages(vma->vm_file)) {
+			if (!vma_is_shmem(vmas[i]) && !is_file_hugepages(file)) {
 				ret = -EOPNOTSUPP;
 				break;
 			}
@@ -1192,6 +1211,7 @@ static int io_sqe_buffer_register(struct io_ring_ctx *ctx, struct iovec *iov,
 	unsigned long off;
 	size_t size;
 	int ret, nr_pages, i;
+	struct folio *folio = NULL;
 
 	*pimu = ctx->dummy_ubuf;
 	if (!iov->iov_base)
@@ -1206,6 +1226,27 @@ static int io_sqe_buffer_register(struct io_ring_ctx *ctx, struct iovec *iov,
 		goto done;
 	}
 
+	/* If it's a huge page, try to coalesce them into a single bvec entry */
+	if (nr_pages > 1) {
+		folio = page_folio(pages[0]);
+		for (i = 1; i < nr_pages; i++) {
+			if (page_folio(pages[i]) != folio) {
+				folio = NULL;
+				break;
+			}
+		}
+		if (folio) {
+			/*
+			 * The pages are bound to the folio, it doesn't
+			 * actually unpin them but drops all but one reference,
+			 * which is usually put down by io_buffer_unmap().
+			 * Note, needs a better helper.
+			 */
+			unpin_user_pages(&pages[1], nr_pages - 1);
+			nr_pages = 1;
+		}
+	}
+
 	imu = kvmalloc(struct_size(imu, bvec, nr_pages), GFP_KERNEL);
 	if (!imu)
 		goto done;
@@ -1218,22 +1259,25 @@ static int io_sqe_buffer_register(struct io_ring_ctx *ctx, struct iovec *iov,
 
 	off = (unsigned long) iov->iov_base & ~PAGE_MASK;
 	size = iov->iov_len;
-	for (i = 0; i < nr_pages; i++) {
-		size_t vec_len;
-
-		vec_len = min_t(size_t, size, PAGE_SIZE - off);
-		imu->bvec[i].bv_page = pages[i];
-		imu->bvec[i].bv_len = vec_len;
-		imu->bvec[i].bv_offset = off;
-		off = 0;
-		size -= vec_len;
-	}
 	/* store original address for later verification */
 	imu->ubuf = (unsigned long) iov->iov_base;
 	imu->ubuf_end = imu->ubuf + iov->iov_len;
 	imu->nr_bvecs = nr_pages;
 	*pimu = imu;
 	ret = 0;
+
+	if (folio) {
+		bvec_set_page(&imu->bvec[0], pages[0], size, off);
+		goto done;
+	}
+	for (i = 0; i < nr_pages; i++) {
+		size_t vec_len;
+
+		vec_len = min_t(size_t, size, PAGE_SIZE - off);
+		bvec_set_page(&imu->bvec[i], pages[i], vec_len, off);
+		off = 0;
+		size -= vec_len;
+	}
 done:
 	if (ret)
 		kvfree(imu);
@@ -1322,7 +1366,7 @@ int io_import_fixed(int ddir, struct iov_iter *iter,
 		return -EFAULT;
 
 	/*
-	 * May not be a start of buffer, set size appropriately
+	 * Might not be a start of buffer, set size appropriately
 	 * and advance us to the beginning.
 	 */
 	offset = buf_addr - imu->ubuf;
@@ -1348,7 +1392,15 @@ int io_import_fixed(int ddir, struct iov_iter *iter,
 		const struct bio_vec *bvec = imu->bvec;
 
 		if (offset <= bvec->bv_len) {
-			iov_iter_advance(iter, offset);
+			/*
+			 * Note, huge pages buffers consists of one large
+			 * bvec entry and should always go this way. The other
+			 * branch doesn't expect non PAGE_SIZE'd chunks.
+			 */
+			iter->bvec = bvec;
+			iter->nr_segs = bvec->bv_len;
+			iter->count -= offset;
+			iter->iov_offset = offset;
 		} else {
 			unsigned long seg_skip;
 
