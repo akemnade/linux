@@ -992,7 +992,7 @@ static int sy7636_regulator_probe(struct platform_device *pdev)
 		config.driver_data = sy7636;
 		config.of_node = pdata->regulators[i].reg_node;
 
-		rdev[i] = regulator_register(&sy7636_reg[id], &config);
+		rdev[i] = devm_regulator_register(&pdev->dev, &sy7636_reg[id], &config);
 		if (IS_ERR(rdev[i])) {
 			ret = PTR_ERR(rdev[i]);
 			dev_err(&pdev->dev, "regulator init failed for %d\n",
@@ -1027,20 +1027,7 @@ static int sy7636_regulator_probe(struct platform_device *pdev)
     dev_dbg(sy7636->dev, "%s success\n",__FUNCTION__);
 	return 0;
 err:
-	while (--i >= 0)
-		regulator_unregister(rdev[i]);
 	return ret;
-}
-
-static int sy7636_regulator_remove(struct platform_device *pdev)
-{
-	struct sy7636_data *priv = platform_get_drvdata(pdev);
-	struct regulator_dev **rdev = priv->rdev;
-	int i;
-
-	for (i = 0; i < priv->num_regulators; i++)
-		regulator_unregister(rdev[i]);
-	return 0;
 }
 
 static const struct platform_device_id sy7636_pmic_id[] = {
@@ -1051,7 +1038,6 @@ MODULE_DEVICE_TABLE(platform, sy7636_pmic_id);
 
 static struct platform_driver sy7636_regulator_driver = {
 	.probe = sy7636_regulator_probe,
-	.remove = sy7636_regulator_remove,
 	.id_table = sy7636_pmic_id,
 	.driver = {
 		.name = "sy7636-pmic",
