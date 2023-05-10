@@ -673,7 +673,7 @@
 
 &i2c1 {
 	sy7636@62 {
-	    compatible = "Silergy,sy7636";
+	    compatible = "silergy,sy7636";
 	    reg = <0x62>;
 	    /*
 	 * power on delay for SY7636
