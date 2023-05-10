@@ -352,6 +352,7 @@ static int mxc_epdc_remove(struct platform_device *pdev)
 static const struct of_device_id imx_epdc_dt_ids[] = {
 	{ .compatible = "fsl,imx6sl-epdc", },
 	{ .compatible = "fsl,imx6sll-epdc", },
+	{ .compatible = "fsl,imx6ull-epdc", },
 	{ /* sentinel */ }
 };
 MODULE_DEVICE_TABLE(of, imx_epdc_dt_ids);
