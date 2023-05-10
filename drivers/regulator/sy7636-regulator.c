@@ -144,9 +144,7 @@ static int vcom2_uV_to_rs(int uV)
 static int _sy7636_vcom_set_voltage(struct sy7636 *sy7636,
 					int minuV, int uV, unsigned *selector)
 {
-	unsigned int cur_reg_val; /* current register value to modify */
-	unsigned int new_reg_val; /* new register value to write */
-	int retval;
+	int retval = 0;
 
 	if(sy7636_set_vcom(sy7636,uV/1000,0)<0) {
 		retval = -1;
