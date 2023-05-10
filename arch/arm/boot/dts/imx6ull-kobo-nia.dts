@@ -725,7 +725,7 @@
 			regulator-name = "V3P3";
 		};
 
-#if 0
+#if 1
 		TMST_reg: TMST {
 			regulator-name = "TMST";
 		};
