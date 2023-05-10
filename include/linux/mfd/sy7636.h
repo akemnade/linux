@@ -126,8 +126,8 @@ enum {
  * The register fields accept voltages in the range 0V to -2.75V, but the
  * VCOM parametric performance is only guaranteed from -0.3V to -2.5V.
  */
-#define SY7636_VCOM_MIN_uV   -5110000
-#define SY7636_VCOM_MAX_uV          0
+#define SY7636_VCOM_MAX_uV   5110000
+#define SY7636_VCOM_MIN_uV          0
 #define SY7636_VCOM_MIN_SET         0
 #define SY7636_VCOM_MAX_SET       511
 #define SY7636_VCOM_BASE_uV     10000
