@@ -149,7 +149,7 @@ int sy7636_set_vcom(struct sy7636 *sy7636,int iVCOMmV,int iIsWriteToFlash)
 		return -1;
 	}
 
-	if(iVCOMmV>0) {
+	if(iVCOMmV<0) {
 		printk(KERN_ERR"%s(),VCOMmV cannot <=0 !!\n",__FUNCTION__);
 		return -2;
 	}

@@ -45,7 +45,7 @@ struct sy7636_data {
 
 
 
-static int sy7636_vcom = { -2500000 };
+static int sy7636_vcom = { 2500000 };
 
 static int sy7636_is_power_good(struct sy7636 *sy7636);
 
@@ -127,7 +127,7 @@ static int vcom2_rs_to_uV(unsigned int reg_setting)
 		return SY7636_VCOM_MIN_uV;
 	if (reg_setting >= SY7636_VCOM_MAX_SET)
 		return SY7636_VCOM_MAX_uV;
-	return -(reg_setting * SY7636_VCOM_STEP_uV);
+	return (reg_setting * SY7636_VCOM_STEP_uV);
 }
 
 static int vcom2_uV_to_rs(int uV)
@@ -136,7 +136,7 @@ static int vcom2_uV_to_rs(int uV)
 		return SY7636_VCOM_MIN_SET;
 	if (uV >= SY7636_VCOM_MAX_uV)
 		return SY7636_VCOM_MAX_SET;
-	return (-uV) / SY7636_VCOM_STEP_uV;
+	return (uV) / SY7636_VCOM_STEP_uV;
 }
 
 
