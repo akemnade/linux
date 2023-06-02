@@ -6078,7 +6078,6 @@ static int mxc_epdc_fb_probe(struct platform_device *pdev)
 	phandle phandle;
 	u32 out_val[3];
 	int enable_gpio;
-	enum of_gpio_flags flag;
 	unsigned short *wk_p;
 	unsigned int dwSafeTicksTurnoffEP3V3;
 	const char *thermal = NULL;
@@ -6119,7 +6118,9 @@ static int mxc_epdc_fb_probe(struct platform_device *pdev)
 			1 << fb_data->req_bit, 0);
 	}
 
+#if 0
 	if (of_find_property(np, "en-gpios", NULL)) {
+		enum of_gpio_flags flag;
 		enable_gpio = of_get_named_gpio_flags(np, "en-gpios", 0, &flag);
 		if (enable_gpio == -EPROBE_DEFER) {
 			dev_info(&pdev->dev, "GPIO requested is not"
@@ -6143,6 +6144,7 @@ static int mxc_epdc_fb_probe(struct platform_device *pdev)
 			}
 		}
 	}
+#endif
 
 	fb_data->qos_regmap = syscon_regmap_lookup_by_phandle(np, "qos");
 	if (IS_ERR(fb_data->qos_regmap)) {
