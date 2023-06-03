@@ -7557,7 +7557,7 @@ MODULE_DEVICE_TABLE(platform, imx_pxpdma_devtype);
 
 static const struct of_device_id imx_pxpdma_dt_ids[] = {
 	{ .compatible = "fsl,imx7d-pxp-dma", .data = &imx_pxpdma_devtype[0], },
-	{ .compatible = "fsl,imx6ull-pxp-dma", .data = &imx_pxpdma_devtype[1], },
+	{ .compatible = "fsl,imx6ull-pxp", .data = &imx_pxpdma_devtype[1], },
 	{ .compatible = "fsl,imx6sll-pxp", .data = &imx_pxpdma_devtype[1], },
 	{ /* sentinel */ }
 };
