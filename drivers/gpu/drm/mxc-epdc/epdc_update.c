@@ -848,7 +848,7 @@ int mxc_epdc_send_single_update(struct drm_rect *clip, int pitch, void *vaddr,
 {
 	struct update_desc_list *upd_desc;
 
-	if (priv->rev < 30) 
+	if (1) 
 		epdc_from_rgb_clear_lower_nibble(clip, vaddr, pitch,
 						 (u8 *)priv->epdc_mem_virt,
 						 priv->epdc_mem_width);
