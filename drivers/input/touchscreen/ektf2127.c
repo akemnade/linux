@@ -333,6 +333,7 @@ static int ektf2127_probe(struct i2c_client *client)
 static const struct of_device_id ektf2127_of_match[] = {
 	{ .compatible = "elan,ektf2127" },
 	{ .compatible = "elan,ektf2132" },
+	{ .compatible = "elan,ektf2232" },
 	{}
 };
 MODULE_DEVICE_TABLE(of, ektf2127_of_match);
