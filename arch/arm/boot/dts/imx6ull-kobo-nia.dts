@@ -162,13 +162,14 @@
 	pinctrl-1 = <&pinctrl_i2c1_sleep &pinctrl_tps65185_gpio_sleep &pinctrl_elan_ts_gpio_sleep>;
 	status = "okay";
 
-	elan_ts@15 {
-		compatible = "elan,elan-touch";
-		reg = <0x15>;
-	 
-		gpio_intr = <&gpio1 7 0>;
-		gpio_elan_rst = <&gpio1 6 0>;
-	};
+        touchscreen@15 {
+                compatible = "elan,ektf2232";
+                reg = <0x15>;
+//               pinctrl-names = "default";
+//               pinctrl-0 = <&pinctrl_ts>;
+                power-gpios = <&gpio1 6 GPIO_ACTIVE_HIGH>;
+                interrupts-extended = <&gpio1 7 IRQ_TYPE_EDGE_FALLING>;
+        };
 
 	/* single color ? */
 	lm3630a: backlight@36 {
