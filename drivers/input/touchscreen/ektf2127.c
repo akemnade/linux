@@ -46,6 +46,7 @@ struct ektf2127_ts {
 	struct input_dev *input;
 	struct gpio_desc *power_gpios;
 	struct touchscreen_properties prop;
+	bool shifted_status;
 };
 
 static void ektf2127_parse_coordinates(const u8 *buf, unsigned int touch_count,
@@ -112,8 +113,13 @@ static void ektf2127_report2_contact(struct ektf2127_ts *ts, int slot,
 
 static void ektf2127_report2_event(struct ektf2127_ts *ts, const u8 *buf)
 {
-	ektf2127_report2_contact(ts, 0, &buf[1], !!(buf[7] & 2));
-	ektf2127_report2_contact(ts, 1, &buf[4], !!(buf[7] & 4));
+	if (ts->shifted_status) {
+		ektf2127_report2_contact(ts, 0, &buf[1], !!(buf[7] & 1));
+		ektf2127_report2_contact(ts, 1, &buf[4], !!(buf[7] & 2));
+	} else {
+		ektf2127_report2_contact(ts, 0, &buf[1], !!(buf[7] & 2));
+		ektf2127_report2_contact(ts, 1, &buf[4], !!(buf[7] & 4));
+	}
 
 	input_mt_sync_frame(ts->input);
 	input_sync(ts->input);
@@ -307,6 +313,10 @@ static int ektf2127_probe(struct i2c_client *client)
 		return error;
 
 	ts->input = input;
+	if (dev->of_node &&
+	    of_device_is_compatible(dev->of_node, "elan,ektf2232"))
+		ts->shifted_status = true;
+
 	input_set_drvdata(input, ts);
 
 	error = devm_request_threaded_irq(dev, client->irq,
