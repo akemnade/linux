@@ -656,6 +656,8 @@
 	pinctrl-2 = <&pinctrl_usdhc1_200mhz>;
 	pinctrl-3 = <&pinctrl_usdhc1_sleep>, <&pinctrl_usdhc1_pwr>;
 	vmmc-supply = <&reg_sd1_vmmc>;
+        mmc-pwrseq = <&wifi_pwrseq>;
+
 	cap-power-off-card;
 	non-removable;
 	status = "okay";
