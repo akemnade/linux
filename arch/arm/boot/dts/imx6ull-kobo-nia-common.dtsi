@@ -12,6 +12,7 @@
 /dts-v1/;
 
 #include <dt-bindings/input/input.h>
+#include <dt-bindings/leds/common.h>
 #include "imx6ull.dtsi"
 
 / {
@@ -59,8 +60,10 @@
 		pinctrl-names = "default";
 		pinctrl-0 = <&pinctrl_snvs_led>;
 
-		user {
-			label = "GLED";
+		led {
+			/* LED on power button */
+                        color = <LED_COLOR_ID_WHITE>;
+                        function = LED_FUNCTION_POWER;
 			gpios = <&gpio5 5 GPIO_ACTIVE_LOW>;
 			linux,default-trigger = "timer";
 		};
