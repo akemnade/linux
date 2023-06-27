@@ -109,6 +109,7 @@
 	V3P3-supply = <&V3P3_reg>;
 	VCOM-supply = <&VCOM_reg>;
 	DISPLAY-supply = <&DISPLAY_reg>;
+	panel-name = "E60XC5";
 
 	vscan-holdoff = <4>;
 	sdoed-width = <10>;
