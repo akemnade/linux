@@ -46,6 +46,24 @@
 		};
 	};
 
+	sound {
+		compatible = "simple-audio-card";
+		simple-audio-card,name = "BT2 Sound";
+		simple-audio-card,format = "left_j";
+		simple-audio-card,bitclock-master = <&sound_master>;
+		simple-audio-card,frame-master = <&sound_master>;
+
+		sound_master: simple-audio-card,cpu {
+			system-clock-frequency = <24000000>;
+			sound-dai = <&mcbsp2>;
+		};
+
+		simple-audio-card,codec {
+			sound-dai = <&tlv320aic3x>;
+			system-clock-frequency = <24000000>;
+		};
+	};
+
 	unknown_supply: unknown-supply {
 		compatible = "regulator-fixed";
 		regulator-name = "unknown";
@@ -282,6 +300,9 @@
 	#sound-dai-cells = <0>;
 	pinctrl-names = "default";
 	pinctrl-0 = <&mcbsp2_pins>;
+	assigned-clocks = <&abe_clkctrl OMAP4_MCBSP2_CLKCTRL 24>;
+	assigned-clock-parents = <&abe_clkctrl OMAP4_MCBSP2_CLKCTRL 26>;
+
 	status = "okay";
 };
 
