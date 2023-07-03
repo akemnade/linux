@@ -217,6 +217,7 @@
 			reg = <0>;
 			color = <LED_COLOR_ID_GREEN>;
 			function = LED_FUNCTION_STATUS;
+			linux,default-trigger = "timer";
 		};
 
 		led@2 {
