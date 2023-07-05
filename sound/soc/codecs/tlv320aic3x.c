@@ -1234,6 +1234,10 @@ static int aic3x_set_dai_sysclk(struct snd_soc_dai *codec_dai,
 	struct snd_soc_component *component = codec_dai->component;
 	struct aic3x_priv *aic3x = snd_soc_component_get_drvdata(component);
 
+	/* probably no mclk if not master, so rely on bitclk */
+	if (!aic3x->master)
+		clk_id = 2;
+
 	/* set clock on MCLK or GPIO2 or BCLK */
 	snd_soc_component_update_bits(component, AIC3X_CLKGEN_CTRL_REG, PLLCLK_IN_MASK,
 				clk_id << PLLCLK_IN_SHIFT);
