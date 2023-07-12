@@ -148,6 +148,8 @@
 		reset-gpios = <&gpio5 9 GPIO_ACTIVE_LOW>;
 		x-size = <1072>;
 		y-size = <1448>;
+		touchscreen-swapped-x-y;
+		touchscreen-inverted-x;
 	};
 
 	/* TODO: TPS65185 PMIC for E Ink at 0x68 */
