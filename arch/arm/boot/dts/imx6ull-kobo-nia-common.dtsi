@@ -42,10 +42,6 @@
 		regulator-min-microvolt = <3000000>;
 		regulator-max-microvolt = <3000000>;
 		gpio = <&gpio5 8 GPIO_ACTIVE_LOW>;
-/*
-		btdis-gpio = <&gpio4 22 GPIO_ACTIVE_HIGH>;
-		btint-gpio = <&gpio4 24 GPIO_ACTIVE_HIGH>;
-*/
 	};
 
 	wifi_pwrseq: wifi_pwrseq {
@@ -91,17 +87,6 @@
 	};
 };
 
-&clks {
-	/* For bringup, comments this.
-	assigned-clocks = <&clks IMX6UL_CLK_PLL4_AUDIO_DIV>;
-	assigned-clock-rates = <786432000>;
-	*/
-};
-
-&csi {
-	status = "disabled";
-};
-
 &epdc {
 	safe-ticks-turnoff-ep3v3=<400>;
 	pinctrl-names = "default";
@@ -134,20 +119,6 @@
 		vsync-len = <2>;
 	};
 };
-
-&fec1 {
-	status = "disabled";
-};
-
-#if 0
-&gpc {
-	fsl,cpu_pupscr_sw2iso = <0x1>;
-	fsl,cpu_pupscr_sw = <0x0>;
-	fsl,cpu_pdnscr_iso2sw = <0x1>;
-	fsl,cpu_pdnscr_iso = <0x1>;
-	fsl,ldo-bypass = <0>; /* use ldo-bypass, u-boot will check it and configure */
-};
-#endif
 
 &i2c1 {
 	clock-frequency = <100000>;
@@ -390,12 +361,6 @@
 		>;
 	};
 
-	pinctrl_usdhc1_vselect: usdhc1_vselect_grp {
-		fsl,pins = <
-			MX6UL_PAD_GPIO1_IO05__USDHC1_VSELECT	0x17059	/* SD1 VSELECT */
-		>;
-	};
-
 	pinctrl_usdhc2: usdhc2grp {
 		fsl,pins = <
 			MX6UL_PAD_NAND_WE_B__USDHC2_CMD	0x17059
@@ -437,12 +402,6 @@
 			MX6UL_PAD_NAND_DATA01__USDHC2_DATA1	0x170f9
 			MX6UL_PAD_NAND_DATA02__USDHC2_DATA2	0x170f9
 			MX6UL_PAD_NAND_DATA03__USDHC2_DATA3	0x170f9
-		>;
-	};
-
-	pinctrl_usdhc2_rst: usdhc2_rst_grp {
-		fsl,pins = <
-			MX6UL_PAD_NAND_ALE__GPIO4_IO10	  0x17059 /* SD2 RESET */
 		>;
 	};
 };
@@ -520,6 +479,8 @@
 	cap-power-off-card;
 	non-removable;
 	status = "okay";
+
+	/* RTL8189F SDIO WiFi */
 };
 
 &usdhc2 {
@@ -530,6 +491,8 @@
 	no-1-8-v;	/* VSELECT not connected by default */
 	keep-power-in-suspend;
 	status = "okay";
+
+        /* internal uSD card */
 };
 
 &i2c1 {
