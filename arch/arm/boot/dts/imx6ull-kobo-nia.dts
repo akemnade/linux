@@ -150,7 +150,7 @@
 	};
 };
 
-&iomuxc {
+&iomuxc_snvs {
 	pinctrl_ricoh_gpio: ricoh_gpio_grp {
 		fsl,pins = <
 			MX6ULL_PAD_SNVS_TAMPER0__GPIO5_IO00		0x17059 /* ricoh619 CHG# */
