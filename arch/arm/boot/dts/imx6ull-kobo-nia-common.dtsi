@@ -38,6 +38,8 @@
 
 	reg_sd1_vmmc: wifi-regulator {
 		compatible = "regulator-fixed";
+		pnictrl-names = "default";
+		pinctrl-0 = <&pinctrl_usdhc1_pwr>;
 		regulator-name = "SD1_SPWR";
 		regulator-min-microvolt = <3000000>;
 		regulator-max-microvolt = <3000000>;
@@ -123,15 +125,15 @@
 &i2c1 {
 	clock-frequency = <100000>;
 	pinctrl-names = "default","sleep";
-	pinctrl-0 = <&pinctrl_i2c1 &pinctrl_tps65185_gpio &pinctrl_elan_ts_gpio &pinctrl_lm3630a_bl_gpio>;
-	pinctrl-1 = <&pinctrl_i2c1_sleep &pinctrl_tps65185_gpio_sleep &pinctrl_elan_ts_gpio_sleep>;
+	pinctrl-0 = <&pinctrl_i2c1 &pinctrl_tps65185_gpio>;
+	pinctrl-1 = <&pinctrl_i2c1_sleep &pinctrl_tps65185_gpio_sleep>;
 	status = "okay";
 
         touchscreen@15 {
                 compatible = "elan,ektf2232";
                 reg = <0x15>;
-//               pinctrl-names = "default";
-//               pinctrl-0 = <&pinctrl_ts>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_elan_ts_gpio>;
                 power-gpios = <&gpio1 6 GPIO_ACTIVE_HIGH>;
                 interrupts-extended = <&gpio1 7 IRQ_TYPE_EDGE_FALLING>;
         };
@@ -140,6 +142,8 @@
 	lm3630a: backlight@36 {
 		reg = <0x36>;
 		compatible = "ti,lm3630a";
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_lm3630a_bl_gpio>;
 		enable-gpios = <&gpio3 27 GPIO_ACTIVE_HIGH>;
 
 		#address-cells = <1>;
