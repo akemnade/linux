@@ -69,11 +69,11 @@
 		};
 	};
 
-	gpio-keys {
+	gpio_keys: gpio-keys {
 		compatible = "gpio-keys";
 		pinctrl-names = "default";
 		pinctrl-0 = <&pinctrl_snvs_gpio_keys>;
-		power {
+		key-power {
 			label = "Power";
 			gpios = <&gpio5 4 GPIO_ACTIVE_LOW>;
 			btmode0 = <&gpio5 10 GPIO_ACTIVE_LOW>;
@@ -81,8 +81,8 @@
 			wakeup-source;
 		};
 
-		hall {
-			label = "Hall";
+		key-cover {
+			label = "Cover";
 			gpios = <&gpio5 2 GPIO_ACTIVE_LOW>;
 			linux,code = <SW_LID>;
 			linux,input-type = <EV_SW>;
