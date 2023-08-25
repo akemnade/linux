@@ -140,8 +140,8 @@
 
 	/* single color ? */
 	lm3630a: backlight@36 {
-		reg = <0x36>;
 		compatible = "ti,lm3630a";
+		reg = <0x36>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&pinctrl_lm3630a_bl_gpio>;
 		enable-gpios = <&gpio3 27 GPIO_ACTIVE_HIGH>;
