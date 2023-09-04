@@ -332,6 +332,7 @@
 			#size-cells = <1>;
 			ranges = <0x0 0x38000 0x1000>,
 				 <0x49038000 0x49038000 0x1000>;
+			status = "disabled";
 
 			timer5: timer@0 {
 				compatible = "ti,omap4430-timer";
@@ -363,6 +364,7 @@
 			#size-cells = <1>;
 			ranges = <0x0 0x3a000 0x1000>,
 				 <0x4903a000 0x4903a000 0x1000>;
+			status = "disabled";
 
 			timer6: timer@0 {
 				compatible = "ti,omap4430-timer";
@@ -394,7 +396,7 @@
 			#size-cells = <1>;
 			ranges = <0x0 0x3c000 0x1000>,
 				 <0x4903c000 0x4903c000 0x1000>;
-
+			status = "disabled";
 			timer7: timer@0 {
 				compatible = "ti,omap4430-timer";
 				reg = <0x00000000 0x80>,
@@ -426,6 +428,7 @@
 			ranges = <0x0 0x3e000 0x1000>,
 				 <0x4903e000 0x4903e000 0x1000>;
 
+			status = "disabled";
 			timer8: timer@0 {
 				compatible = "ti,omap4430-timer";
 				reg = <0x00000000 0x80>,

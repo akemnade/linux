@@ -2,7 +2,7 @@
 /*
  * ti-sysc.c - Texas Instruments sysc interconnect target driver
  */
-
+#define DEBUG
 #include <linux/io.h>
 #include <linux/clk.h>
 #include <linux/clkdev.h>
@@ -3258,7 +3258,8 @@ static int sysc_probe(struct platform_device *pdev)
 	ddata->offsets[SYSC_SYSSTATUS] = -ENODEV;
 	ddata->dev = &pdev->dev;
 	platform_set_drvdata(pdev, ddata);
-
+	msleep(250);
+	dev_info(&pdev->dev, "probe 1\n");
 	error = sysc_init_static_data(ddata);
 	if (error)
 		return error;
@@ -3267,6 +3268,7 @@ static int sysc_probe(struct platform_device *pdev)
 	if (error)
 		return error;
 
+	//dev_info(&pdev->dev, "probe 2\n");
 	error = sysc_init_dts_quirks(ddata);
 	if (error)
 		return error;
@@ -3275,6 +3277,7 @@ static int sysc_probe(struct platform_device *pdev)
 	if (error)
 		return error;
 
+	//dev_info(&pdev->dev, "probe 3\n");
 	error = sysc_init_sysc_mask(ddata);
 	if (error)
 		return error;
@@ -3287,12 +3290,14 @@ static int sysc_probe(struct platform_device *pdev)
 	if (error)
 		return error;
 
+	dev_info(&pdev->dev, "probe 4\n");
 	error = sysc_init_pdata(ddata);
 	if (error)
 		return error;
 
 	sysc_init_early_quirks(ddata);
 
+	dev_info(&pdev->dev, "probe 5\n");
 	error = sysc_check_disabled_devices(ddata);
 	if (error)
 		return error;
@@ -3303,6 +3308,7 @@ static int sysc_probe(struct platform_device *pdev)
 	else if (error)
 		return error;
 
+	//dev_info(&pdev->dev, "probe 6\n");
 	error = sysc_get_clocks(ddata);
 	if (error)
 		return error;
@@ -3314,6 +3320,7 @@ static int sysc_probe(struct platform_device *pdev)
 	error = sysc_init_module(ddata);
 	if (error)
 		goto unprepare;
+	//dev_info(&pdev->dev, "probe 7\n");
 
 	pm_runtime_enable(ddata->dev);
 	error = pm_runtime_resume_and_get(ddata->dev);
@@ -3321,6 +3328,7 @@ static int sysc_probe(struct platform_device *pdev)
 		pm_runtime_disable(ddata->dev);
 		goto unprepare;
 	}
+	dev_info(&pdev->dev, "probe 8\n");
 
 	/* Balance use counts as PM runtime should have enabled these all */
 	if (!(ddata->cfg.quirks &
@@ -3329,6 +3337,7 @@ static int sysc_probe(struct platform_device *pdev)
 		sysc_disable_opt_clocks(ddata);
 		sysc_clkdm_allow_idle(ddata);
 	}
+	dev_info(&pdev->dev, "probe 9\n");
 
 	if (!(ddata->cfg.quirks & SYSC_QUIRK_NO_RESET_ON_INIT))
 		reset_control_assert(ddata->rsts);
@@ -3356,6 +3365,7 @@ static int sysc_probe(struct platform_device *pdev)
 	} else {
 		pm_runtime_put(&pdev->dev);
 	}
+	dev_info(&pdev->dev, "probe 10\n");
 
 	if (ddata->cfg.quirks & SYSC_QUIRK_REINIT_ON_CTX_LOST)
 		sysc_add_restored(ddata);

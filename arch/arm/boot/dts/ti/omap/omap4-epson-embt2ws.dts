@@ -486,6 +486,16 @@
 	};
 };
 
+&dpll_abe_m2x2_ck {
+	assigned-clocks = <&dpll_abe_m2x2_ck>;
+	assigned-clock-rates = <196608000>;
+};
+
+&dpll_abe_m3x2_ck {
+	assigned-clocks = <&dpll_abe_m2x2_ck>;
+	assigned-clock-rates = <196608000>;
+};
+
 &uart3 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&uart3_pins>;
