@@ -141,6 +141,46 @@
 
 };
 
+&gpio1 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&gpio1_hog_pins &gpio1wk_hog_pins>;
+
+	lb-reset {
+		gpio-hog;
+		gpios = <9 GPIO_ACTIVE_HIGH>;
+		output-low;
+		line-name = "lb_reset";
+	};
+
+	power-en {
+		gpio-hog;
+		gpios = <10 GPIO_ACTIVE_HIGH>;
+		output-high;
+		line-name = "power_en";
+	};
+
+	panel-power-en {
+		gpio-hog;
+		gpios = <14 GPIO_ACTIVE_HIGH>;
+		output-low;
+		line-name = "panel_power_en";
+	};
+
+	blc-r {
+		gpio-hog;
+		gpios = <17 GPIO_ACTIVE_HIGH>;
+		output-low;
+		line-name = "blc_r";
+	};
+
+	blc-l {
+		gpio-hog;
+		gpios = <16 GPIO_ACTIVE_HIGH>;
+		output-low;
+		line-name = "blc_l";
+	};
+};
+
 &i2c1 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&i2c1_pins>;
@@ -416,6 +456,14 @@
 		>;
 	};
 
+	gpio1_hog_pins: pinmux-gpio1-hog-pins {
+		pinctrl-single,pins = <
+			OMAP4_IOPAD(0x1b4, PIN_OUTPUT | MUX_MODE3) /* gpio14 */
+			OMAP4_IOPAD(0x1b8, PIN_OUTPUT | MUX_MODE3) /* gpio16 */
+			OMAP4_IOPAD(0x1ba, PIN_OUTPUT | MUX_MODE3) /* gpio17 */
+		>;
+	};
+
 	i2c1_pins: pinmux-i2c1-pins {
 		pinctrl-single,pins = <
 			   OMAP4_IOPAD(0x122, PIN_INPUT_PULLUP | MUX_MODE0)	/* i2c1_scl */
@@ -527,6 +575,15 @@
 	wl12xx_gpio: pinmux-wl12xx-gpio-pins {
 		pinctrl-single,pins = <
 			OMAP4_IOPAD(0x1c8, PIN_OUTPUT | MUX_MODE3)  /* gpio_24 / WLAN_EN */
+		>;
+	};
+};
+
+&omap4_pmx_wkup {
+	gpio1wk_hog_pins: pinmux-gpio1wk-hog-pins {
+		pinctrl-single,pins = <
+			OMAP4_IOPAD(0x68, PIN_INPUT_PULLDOWN | MUX_MODE3) /* gpio9 */
+			OMAP4_IOPAD(0x6a, PIN_INPUT | MUX_MODE3) /* gpio10 */
 		>;
 	};
 };
