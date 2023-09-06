@@ -141,6 +141,66 @@
 
 };
 
+&gpio1 {
+	lb-reset {
+		gpio-hog;
+		gpios = <9 GPIO_ACTIVE_HIGH>;
+		output-low;
+		line-name = "lb_reset";
+	};
+	power-en {
+		gpio-hog;
+		gpios = <10 GPIO_ACTIVE_HIGH>;
+		output-high;
+		line-name = "power_en";
+	};
+	panel-power-en {
+		gpio-hog;
+		gpios = <14 GPIO_ACTIVE_HIGH>;
+		output-low;
+		line-name = "power_en";
+	};
+	blc-r {
+		gpio-hog;
+		gpios = <17 GPIO_ACTIVE_HIGH>;
+		output-low;
+		line-name = "blc_r";
+	};
+	blc-l {
+		gpio-hog;
+		gpios = <16 GPIO_ACTIVE_HIGH>;
+		output-low;
+		line-name = "blc_l";
+	};
+	power-en-lb-v50 {
+		gpio-hog;
+		gpios = <27 GPIO_ACTIVE_HIGH>;
+		output-high;
+		line-name = "power_en-lb-v50";
+	};
+	power-en-cb-v18-gpio {
+		gpio-hog;
+		gpios = <28 GPIO_ACTIVE_HIGH>;
+		output-high;
+		line-name = "power_en-lb-v50";
+	};
+};
+
+&gpio6 {
+	power-en-cb-v33-gpio {
+		gpio-hog;
+		gpios = <30 GPIO_ACTIVE_HIGH>;
+		output-high;
+		line-name = "power_en-cb-v33";
+	};
+	power-en-cb-v50-gpio {
+		gpio-hog;
+		gpios = <31 GPIO_ACTIVE_HIGH>;
+		output-high;
+		line-name = "power_en-cb-v50";
+	};
+};
+
 &i2c1 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&i2c1_pins>;
