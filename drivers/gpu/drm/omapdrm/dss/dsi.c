@@ -38,6 +38,7 @@
 #include <drm/drm_bridge.h>
 #include <drm/drm_mipi_dsi.h>
 #include <drm/drm_panel.h>
+#include <drm/drm_print.h>
 #include <video/mipi_display.h>
 
 #include "omapdss.h"
@@ -1914,6 +1915,7 @@ static void dsi_vc_enable_hs(struct omap_dss_device *dssdev, int vc,
 	dsi_if_enable(dsi, 1);
 
 	dsi_force_tx_stop_mode_io(dsi);
+	mdelay(10);
 }
 
 static void dsi_vc_flush_long_data(struct dsi_data *dsi, int vc)
@@ -4033,16 +4035,21 @@ static bool dsi_vm_calc(struct dsi_data *dsi,
 	ctx->req_pck_max = vm->pixelclock + 1000;
 
 	byteclk_min = div64_u64((u64)ctx->req_pck_min * bitspp, ndl * 8);
+	DRM_DEBUG_KMS("byteclk_min %lu\n", byteclk_min);
+
 	pll_min = max(cfg->hs_clk_min * 4, byteclk_min * 4 * 4);
+	DRM_DEBUG_KMS("pll_min %lu\n", pll_min);
 
 	if (cfg->trans_mode == OMAP_DSS_DSI_BURST_MODE) {
 		pll_max = cfg->hs_clk_max * 4;
+		DRM_DEBUG_KMS("1pll max %lu\n", pll_max);
 	} else {
 		unsigned long byteclk_max;
 		byteclk_max = div64_u64((u64)ctx->req_pck_max * bitspp,
 				ndl * 8);
 
 		pll_max = byteclk_max * 4 * 4;
+		DRM_DEBUG_KMS("2pll max %lu\n", pll_max);
 	}
 
 	return dss_pll_calc_a(ctx->pll, clkin,
@@ -4071,12 +4078,14 @@ static int __dsi_calc_config(struct dsi_data *dsi,
 	cfg.vm = &vm;
 	cfg.mode = dsi->mode;
 	cfg.pixel_format = dsi->pix_fmt;
+	DRM_DEBUG_KMS("bridge mode check hs clock\n");
 
 	if (dsi->mode == OMAP_DSS_DSI_VIDEO_MODE)
 		ok = dsi_vm_calc(dsi, &cfg, ctx);
 	else
 		ok = dsi_cm_calc(dsi, &cfg, ctx);
 
+	DRM_DEBUG_KMS("bridge mode check hs clock result: %d\n", ok);
 	if (!ok)
 		return -EINVAL;
 
@@ -4084,6 +4093,7 @@ static int __dsi_calc_config(struct dsi_data *dsi,
 
 	r = dsi_lp_clock_calc(ctx->dsi_cinfo.clkout[HSDIV_DSI],
 		cfg.lp_clk_min, cfg.lp_clk_max, &ctx->lp_cinfo);
+	DRM_DEBUG_KMS("bridge mode check lp clock result: %d\n", r);
 	if (r)
 		return r;
 
@@ -4640,6 +4650,7 @@ dsi_bridge_mode_valid(struct drm_bridge *bridge,
 	mutex_lock(&dsi->lock);
 	r = __dsi_calc_config(dsi, mode, &ctx);
 	mutex_unlock(&dsi->lock);
+	DRM_DEBUG_KMS("bridge mode valid ? %d\n", r);
 
 	return r ? MODE_CLOCK_RANGE : MODE_OK;
 }

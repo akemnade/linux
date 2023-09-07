@@ -11,6 +11,7 @@
 #include <linux/kernel.h>
 #include <linux/regulator/consumer.h>
 #include <linux/sched.h>
+#include <drm/drm_print.h>
 
 #include "omapdss.h"
 #include "dss.h"
@@ -217,11 +218,13 @@ bool dss_pll_calc_a(const struct dss_pll *pll, unsigned long clkin,
 
 	fint_hw_min = hw->fint_min;
 	fint_hw_max = hw->fint_max;
+	DRM_DEBUG_KMS("pll fint_hw_min %lu fint_hw_max %lu\n",
+			fint_hw_min, fint_hw_max);
 
 	n_start = max(DIV_ROUND_UP(clkin, fint_hw_max), 1ul);
 	n_stop = min((unsigned)(clkin / fint_hw_min), hw->n_max);
 	n_inc = 1;
-
+	DRM_DEBUG_KMS("pll n_start %d n_stop %d\n", n_start, n_stop);
 	if (n_start > n_stop)
 		return false;
 
@@ -240,6 +243,7 @@ bool dss_pll_calc_a(const struct dss_pll *pll, unsigned long clkin,
 		m_stop = min3((unsigned)(pll_max / fint / 2),
 				(unsigned)(pll_hw_max / fint / 2),
 				hw->m_max);
+		DRM_DEBUG_KMS("pll m_start %d m_stop %d\n", m_start, m_stop);
 		m_inc = 1;
 
 		if (m_start > m_stop)
@@ -253,6 +257,7 @@ bool dss_pll_calc_a(const struct dss_pll *pll, unsigned long clkin,
 		for (m = m_start; m != m_stop; m += m_inc) {
 			clkdco = 2 * m * fint;
 
+			DRM_DEBUG_KMS("pll func n %d m %d fint %lu clkdco %lu\n", n, m, fint, clkdco);
 			if (func(n, m, fint, clkdco, data))
 				return true;
 		}

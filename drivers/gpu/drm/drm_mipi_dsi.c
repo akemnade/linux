@@ -435,6 +435,8 @@ static ssize_t mipi_dsi_device_transfer(struct mipi_dsi_device *dsi,
 	if (!ops || !ops->transfer)
 		return -ENOSYS;
 
+	printk("mipi mode flags lpm %lx, %s\n", dsi->mode_flags,
+		      dsi->mode_flags & MIPI_DSI_MODE_LPM ? "on" : "off");
 	if (dsi->mode_flags & MIPI_DSI_MODE_LPM)
 		msg->flags |= MIPI_DSI_MSG_USE_LPM;
 
