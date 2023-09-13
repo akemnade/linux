@@ -4495,7 +4495,7 @@ static const struct dss_pll_hw dss_omap4_dsi_pll_hw = {
 	.has_stopmode = true,
 	.has_freqsel = false,
 	.has_selfreqdco = false,
-	.has_refsel = false,
+	.has_refsel = true,
 };
 
 static const struct dss_pll_hw dss_omap5_dsi_pll_hw = {
