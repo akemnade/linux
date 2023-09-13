@@ -687,6 +687,30 @@ static void twl_remove(struct i2c_client *client)
 	twl_priv->ready = false;
 }
 
+void twl6030_power_off(void)
+{
+#define APP_DEVOFF      (1<<0)
+#define CON_DEVOFF      (1<<1)
+#define MOD_DEVOFF      (1<<2)
+
+        int err;
+	u8 val;
+	err = twl_i2c_read_u8(TWL_MODULE_PM_MASTER, &val,
+			      TWL6030_PHOENIX_DEV_ON);
+        if (err) {
+                pr_err("I2C error %d reading PHOENIX_DEV_ON\n", err);
+                return;
+        }
+
+	val |= APP_DEVOFF | CON_DEVOFF | MOD_DEVOFF;
+
+	err = twl_i2c_write_u8(TWL_MODULE_PM_MASTER, val,
+			       TWL6030_PHOENIX_DEV_ON);
+	if (err)
+		pr_err("TWL6030 Unable to power off\n");
+}
+
+
 static struct of_dev_auxdata twl_auxdata_lookup[] = {
 	OF_DEV_AUXDATA("ti,twl4030-gpio", 0, "twl4030-gpio", NULL),
 	{ /* sentinel */ },
@@ -850,6 +874,13 @@ twl_probe(struct i2c_client *client)
 					      NULL, 0, NULL);
 		if (status < 0)
 			goto free;
+
+		if (of_device_is_system_power_controller(client->dev.of_node)) {
+			if (!pm_power_off)
+				pm_power_off = twl6030_power_off;
+			else
+				dev_warn(&client->dev, "Poweroff callback already assigned\n");
+		}
 	}
 
 	status = of_platform_populate(node, NULL, twl_auxdata_lookup,
