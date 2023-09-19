@@ -2767,7 +2767,7 @@ static int dsi_proto_config(struct dsi_data *dsi)
 			DSI_FIFO_SIZE_32);
 
 	/* XXX what values for the timeouts? */
-	dsi_set_stop_state_counter(dsi, 0x1000, false, false);
+	dsi_set_stop_state_counter(dsi, 0x1fff, true, true);
 	dsi_set_ta_timeout(dsi, 0x1fff, true, true);
 	dsi_set_lp_rx_timeout(dsi, 0x1fff, true, true);
 	dsi_set_hs_tx_timeout(dsi, 0x1fff, true, true);
