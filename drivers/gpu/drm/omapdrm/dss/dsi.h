@@ -348,6 +348,7 @@ struct dsi_data {
 	int irq;
 
 	bool is_enabled;
+	int vc_cmd;
 
 	struct clk *dss_clk;
 	struct regmap *syscon;
