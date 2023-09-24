@@ -68,7 +68,7 @@ module_param(dsi_perf, bool, 0644);
 
 /* Note: for some reason video mode seems to work only if VC_VIDEO is 0 */
 #define VC_VIDEO	0
-#define VC_CMD		1
+#define VC_CMD		(dsi->vc_cmd)
 
 #define drm_bridge_to_dsi(bridge) \
 	container_of(bridge, struct dsi_data, bridge)
@@ -3016,9 +3016,20 @@ static int dsi_enable_video_mode(struct dsi_data *dsi, int vc)
 
 	dsi_if_enable(dsi, false);
 	dsi_vc_enable(dsi, vc, false);
+	dsi->vc_cmd = 1;
+
+	/* Setup VC_VIDEO for HS and dispc transfers */
+	REG_FLD_MOD(dsi, DSI_VC_CTRL(VC_VIDEO), 1, 9, 9); /* HS */
+
+	REG_FLD_MOD(dsi, DSI_VC_CTRL(VC_VIDEO), 1, 1, 1); /* SOURCE_VP */
 
 	/* MODE, 1 = video mode */
 	REG_FLD_MOD(dsi, DSI_VC_CTRL(vc), 1, 4, 4);
+	dsi->vc[VC_VIDEO].source = DSI_VC_SOURCE_VP;
+
+	if ((dsi->data->quirks & DSI_QUIRK_DCS_CMD_CONFIG_VC) &&
+	    !(dsi->dsidev->mode_flags & MIPI_DSI_MODE_VIDEO))
+		REG_FLD_MOD(dsi, DSI_VC_CTRL(VC_VIDEO), 1, 30, 30); /* DCS_CMD_ENABLE */
 
 	word_count = DIV_ROUND_UP(dsi->vm.hactive * bpp, 8);
 
@@ -3038,6 +3049,11 @@ static void dsi_disable_video_mode(struct dsi_data *dsi, int vc)
 
 	/* MODE, 0 = command mode */
 	REG_FLD_MOD(dsi, DSI_VC_CTRL(vc), 0, 4, 4);
+	REG_FLD_MOD(dsi, DSI_VC_CTRL(0), 0, 9, 9); /* LP */
+
+	REG_FLD_MOD(dsi, DSI_VC_CTRL(0), 0, 1, 1); /* SOURCE_L4 */
+	dsi->vc[VC_CMD].source = DSI_VC_SOURCE_L4;
+	dsi->vc_cmd = 0;
 
 	dsi_vc_enable(dsi, vc, true);
 	dsi_if_enable(dsi, true);
@@ -3399,23 +3415,19 @@ static int dsi_configure_dsi_clocks(struct dsi_data *dsi)
 static void dsi_setup_dsi_vcs(struct dsi_data *dsi)
 {
 	/* Setup VC_CMD for LP and cpu transfers */
-	REG_FLD_MOD(dsi, DSI_VC_CTRL(VC_CMD), 0, 9, 9); /* LP */
+	REG_FLD_MOD(dsi, DSI_VC_CTRL(0), 0, 9, 9); /* LP */
 
-	REG_FLD_MOD(dsi, DSI_VC_CTRL(VC_CMD), 0, 1, 1); /* SOURCE_L4 */
+	REG_FLD_MOD(dsi, DSI_VC_CTRL(0), 0, 1, 1); /* SOURCE_L4 */
+	dsi->vc[VC_CMD].source = DSI_VC_SOURCE_L4;
+	REG_FLD_MOD(dsi, DSI_VC_CTRL(0), 0, 9, 9); /* LP */
+
+	REG_FLD_MOD(dsi, DSI_VC_CTRL(0), 0, 1, 1); /* SOURCE_L4 */
 	dsi->vc[VC_CMD].source = DSI_VC_SOURCE_L4;
 
-	/* Setup VC_VIDEO for HS and dispc transfers */
-	REG_FLD_MOD(dsi, DSI_VC_CTRL(VC_VIDEO), 1, 9, 9); /* HS */
 
-	REG_FLD_MOD(dsi, DSI_VC_CTRL(VC_VIDEO), 1, 1, 1); /* SOURCE_VP */
-	dsi->vc[VC_VIDEO].source = DSI_VC_SOURCE_VP;
-
-	if ((dsi->data->quirks & DSI_QUIRK_DCS_CMD_CONFIG_VC) &&
-	    !(dsi->dsidev->mode_flags & MIPI_DSI_MODE_VIDEO))
-		REG_FLD_MOD(dsi, DSI_VC_CTRL(VC_VIDEO), 1, 30, 30); /* DCS_CMD_ENABLE */
 
 	dsi_vc_enable(dsi, VC_CMD, 1);
-	dsi_vc_enable(dsi, VC_VIDEO, 1);
+//	dsi_vc_enable(dsi, VC_VIDEO, 1);
 
 	dsi_if_enable(dsi, 1);
 
@@ -3492,6 +3504,7 @@ static void dsi_uninit_dsi(struct dsi_data *dsi)
 	dsi_vc_enable(dsi, 1, 0);
 	dsi_vc_enable(dsi, 2, 0);
 	dsi_vc_enable(dsi, 3, 0);
+	dsi->vc_cmd = 0;
 
 	dss_select_dsi_clk_source(dsi->dss, dsi->module_id, DSS_CLK_SRC_FCK);
 	dsi_cio_uninit(dsi);
