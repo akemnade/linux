@@ -386,7 +386,6 @@
 	usb-supply = <&ldousb>;
 };
 
-
 &i2c2 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&i2c2_pins>;
@@ -405,6 +404,12 @@
 	 * camera chip at 0x3c, available if <&gpio_head 1> high
 	 * and <&gpio_head 5> low
 	 */
+
+	eeprom@50 {
+		compatible = "rohm,br24t08", "atmel,24c08";
+		reg = <0x50>;
+		read-only;
+	};
 
 	/* at head/glasses */
 	mpu9150h: imu@68 {
