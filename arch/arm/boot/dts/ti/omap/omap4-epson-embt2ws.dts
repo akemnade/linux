@@ -291,12 +291,22 @@
 	usb-supply = <&ldousb>;
 };
 
-
 &i2c2 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&i2c2_pins>;
 
 	clock-frequency = <200000>;
+
+	/*
+	 * Some GPIO expander seems to exist at 0x20 controlling at
+	 * least write enable of the EEPROM.
+         */
+
+	eeprom@50 {
+		compatible = "rohm,br24t08", "atmel,24c08";
+		reg = <0x50>;
+		read-only;
+	};
 
 	/* at head/glasses */
 	mpu9150h: imu@68 {
