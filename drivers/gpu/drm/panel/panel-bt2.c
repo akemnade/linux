@@ -38,12 +38,11 @@ struct bt200 {
 	bool enabled;
 };
 
-static int tc358762_read_register(struct bt200 *ctx, u16 reg)
+static int tc358762_read_register(struct bt200 *ctx, u16 reg, u32 *val)
 {
 	struct mipi_dsi_device *dsi = to_mipi_dsi_device(ctx->dev);
 	u8 buf[4];
 	u8 addr_buf[2];
-	u32 val;
 	int r = 0;
 
 	addr_buf[0] = reg;
@@ -54,8 +53,8 @@ static int tc358762_read_register(struct bt200 *ctx, u16 reg)
 		return r;
 	}
 
-	val = buf[0] | (buf[1] << 8) | (buf[2] << 16) | (buf[3] << 24);
-	dev_dbg(ctx->dev, "reg read %x, val=%08x\n", reg, val);
+	*val = buf[0] | (buf[1] << 8) | (buf[2] << 16) | (buf[3] << 24);
+	dev_dbg(ctx->dev, "reg read %x, val=%08x\n", reg, *val);
 
 	return r;
 }
@@ -227,11 +226,16 @@ static int init_seq(struct bt200 *ctx)
 	
 	int i;
 	int r;
-	dev_info(ctx->dev, "id reg %d\n" ,tc358762_read_register(ctx, IDREG));
-	dev_info(ctx->dev, "id reg %d\n" ,tc358762_read_register(ctx, IDREG));
-	dev_info(ctx->dev, "id reg %d\n" ,tc358762_read_register(ctx, IDREG));
+	u32 rback;
+	tc358762_write_register(ctx, tc358762_init_seq[0].reg,
+				tc358762_init_seq[0].data, sizeof(u32));
+	tc358762_write_register(ctx, tc358762_init_seq[0].reg,
+				tc358762_init_seq[0].data, sizeof(u32));
+	dev_info(ctx->dev, "id reg %d %x\n" ,tc358762_read_register(ctx, IDREG, &rback));
+	dev_info(ctx->dev, "id reg %d %x\n" ,tc358762_read_register(ctx, IDREG, &rback));
+	dev_info(ctx->dev, "id reg %d %x\n" ,tc358762_read_register(ctx, IDREG, &rback));
 	// Rx read
-	r = tc358762_read_register(ctx, IDREG);
+	r = tc358762_read_register(ctx, IDREG, &rback);
 	if (r < 0) {
 		dev_err(ctx->dev,
 			"failed to read id reg %d\n", r);
@@ -249,6 +253,7 @@ static int init_seq(struct bt200 *ctx)
 				"failed to write initial config (write) %d\n", i);
 			return r;
 		}
+		dev_info(ctx->dev, "rback %d %x %x\n" ,tc358762_read_register(ctx, reg, &rback), (u32)reg, rback);
 	}
 
 
@@ -268,17 +273,20 @@ static int bt200_prepare(struct drm_panel *panel)
 	if (ctx->prepared)
 		return 0;
 
-	r = init_seq(ctx);
 
 	ctx->prepared = true;
 
-	return r;
+	return 0;
 	
 }
 
 static int bt200_enable(struct drm_panel *panel)
 {
 	struct bt200 *ctx = panel_to_bt200(panel);
+	int r;
+	r = init_seq(ctx);
+	if (r < 0)
+		return 0;
 	return tc358762_write_lcd(ctx, 0x0A, 1 );
 }
 
