@@ -54,7 +54,6 @@ static int tc358762_read_register(struct bt200 *ctx, u16 reg, u32 *val)
 	}
 
 	*val = buf[0] | (buf[1] << 8) | (buf[2] << 16) | (buf[3] << 24);
-	dev_dbg(ctx->dev, "reg read %x, val=%08x\n", reg, *val);
 
 	return r;
 }
@@ -247,6 +246,7 @@ static int init_seq(struct bt200 *ctx)
 		u16 reg = tc358762_init_seq[i].reg;
 		u32 data = tc358762_init_seq[i].data;
 
+		dev_info(ctx->dev, "rbefore %d %x %x\n" ,tc358762_read_register(ctx, reg, &rback), (u32)reg, rback);
 		r = tc358762_write_register(ctx, reg, data, sizeof(u32));
 		if (r) {
 			dev_err(ctx->dev,
@@ -273,6 +273,9 @@ static int bt200_prepare(struct drm_panel *panel)
 	if (ctx->prepared)
 		return 0;
 
+	r = init_seq(ctx);
+	if (r < 0)
+		return 0;
 
 	ctx->prepared = true;
 
@@ -284,9 +287,6 @@ static int bt200_enable(struct drm_panel *panel)
 {
 	struct bt200 *ctx = panel_to_bt200(panel);
 	int r;
-	r = init_seq(ctx);
-	if (r < 0)
-		return 0;
 	return tc358762_write_lcd(ctx, 0x0A, 1 );
 }
 
