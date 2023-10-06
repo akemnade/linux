@@ -247,17 +247,22 @@ static int init_seq(struct bt200 *ctx)
 		u32 data = tc358762_init_seq[i].data;
 
 		dev_info(ctx->dev, "rbefore %d %x %x\n" ,tc358762_read_register(ctx, reg, &rback), (u32)reg, rback);
+		if (rback != data) {
 		r = tc358762_write_register(ctx, reg, data, sizeof(u32));
 		if (r) {
 			dev_err(ctx->dev,
 				"failed to write initial config (write) %d\n", i);
 			return r;
 		}
+		} else {
+			dev_info(ctx->dev, "%x = %x\n" , rback, data);
+		}
 		dev_info(ctx->dev, "rback %d %x %x\n" ,tc358762_read_register(ctx, reg, &rback), (u32)reg, rback);
 	}
 
 
 	r = init_lcd(ctx);
+	tc358762_write_lcd(ctx, 0x0A, 1 );
 //	if (r < 0)
 //		goto err_write_init;
 	return r;
