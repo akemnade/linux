@@ -402,8 +402,6 @@
 	#sound-dai-cells = <0>;
 	pinctrl-names = "default";
 	pinctrl-0 = <&mcbsp2_pins>;
-	assigned-clocks = <&abe_clkctrl OMAP4_MCBSP2_CLKCTRL 24>;
-	assigned-clock-parents = <&abe_clkctrl OMAP4_MCBSP2_CLKCTRL 26>;
 
 	status = "okay";
 };
