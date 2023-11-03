@@ -39,6 +39,7 @@
 
 #include <net/bluetooth/bluetooth.h>
 #include <net/bluetooth/hci_core.h>
+#include <linux/gnss.h>
 #include <linux/gpio/consumer.h>
 #include <linux/nvmem-consumer.h>
 
@@ -65,6 +66,7 @@ enum hcill_states_e {
 struct ll_device {
 	struct hci_uart hu;
 	struct serdev_device *serdev;
+	struct gnss_device *gdev;
 	struct gpio_desc *enable_gpio;
 	struct clk *ext_clk;
 	bdaddr_t bdaddr;
@@ -78,6 +80,20 @@ struct ll_struct {
 	struct sk_buff_head tx_wait_q;	/* HCILL wait queue	*/
 };
 
+/* Channel-9 details for GPS */
+#define GPS_CH9_PKT_HDR_SIZE		4
+#define GPS_CH9_PKT_NUMBER		0x9
+#define GPS_CH9_OP_WRITE		0x1
+#define GPS_CH9_OP_READ			0x2
+#define GPS_CH9_OP_COMPLETED_EVT	0x3
+
+struct gnssdrv_event_hdr {
+	uint8_t opcode;
+	uint16_t plen;
+} __packed;
+
+
+static int gnss_recv_frame(struct hci_dev *hdev, struct sk_buff *skb);
 /*
  * Builds and sends an HCILL command packet.
  * These are very simple packets with only 1 cmd byte
@@ -411,6 +427,13 @@ static int ll_recv_frame(struct hci_dev *hdev, struct sk_buff *skb)
 	.lsize = 0, \
 	.maxlen = 0
 
+#define LL_RECV_GNSS \
+	.type = GPS_CH9_PKT_NUMBER, \
+	.hlen = 3, \
+	.loff = 1, \
+	.lsize = 2 \
+
+
 static const struct h4_recv_pkt ll_recv_pkts[] = {
 	{ H4_RECV_ACL,       .recv = hci_recv_frame },
 	{ H4_RECV_SCO,       .recv = hci_recv_frame },
@@ -419,6 +442,7 @@ static const struct h4_recv_pkt ll_recv_pkts[] = {
 	{ LL_RECV_SLEEP_ACK, .recv = ll_recv_frame  },
 	{ LL_RECV_WAKE_IND,  .recv = ll_recv_frame  },
 	{ LL_RECV_WAKE_ACK,  .recv = ll_recv_frame  },
+	{ LL_RECV_GNSS,      .recv = gnss_recv_frame },
 };
 
 /* Recv data */
@@ -682,12 +706,103 @@ static int ll_setup(struct hci_uart *hu)
 
 static const struct hci_uart_proto llp;
 
+static int gnss_lldev_open(struct gnss_device *gdev)
+{
+	struct ll_device *lldev = gnss_get_drvdata(gdev);
+
+	return 0;
+}
+
+static void gnss_lldev_close(struct gnss_device *gdev)
+{
+	struct ll_device *lldev = gnss_get_drvdata(gdev);
+}
+
+static int gnss_lldev_write_raw(struct gnss_device *gdev,
+		const unsigned char *buf, size_t count)
+{
+	struct ll_device *lldev = gnss_get_drvdata(gdev);
+	int err = 0;
+	struct sk_buff *skb = NULL;
+	struct ll_struct *ll = lldev->hu.priv;
+	struct gnssdrv_event_hdr gnssdrv_hdr = { GPS_CH9_OP_WRITE, 0x0000 };
+
+	/* allocate packet */
+	skb = bt_skb_alloc(sizeof(gnssdrv_hdr) + count, GFP_ATOMIC);
+	if (!skb) {
+		BT_ERR("cannot allocate memory for HCILL packet");
+		err = -ENOMEM;
+		goto out;
+	}
+
+	/* GPS channel */
+
+	gnssdrv_hdr.plen = count;
+	hci_skb_pkt_type(skb) = GPS_CH9_PKT_NUMBER;
+	skb_put_data(skb, &gnssdrv_hdr, sizeof(gnssdrv_hdr));
+	skb_put_data(skb, buf, count);
+
+	lldev->hu.hdev->send(lldev->hu.hdev, skb);
+
+	/* TODO: wait ? */
+	return count;
+out:
+	return err;
+}
+
+static const struct gnss_operations gnss_lldev_ops = {
+	.open		= gnss_lldev_open,
+	.close		= gnss_lldev_close,
+	.write_raw	= gnss_lldev_write_raw,
+};
+
+static int gnss_recv_frame(struct hci_dev *hdev, struct sk_buff *skb)
+{
+	struct hci_uart *hu = hci_get_drvdata(hdev);
+	struct ll_device * lldev = container_of(hu,
+						struct ll_device, hu);	
+	if (hci_skb_pkt_type(skb) == GPS_CH9_PKT_NUMBER) {
+		struct gnssdrv_event_hdr *gnss_hdr =
+			(struct gnssdrv_event_hdr *)skb->data;
+		void *data = skb_pull(skb, sizeof(*gnss_hdr));
+		if (gnss_hdr->opcode ==	GPS_CH9_OP_READ) {
+			gnss_insert_raw(lldev->gdev, data, skb->len);
+		}
+	}
+	kfree_skb(skb);
+
+	return 0;
+}
+
+static int ll_gnss_register(struct ll_device *lldev)
+{
+	struct gnss_device *gdev;
+	int ret;
+
+	gdev = gnss_allocate_device(&lldev->serdev->dev);
+	if (!gdev) {
+		return -ENOMEM;
+	}
+
+	gdev->ops = &gnss_lldev_ops;
+	gnss_set_drvdata(gdev, lldev);
+
+	ret = gnss_register_device(gdev);
+	if (ret == 0) {
+		lldev->gdev = gdev;
+		return 0;
+	}
+	gnss_put_device(gdev);
+	return ret;
+}
+
 static int hci_ti_probe(struct serdev_device *serdev)
 {
 	struct hci_uart *hu;
 	struct ll_device *lldev;
 	struct nvmem_cell *bdaddr_cell;
 	u32 max_speed = 3000000;
+	int ret;
 
 	lldev = devm_kzalloc(&serdev->dev, sizeof(struct ll_device), GFP_KERNEL);
 	if (!lldev)
@@ -756,14 +871,25 @@ static int hci_ti_probe(struct serdev_device *serdev)
 		kfree(bdaddr);
 	}
 
-	return hci_uart_register_device(hu, &llp);
+	ret = hci_uart_register_device(hu, &llp);
+	if (ret)
+		return ret;
+
+	ll_gnss_register(lldev);
+
+	return 0;
 }
+
 
 static void hci_ti_remove(struct serdev_device *serdev)
 {
 	struct ll_device *lldev = serdev_device_get_drvdata(serdev);
 
 	hci_uart_unregister_device(&lldev->hu);
+	if (lldev->gdev) {
+		gnss_deregister_device(lldev->gdev);
+		gnss_put_device(lldev->gdev);
+	}
 }
 
 static const struct of_device_id hci_ti_of_match[] = {
