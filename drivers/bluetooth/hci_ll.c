@@ -66,10 +66,13 @@ enum hcill_states_e {
 struct ll_device {
 	struct hci_uart hu;
 	struct serdev_device *serdev;
-	struct gnss_device *gdev;
 	struct gpio_desc *enable_gpio;
 	struct clk *ext_clk;
 	bdaddr_t bdaddr;
+
+	struct mutex gdev_mutex;
+	bool gdev_open;
+	struct gnss_device *gdev;
 };
 
 struct ll_struct {
@@ -709,6 +712,9 @@ static const struct hci_uart_proto llp;
 static int gnss_lldev_open(struct gnss_device *gdev)
 {
 	struct ll_device *lldev = gnss_get_drvdata(gdev);
+	mutex_lock(&lldev->gdev_mutex);
+	lldev->gdev_open = true;
+	mutex_unlock(&lldev->gdev_mutex);
 
 	return 0;
 }
@@ -716,6 +722,9 @@ static int gnss_lldev_open(struct gnss_device *gdev)
 static void gnss_lldev_close(struct gnss_device *gdev)
 {
 	struct ll_device *lldev = gnss_get_drvdata(gdev);
+	mutex_lock(&lldev->gdev_mutex);
+	lldev->gdev_open = false;
+	mutex_unlock(&lldev->gdev_mutex);
 }
 
 static int gnss_lldev_write_raw(struct gnss_device *gdev,
@@ -724,7 +733,6 @@ static int gnss_lldev_write_raw(struct gnss_device *gdev,
 	struct ll_device *lldev = gnss_get_drvdata(gdev);
 	int err = 0;
 	struct sk_buff *skb = NULL;
-	struct ll_struct *ll = lldev->hu.priv;
 	struct gnssdrv_event_hdr gnssdrv_hdr = { GPS_CH9_OP_WRITE, 0x0000 };
 
 	/* allocate packet */
@@ -744,7 +752,7 @@ static int gnss_lldev_write_raw(struct gnss_device *gdev,
 
 	lldev->hu.hdev->send(lldev->hu.hdev, skb);
 
-	/* TODO: wait ? */
+	/* TODO: wait on completion? */
 	return count;
 out:
 	return err;
@@ -765,8 +773,15 @@ static int gnss_recv_frame(struct hci_dev *hdev, struct sk_buff *skb)
 		struct gnssdrv_event_hdr *gnss_hdr =
 			(struct gnssdrv_event_hdr *)skb->data;
 		void *data = skb_pull(skb, sizeof(*gnss_hdr));
+		/*
+		 * REVISIT: maybe do something with the completed
+		 * event
+		 */
 		if (gnss_hdr->opcode ==	GPS_CH9_OP_READ) {
-			gnss_insert_raw(lldev->gdev, data, skb->len);
+			mutex_lock(&lldev->gdev_mutex);
+			if (lldev->gdev_open)
+				gnss_insert_raw(lldev->gdev, data, skb->len);
+			mutex_unlock(&lldev->gdev_mutex);
 		}
 	}
 	kfree_skb(skb);
@@ -786,6 +801,7 @@ static int ll_gnss_register(struct ll_device *lldev)
 
 	gdev->ops = &gnss_lldev_ops;
 	gnss_set_drvdata(gdev, lldev);
+	mutex_init(&lldev->gdev_mutex);
 
 	ret = gnss_register_device(gdev);
 	if (ret == 0) {
