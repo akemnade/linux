@@ -20,6 +20,7 @@
 #include <linux/device.h>
 #include <linux/sysfs.h>
 #include <linux/input/mt.h>
+#include <linux/input/touchscreen.h>
 #include <linux/platform_data/zforce_ts.h>
 #include <linux/regulator/consumer.h>
 #include <linux/of.h>
@@ -106,6 +107,7 @@ struct zforce_point {
 struct zforce_ts {
 	struct i2c_client	*client;
 	struct input_dev	*input;
+	struct touchscreen_properties prop;
 	const struct zforce_ts_platdata *pdata;
 	char			phys[32];
 
@@ -266,7 +268,6 @@ static int zforce_setconfig(struct zforce_ts *ts, char b1)
 static int zforce_start(struct zforce_ts *ts)
 {
 	struct i2c_client *client = ts->client;
-	const struct zforce_ts_platdata *pdata = ts->pdata;
 	int ret;
 
 	dev_dbg(&client->dev, "starting device\n");
@@ -277,7 +278,7 @@ static int zforce_start(struct zforce_ts *ts)
 		return ret;
 	}
 
-	ret = zforce_resolution(ts, pdata->x_max, pdata->y_max);
+	ret = zforce_resolution(ts, ts->prop.max_x, ts->prop.max_y);
 	if (ret) {
 		dev_err(&client->dev, "Unable to set resolution, %d\n", ret);
 		goto error;
@@ -390,10 +391,11 @@ static int zforce_touch_event(struct zforce_ts *ts, u8 *payload)
 						point.state != STATE_UP);
 
 		if (point.state != STATE_UP) {
-			input_report_abs(ts->input, ABS_MT_POSITION_X,
-					 point.coord_x);
-			input_report_abs(ts->input, ABS_MT_POSITION_Y,
-					 point.coord_y);
+			touchscreen_report_pos(ts->input,
+					       &ts->prop,
+					       point.coord_x,
+					       point.coord_y,
+					       true);
 			input_report_abs(ts->input, ABS_MT_TOUCH_MAJOR,
 					 point.area_major);
 			input_report_abs(ts->input, ABS_MT_TOUCH_MINOR,
@@ -719,15 +721,8 @@ static struct zforce_ts_platdata *zforce_parse_dt(struct device *dev)
 		return ERR_PTR(-ENOMEM);
 	}
 
-	if (of_property_read_u32(np, "x-size", &pdata->x_max)) {
-		dev_err(dev, "failed to get x-size property\n");
-		return ERR_PTR(-EINVAL);
-	}
-
-	if (of_property_read_u32(np, "y-size", &pdata->y_max)) {
-		dev_err(dev, "failed to get y-size property\n");
-		return ERR_PTR(-EINVAL);
-	}
+	of_property_read_u32(np, "x-size", &pdata->x_max);
+	of_property_read_u32(np, "y-size", &pdata->y_max);
 
 	return pdata;
 }
@@ -851,10 +846,17 @@ static int zforce_probe(struct i2c_client *client)
 	__set_bit(EV_ABS, input_dev->evbit);
 
 	/* For multi touch */
-	input_set_abs_params(input_dev, ABS_MT_POSITION_X, 0,
-			     pdata->x_max, 0, 0);
-	input_set_abs_params(input_dev, ABS_MT_POSITION_Y, 0,
-			     pdata->y_max, 0, 0);
+	if (pdata->x_max && pdata->y_max) {
+		input_set_abs_params(input_dev, ABS_MT_POSITION_X, 0,
+				     pdata->x_max, 0, 0);
+		input_set_abs_params(input_dev, ABS_MT_POSITION_Y, 0,
+				     pdata->y_max, 0, 0);
+	}
+	touchscreen_parse_properties(input_dev, true, &ts->prop);
+	if (ts->prop.max_x == 0 || ts->prop.max_y == 0) {
+		dev_err(&client->dev, "\n");
+		return -EINVAL;
+	}
 
 	input_set_abs_params(input_dev, ABS_MT_TOUCH_MAJOR, 0,
 			     ZFORCE_MAX_AREA, 0, 0);
