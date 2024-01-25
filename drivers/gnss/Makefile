@@ -20,3 +20,6 @@ gnss-ubx-y := ubx.o
 
 obj-$(CONFIG_GNSS_USB)			+= gnss-usb.o
 gnss-usb-y := usb.o
+
+obj-$(CONFIG_GNSS_AI2)			+= gnss-ai2.o
+gnss-ai2-y := ai2.o
