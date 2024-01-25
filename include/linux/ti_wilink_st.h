@@ -381,6 +381,14 @@ unsigned long st_ll_getstate(struct st_data_s *);
 unsigned long st_ll_sleep_state(struct st_data_s *, unsigned char);
 void st_ll_wakeup(struct st_data_s *);
 
+/**
+ * various funcs used to interact between FM, GPS and BT
+ */
+struct hci_dev *st_get_hci(struct device *dev);
+void st_set_gnss_recv_func(struct device *dev,
+			   void (*recv_frame)(struct device *, struct sk_buff *));
+
+
 /*
  * header information used by st_core.c for FM and GPS
  * packet parsing, the bluetooth headers are already available
