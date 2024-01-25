@@ -32,6 +32,7 @@
 #include <linux/signal.h>
 #include <linux/ioctl.h>
 #include <linux/of.h>
+#include <linux/platform_device.h>
 #include <linux/serdev.h>
 #include <linux/skbuff.h>
 #include <linux/ti_wilink_st.h>
@@ -68,6 +69,9 @@ struct ll_device {
 	struct gpio_desc *enable_gpio;
 	struct clk *ext_clk;
 	bdaddr_t bdaddr;
+
+	void (*gnss_recv_func)(struct device *dev, struct sk_buff *skb);
+	struct platform_device *gnssdev;
 };
 
 struct ll_struct {
@@ -78,6 +82,8 @@ struct ll_struct {
 	struct sk_buff_head tx_wait_q;	/* HCILL wait queue	*/
 };
 
+static int ll_gnss_register(struct ll_device *lldev);
+static int ll_gnss_recv_frame(struct hci_dev *hdev, struct sk_buff *skb);
 /*
  * Builds and sends an HCILL command packet.
  * These are very simple packets with only 1 cmd byte
@@ -411,6 +417,13 @@ static int ll_recv_frame(struct hci_dev *hdev, struct sk_buff *skb)
 	.lsize = 0, \
 	.maxlen = 0
 
+#define LL_RECV_GNSS \
+	.type = 9, \
+	.hlen = 3, \
+	.loff = 1, \
+	.lsize = 2
+
+
 static const struct h4_recv_pkt ll_recv_pkts[] = {
 	{ H4_RECV_ACL,       .recv = hci_recv_frame },
 	{ H4_RECV_SCO,       .recv = hci_recv_frame },
@@ -419,6 +432,7 @@ static const struct h4_recv_pkt ll_recv_pkts[] = {
 	{ LL_RECV_SLEEP_ACK, .recv = ll_recv_frame  },
 	{ LL_RECV_WAKE_IND,  .recv = ll_recv_frame  },
 	{ LL_RECV_WAKE_ACK,  .recv = ll_recv_frame  },
+	{ LL_RECV_GNSS,      .recv = ll_gnss_recv_frame },
 };
 
 /* Recv data */
@@ -677,7 +691,67 @@ static int ll_setup(struct hci_uart *hu)
 		}
 	}
 
+	if (strstr(of_node_full_name(serdev->dev.of_node), "gnss"))
+		ll_gnss_register(lldev);
+
 	return 0;
+}
+
+struct hci_dev *st_get_hci(struct device *dev)
+{
+	struct ll_device *lldev = dev_get_drvdata(dev);
+
+	return lldev->hu.hdev;
+}
+EXPORT_SYMBOL(st_get_hci);
+
+void st_set_gnss_recv_func(struct device *dev,
+			   void (*recv_frame)(struct device *, struct sk_buff *))
+{
+	struct ll_device *lldev = dev_get_drvdata(dev);
+
+	lldev->gnss_recv_func = recv_frame;
+}
+EXPORT_SYMBOL(st_set_gnss_recv_func);
+
+static int ll_gnss_recv_frame(struct hci_dev *hdev, struct sk_buff *skb)
+{
+	struct hci_uart *hu = hci_get_drvdata(hdev);
+	struct ll_device *lldev = container_of(hu, struct ll_device, hu);
+
+	if (!lldev->gnssdev)
+		return 0;
+
+	if (lldev->gnss_recv_func) {
+		lldev->gnss_recv_func(&lldev->gnssdev->dev, skb);
+		return 0;
+	}
+	kfree_skb(skb);
+
+	return 0;
+}
+
+static int ll_gnss_register(struct ll_device *lldev)
+{
+	struct platform_device *pdev;
+	int ret;
+
+	pdev = platform_device_alloc("ti-ai2-gnss", PLATFORM_DEVID_AUTO);
+	if (!pdev)
+		return -ENOMEM;
+
+	pdev->dev.parent = &lldev->serdev->dev;
+	lldev->gnssdev = pdev;
+	ret = platform_device_add(pdev);
+	if (ret)
+		goto err;
+
+	return 0;
+
+err:
+	lldev->gnssdev = NULL;
+	platform_device_put(pdev);
+	return ret;
 }
 
 static const struct hci_uart_proto llp;
@@ -757,11 +831,18 @@ static int hci_ti_probe(struct serdev_device *serdev)
 	}
 
 	return hci_uart_register_device(hu, &llp);
+
+
+	return 0;
 }
+
 
 static void hci_ti_remove(struct serdev_device *serdev)
 {
 	struct ll_device *lldev = serdev_device_get_drvdata(serdev);
+
+	if (lldev->gnssdev)
+		platform_device_unregister(lldev->gnssdev);
 
 	hci_uart_unregister_device(&lldev->hu);
 }
