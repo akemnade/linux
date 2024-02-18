@@ -403,6 +403,23 @@
 	linux,input-no-autorepeat;
 };
 
+&mcspi1 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&mcspi1_pins>;
+
+	touchpad@0 {
+		compatible = "elan,ekt1059";
+		reg = <0>;      /* cs0 */
+		pinctrl-names = "default";
+		pinctrl-0 = <&elan_pins>;
+		interrupt-parent = <&gpio2>;
+		interrupts = <20 IRQ_TYPE_LEVEL_LOW>;
+		spi-max-frequency = <200000>;
+		spi-cpol;
+		spi-cpha;
+	};
+};
+
 &mcbsp2 {
 	#sound-dai-cells = <0>;
 	pinctrl-names = "default";
@@ -463,6 +480,12 @@
 		>;
 	};
 
+	elan_pins: pinmux-elan-pins {
+		pinctrl-single,pins = <
+			OMAP4_IOPAD(0x78, PIN_INPUT | MUX_MODE3) /* gpio52 */
+		>;
+	};
+
 	gpio_keys_pins: pinmux-gpio-key-pins {
 		pinctrl-single,pins = <
 			OMAP4_IOPAD(0x56, PIN_INPUT_PULLUP | MUX_MODE3) /* gpio35 */
@@ -519,6 +542,15 @@
 			OMAP4_IOPAD(0x005a, PIN_OUTPUT | MUX_MODE1)
 			/* kpd_col2 */
 			OMAP4_IOPAD(0x005c, PIN_OUTPUT | MUX_MODE1)
+		>;
+	};
+
+	mcspi1_pins: pinmux-mcspi1-pins {
+		pinctrl-single,pins = <
+			OMAP4_IOPAD(0x132, PIN_INPUT_PULLUP | MUX_MODE0)
+			OMAP4_IOPAD(0x134, PIN_INPUT_PULLUP | MUX_MODE0)
+			OMAP4_IOPAD(0x136, PIN_OUTPUT | MUX_MODE0)
+			OMAP4_IOPAD(0x138, PIN_OUTPUT | MUX_MODE0)
 		>;
 	};
 
