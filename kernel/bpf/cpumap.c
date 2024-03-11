@@ -178,7 +178,7 @@ static int cpu_map_bpf_prog_run_xdp(struct bpf_cpu_map_entry *rcpu,
 				    void **frames, int n,
 				    struct xdp_cpumap_stats *stats)
 {
-	struct xdp_rxq_info rxq;
+	struct xdp_rxq_info rxq = {};
 	struct xdp_buff xdp;
 	int i, nframes = 0;
 
@@ -763,6 +763,16 @@ void __cpu_map_flush(void)
 		wake_up_process(bq->obj->kthread);
 	}
 }
+
+#ifdef CONFIG_DEBUG_NET
+bool cpu_map_check_flush(void)
+{
+	if (list_empty(this_cpu_ptr(&cpu_map_flush_list)))
+		return false;
+	__cpu_map_flush();
+	return true;
+}
+#endif
 
 static int __init cpu_map_init(void)
 {
