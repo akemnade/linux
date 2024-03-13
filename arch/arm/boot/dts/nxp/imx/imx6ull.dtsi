@@ -75,6 +75,17 @@
 				clocks = <&clks IMX6UL_CLK_DUMMY>;
 			};
 
+			epdc: epdc@0228c000 {
+				compatible = "fsl,imx6ull-epdc", "fsl,imx7d-epdc";
+				interrupts = <GIC_SPI 112 IRQ_TYPE_LEVEL_HIGH>;
+				reg = <0x0228c000 0x4000>;
+				clocks = <&clks IMX6ULL_CLK_EPDC_ACLK>,
+					 <&clks IMX6ULL_CLK_EPDC_PIX>;
+				clock-names = "epdc_axi", "epdc_pix";
+				status = "disabled";
+			};
+
+
 			iomuxc_snvs: iomuxc-snvs@2290000 {
 				compatible = "fsl,imx6ull-iomuxc-snvs";
 				reg = <0x02290000 0x4000>;
