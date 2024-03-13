@@ -18,6 +18,11 @@
 	model = "Tolino Shine 2 HD";
 	compatible = "kobo,tolino-shine2hd", "fsl,imx6sl";
 
+	aliases {
+		mmc0 = &usdhc2;
+		mmc1 = &usdhc3;
+	};
+
 	backlight {
 		compatible = "pwm-backlight";
 		pwms = <&ec 0 50000>;
@@ -166,6 +171,8 @@
 		reset-gpios = <&gpio5 9 GPIO_ACTIVE_LOW>;
 		x-size = <1072>;
 		y-size = <1448>;
+		touchscreen-swapped-x-y;
+		touchscreen-inverted-x;
 	};
 
 	tps6518x: epdc-pmic@68 {
