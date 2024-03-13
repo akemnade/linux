@@ -6409,7 +6409,7 @@ static int mxc_epdc_fb_probe(struct platform_device *pdev)
 	info->var.activate = FB_ACTIVATE_NOW;
 	info->pseudo_palette = fb_data->pseudo_palette;
 	info->screen_size = info->fix.smem_len;
-	info->flags = FBINFO_FLAG_DEFAULT;
+	info->flags = 0;
 
 	mxc_epdc_fb_set_fix(info);
 
@@ -7115,7 +7115,7 @@ static int pxp_wfe_a_process_clear_workingbuffer(struct mxc_epdc_fb_data *fb_dat
 	dma_chan = &fb_data->pxp_chan->dma_chan;
 
 	txd = dma_chan->device->device_prep_slave_sg(dma_chan, sg, 2 + 4,
-						     DMA_TO_DEVICE,
+						     DMA_MEM_TO_DEV,
 						     DMA_PREP_INTERRUPT,
 						     NULL);
 	if (!txd) {
@@ -7296,7 +7296,7 @@ static int pxp_legacy_process(struct mxc_epdc_fb_data *fb_data,
 	dma_chan = &fb_data->pxp_chan->dma_chan;
 
 	txd = dma_chan->device->device_prep_slave_sg(dma_chan, sg, 2,
-						     DMA_TO_DEVICE,
+						     DMA_MEM_TO_DEV,
 						     DMA_PREP_INTERRUPT,
 						     NULL);
 	if (!txd) {
@@ -7433,7 +7433,7 @@ static int pxp_process_dithering(struct mxc_epdc_fb_data *fb_data,
 	dma_chan = &fb_data->pxp_chan->dma_chan;
 
 	txd = dma_chan->device->device_prep_slave_sg(dma_chan, sg, 2 + 4,
-						     DMA_TO_DEVICE,
+						     DMA_MEM_TO_DEV,
 						     DMA_PREP_INTERRUPT,
 						     NULL);
 	if (!txd) {
@@ -7581,7 +7581,7 @@ static int pxp_wfe_a_process(struct mxc_epdc_fb_data *fb_data,
 	dma_chan = &fb_data->pxp_chan->dma_chan;
 
 	txd = dma_chan->device->device_prep_slave_sg(dma_chan, sg, 2 + 4,
-						     DMA_TO_DEVICE,
+						     DMA_MEM_TO_DEV,
 						     DMA_PREP_INTERRUPT,
 						     NULL);
 	if (!txd) {
@@ -7788,7 +7788,7 @@ static int pxp_wfe_b_process_update(struct mxc_epdc_fb_data *fb_data,
 	dma_chan = &fb_data->pxp_chan->dma_chan;
 
 	txd = dma_chan->device->device_prep_slave_sg(dma_chan, sg, 2 + 4,
-						     DMA_TO_DEVICE,
+						     DMA_MEM_TO_DEV,
 						     DMA_PREP_INTERRUPT,
 						     NULL);
 	if (!txd) {
