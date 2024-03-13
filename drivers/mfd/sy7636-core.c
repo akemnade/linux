@@ -535,7 +535,7 @@ int gSleep_Mode_Suspend = 0;
 
 int sy7636_regs_init(struct sy7636 *sy7636)
 {
-	int iRet;
+	int iRet = 0;
 
 	dev_dbg(sy7636->dev, "%s(%d)\n",__FUNCTION__,__LINE__);
 	// write registers . 	
@@ -671,7 +671,7 @@ static int sy7636_detect(struct i2c_client *client,
 
 
 	if (info) {
-		strlcpy(info->type, "sy7636_sensor", I2C_NAME_SIZE);
+		strscpy(info->type, "sy7636_sensor", I2C_NAME_SIZE);
 	}
 
 	printk("sy7636_detect success\n");
