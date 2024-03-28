@@ -2209,6 +2209,15 @@ config SENSORS_SY7636
 	  This driver can also be built as a module.  If so, the module
 	  will be called sy7636_sensor.
 
+config SENSORS_JD9930
+        tristate "Fiti power JD9930 EPD temperature sensor"
+        depends on I2C
+        help
+          If you say yes here you get support for JD9930 PMIC sensor.
+
+          This driver can also be built as a module.  If so, the module
+          will be called jd9930_sensor.
+
 config SENSORS_TC74
 	tristate "Microchip TC74"
 	depends on I2C

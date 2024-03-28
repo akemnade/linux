@@ -806,6 +806,14 @@ config MFD_88PM886_PMIC
 	  This includes the I2C driver and the core APIs _only_, you have to
 	  select individual components like onkey under the corresponding menus.
 
+config MFD_JD9930
+    tristate "Fiti power JD9930 EPD PMIC core"
+        depends on I2C
+				select MFD_CORE
+    help
+      This is the JD9930 support. It includes
+      core support for communication with the JD9930 chip.
+
 config MFD_MAX14577
 	tristate "Maxim Semiconductor MAX14577/77836 MUIC + Charger Support"
 	depends on I2C
