@@ -1,0 +1,19 @@
+#
+# ELAN configuration
+#
+#menuconfig INPUT_ELAN
+#	bool "Elan Input Devices"
+#	help
+#	  Say Y here, and a list of supported ELAN input devices will be displayed.
+#	  This option doesn't affect the kernel.
+
+#	  If unsure, say Y.
+
+#if INPUT_ELAN
+
+config TOUCHPAD_ELAN_SPI_EKT1059
+	tristate "Elan SPI ekt1059 touch pad devices"
+	depends on SPI && INPUT
+	default y
+
+#endif
