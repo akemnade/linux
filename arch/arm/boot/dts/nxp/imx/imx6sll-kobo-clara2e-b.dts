@@ -28,6 +28,12 @@
 	};
 };
 
+&epdc {
+	V3P3-supply = <&V3P3_reg>;
+	VCOM-supply = <&vcom_reg>;
+	DISPLAY-supply = <&vposneg_reg>;
+};
+
 &i2c2 {
 	jd9930: pmic@18 {
 		compatible = "fitipower,jd9930", "fitipower,fp9931";
@@ -60,6 +66,11 @@
 
 			v3p3_reg: v3p3 {
 				regulator-name = "v3p3";
+				/*
+				 * REVISIT: there is a register write in the probe function of the
+				 * vendor-kernel
+				 */
+				regulator-always-on;
 			};
 		};
 	};
