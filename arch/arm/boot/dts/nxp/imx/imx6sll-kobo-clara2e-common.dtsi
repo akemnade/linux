@@ -70,6 +70,38 @@
 	soc-supply = <&buck2>;
 };
 
+&epdc {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_epdc0>;
+	safe-ticks-turnoff-ep3v3=<800>;
+
+	vscan-holdoff = <4>;
+	sdoed-width = <10>;
+	sdoed-delay = <20>;
+	sdoez-width = <10>;
+	sdoez-delay = <20>;
+	gdclk-hp-offs = <562>;
+	gdsp-offs = <662>;
+	gdoe-offs = <0>;
+	gdclk-offs = <225>;
+	num-ce = <3>;
+
+	status = "okay";
+
+	timing {
+		clock-frequency = <80000000>;
+		hactive = <1448>;
+		hback-porch = <16>;
+		hfront-porch = <102>;
+		hsync-len = <28>;
+		vactive = <1072>;
+		vback-porch = <4>;
+		vfront-porch = <4>;
+		vsync-len = <2>;
+	};
+};
+
+
 &i2c1 {
 	pinctrl-names = "default","sleep";
 	pinctrl-0 = <&pinctrl_i2c1>;
@@ -252,6 +284,36 @@
 };
 
 &iomuxc {
+	pinctrl_epdc0: epdcgrp0 {
+		fsl,pins = <
+			MX6SLL_PAD_EPDC_DATA00__EPDC_DATA00     0x4100b1
+			MX6SLL_PAD_EPDC_DATA01__EPDC_DATA01     0x4100b1
+			MX6SLL_PAD_EPDC_DATA02__EPDC_DATA02     0x4100b1
+			MX6SLL_PAD_EPDC_DATA03__EPDC_DATA03     0x4100b1
+			MX6SLL_PAD_EPDC_DATA04__EPDC_DATA04     0x4100b1
+			MX6SLL_PAD_EPDC_DATA05__EPDC_DATA05     0x4100b1
+			MX6SLL_PAD_EPDC_DATA06__EPDC_DATA06     0x4100b1
+			MX6SLL_PAD_EPDC_DATA07__EPDC_DATA07     0x4100b1
+			MX6SLL_PAD_EPDC_DATA08__EPDC_DATA08     0x4100b1
+			MX6SLL_PAD_EPDC_DATA09__EPDC_DATA09     0x4100b1
+			MX6SLL_PAD_EPDC_DATA10__EPDC_DATA10     0x4100b1
+			MX6SLL_PAD_EPDC_DATA11__EPDC_DATA11     0x4100b1
+			MX6SLL_PAD_EPDC_DATA12__EPDC_DATA12     0x4100b1
+			MX6SLL_PAD_EPDC_DATA13__EPDC_DATA13     0x4100b1
+			MX6SLL_PAD_EPDC_DATA14__EPDC_DATA14     0x4100b1
+			MX6SLL_PAD_EPDC_DATA15__EPDC_DATA15     0x4100b1
+			MX6SLL_PAD_EPDC_SDCLK__EPDC_SDCLK_P     0x4100b1
+			MX6SLL_PAD_EPDC_SDLE__EPDC_SDLE	 0x4100b1
+			MX6SLL_PAD_EPDC_SDOE__EPDC_SDOE	 0x4100b1
+			MX6SLL_PAD_EPDC_SDSHR__EPDC_SDSHR       0x4100b1
+			MX6SLL_PAD_EPDC_SDCE0__EPDC_SDCE0       0x4100b1
+			MX6SLL_PAD_EPDC_GDCLK__EPDC_GDCLK       0x4100b1
+			MX6SLL_PAD_EPDC_GDOE__EPDC_GDOE	 0x4100b1
+			MX6SLL_PAD_EPDC_GDRL__EPDC_GDRL	 0x4100b1
+			MX6SLL_PAD_EPDC_GDSP__EPDC_GDSP	 0x4100b1
+	       >;
+	};
+
 	pinctrl_touch_gpio: touch-gpiogrp {
 		fsl,pins = <
 			MX6SLL_PAD_GPIO4_IO24__GPIO4_IO24	0x17059 /* TP_INT */
