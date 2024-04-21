@@ -15,7 +15,7 @@
 
 / {
 	model = "Kobo Clara HD Rev B";
-	compatible = "kobo,clarahd-b", "fsl,imx6sll";
+	compatible = "kobo,clarahd", "kobo,clarahd-b", "fsl,imx6sll";
 };
 
 &cpu0 {
