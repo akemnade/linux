@@ -18,6 +18,10 @@
 	compatible = "kobo,nia-c", "fsl,imx6ull";
 };
 
+&gpio_keys {
+	/delete-node/ key-power;
+};
+
 &i2c4 {
 	bd71828: pmic@4b {
 		reg = <0x4b>;
