@@ -30,6 +30,7 @@
 		pinctrl-0 = <&pinctrl_snvs_rohm_gpio &pinctrl_rohm_gpio>;
 		#interrupt-parent = <&gpio5>;
 		#interrupts = <1 IRQ_TYPE_LEVEL_LOW>;
+		system-power-controller;
 		rohm,charger-sense-resistor-ohms = <21000000>;
 	};
 };
