@@ -38,14 +38,12 @@
 
 	reg_sd1_vmmc: wifi-regulator {
 		compatible = "regulator-fixed";
+		pnictrl-names = "default";
+		pinctrl-0 = <&pinctrl_usdhc1_pwr>;
 		regulator-name = "SD1_SPWR";
 		regulator-min-microvolt = <3000000>;
 		regulator-max-microvolt = <3000000>;
 		gpio = <&gpio5 8 GPIO_ACTIVE_LOW>;
-/*
-		btdis-gpio = <&gpio4 22 GPIO_ACTIVE_HIGH>;
-		btint-gpio = <&gpio4 24 GPIO_ACTIVE_HIGH>;
-*/
 	};
 
 	wifi_pwrseq: wifi_pwrseq {
@@ -69,11 +67,11 @@
 		};
 	};
 
-	gpio-keys {
+	gpio_keys: gpio-keys {
 		compatible = "gpio-keys";
 		pinctrl-names = "default";
 		pinctrl-0 = <&pinctrl_snvs_gpio_keys>;
-		power {
+		key-power {
 			label = "Power";
 			gpios = <&gpio5 4 GPIO_ACTIVE_LOW>;
 			btmode0 = <&gpio5 10 GPIO_ACTIVE_LOW>;
@@ -81,25 +79,14 @@
 			wakeup-source;
 		};
 
-		hall {
-			label = "Hall";
+		key-cover {
+			label = "Cover";
 			gpios = <&gpio5 2 GPIO_ACTIVE_LOW>;
 			linux,code = <SW_LID>;
 			linux,input-type = <EV_SW>;
 			wakeup-source;
 		};
 	};
-};
-
-&clks {
-	/* For bringup, comments this.
-	assigned-clocks = <&clks IMX6UL_CLK_PLL4_AUDIO_DIV>;
-	assigned-clock-rates = <786432000>;
-	*/
-};
-
-&csi {
-	status = "disabled";
 };
 
 &epdc {
@@ -136,40 +123,28 @@
 	};
 };
 
-&fec1 {
-	status = "disabled";
-};
-
-#if 0
-&gpc {
-	fsl,cpu_pupscr_sw2iso = <0x1>;
-	fsl,cpu_pupscr_sw = <0x0>;
-	fsl,cpu_pdnscr_iso2sw = <0x1>;
-	fsl,cpu_pdnscr_iso = <0x1>;
-	fsl,ldo-bypass = <0>; /* use ldo-bypass, u-boot will check it and configure */
-};
-#endif
-
 &i2c1 {
 	clock-frequency = <100000>;
 	pinctrl-names = "default","sleep";
-	pinctrl-0 = <&pinctrl_i2c1 &pinctrl_tps65185_gpio &pinctrl_elan_ts_gpio &pinctrl_lm3630a_bl_gpio>;
-	pinctrl-1 = <&pinctrl_i2c1_sleep &pinctrl_tps65185_gpio_sleep &pinctrl_elan_ts_gpio_sleep>;
+	pinctrl-0 = <&pinctrl_i2c1 &pinctrl_tps65185_gpio>;
+	pinctrl-1 = <&pinctrl_i2c1_sleep &pinctrl_tps65185_gpio_sleep>;
 	status = "okay";
 
         touchscreen@15 {
                 compatible = "elan,ektf2232";
                 reg = <0x15>;
-//               pinctrl-names = "default";
-//               pinctrl-0 = <&pinctrl_ts>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_elan_ts_gpio>;
                 power-gpios = <&gpio1 6 GPIO_ACTIVE_HIGH>;
                 interrupts-extended = <&gpio1 7 IRQ_TYPE_EDGE_FALLING>;
         };
 
 	/* single color ? */
 	lm3630a: backlight@36 {
-		reg = <0x36>;
 		compatible = "ti,lm3630a";
+		reg = <0x36>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_lm3630a_bl_gpio>;
 		enable-gpios = <&gpio3 27 GPIO_ACTIVE_HIGH>;
 
 		#address-cells = <1>;
@@ -391,12 +366,6 @@
 		>;
 	};
 
-	pinctrl_usdhc1_vselect: usdhc1_vselect_grp {
-		fsl,pins = <
-			MX6UL_PAD_GPIO1_IO05__USDHC1_VSELECT	0x17059	/* SD1 VSELECT */
-		>;
-	};
-
 	pinctrl_usdhc2: usdhc2grp {
 		fsl,pins = <
 			MX6UL_PAD_NAND_WE_B__USDHC2_CMD	0x17059
@@ -440,12 +409,6 @@
 			MX6UL_PAD_NAND_DATA03__USDHC2_DATA3	0x170f9
 		>;
 	};
-
-	pinctrl_usdhc2_rst: usdhc2_rst_grp {
-		fsl,pins = <
-			MX6UL_PAD_NAND_ALE__GPIO4_IO10	  0x17059 /* SD2 RESET */
-		>;
-	};
 };
 
 &iomuxc_snvs {
@@ -453,7 +416,6 @@
 		fsl,pins = <
 			MX6ULL_PAD_SNVS_TAMPER2__GPIO5_IO02 0x17059 /* HALL_EN */
 			MX6ULL_PAD_SNVS_TAMPER4__GPIO5_IO04	0x17059	/* PWR_SW */
-			MX6UL_PAD_BOOT_MODE0__GPIO5_IO10 0x80000000    /* BOOT_MODE0 */
 		>;
 	};
 
@@ -521,6 +483,8 @@
 	cap-power-off-card;
 	non-removable;
 	status = "okay";
+
+	/* RTL8189F SDIO WiFi */
 };
 
 &usdhc2 {
@@ -531,6 +495,8 @@
 	no-1-8-v;	/* VSELECT not connected by default */
 	keep-power-in-suspend;
 	status = "okay";
+
+        /* internal uSD card */
 };
 
 &i2c1 {
