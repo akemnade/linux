@@ -137,6 +137,9 @@
 		interrupt-parent = <&gpio4>;
 		interrupts = <24 IRQ_TYPE_EDGE_FALLING>;
 		reset-gpios = <&gpio4 18 GPIO_ACTIVE_LOW>;
+		touchscreen-size-x = <1072>;
+		touchscreen-size-y = <1448>;
+                touchscreen-swapped-x-y;
 	};
 };
 
