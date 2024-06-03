@@ -1,0 +1,52 @@
+/*
+ * Copyright (C) 2023 Andreas Kemnade
+ *
+ * based on works
+ * Copyright (C) 2016 Freescale Semiconductor, Inc.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+/dts-v1/;
+
+#include "imx6ull-kobo-nia-common.dtsi"
+
+/ {
+	model = "Kobo Nia Rev C";
+	compatible = "kobo,nia-c", "fsl,imx6ull";
+};
+
+&gpio_keys {
+	/delete-node/ key-power;
+};
+
+&i2c4 {
+	bd71828: pmic@4b {
+		reg = <0x4b>;
+		compatible = "rohm,bd71828";
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_snvs_rohm_gpio &pinctrl_rohm_gpio>;
+		#interrupt-parent = <&gpio5>;
+		#interrupts = <1 IRQ_TYPE_LEVEL_LOW>;
+		system-power-controller;
+		rohm,charger-sense-resistor-ohms = <21000000>;
+	};
+};
+
+&iomuxc {
+	pinctrl_rohm_gpio: rohm_gpio_grp {
+		fsl,pins = <
+			MX6UL_PAD_NAND_WP_B__GPIO4_IO11			0x17059 /* bd71828 wdog */
+		>;
+	};
+};
+
+&iomuxc_snvs {
+	pinctrl_snvs_rohm_gpio: rohm_snvs_gpio_grp {
+		fsl,pins = <
+			MX6ULL_PAD_SNVS_TAMPER1__GPIO5_IO01		0x17059 /* bd71828 irq */
+		>;
+	};
+};
