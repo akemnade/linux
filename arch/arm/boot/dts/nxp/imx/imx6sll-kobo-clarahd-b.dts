@@ -21,6 +21,22 @@
 &cpu0 {
 	arm-supply = <&dcdc5_reg>;
 	soc-supply = <&dcdc2_reg>;
+
+	/* taken from vendor dtb, SoC must be some low-voltage variant */
+	operating-points = <
+		/* kHz    uV */
+		996000  1062500
+		792000  1062500
+		396000  1062500
+		198000  975000
+	>;
+	fsl,soc-operating-points = <
+		/* ARM kHz	SOC-PU uV */
+		996000		987500
+		792000		987500
+		396000		987500
+		198000		900000
+	>;  
 };
 
 &dcdc1_reg {
