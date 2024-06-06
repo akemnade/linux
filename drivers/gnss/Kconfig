@@ -65,4 +65,17 @@ config GNSS_USB
 
 	  If unsure, say N.
 
+config GNSS_AI2
+	tristate "TI AI2 procotol support"
+	depends on BT_HCIUART_LL
+	help
+	  Say Y here if you have a Texas Instruments Wilink combo chip
+	  containing among other things a GNSS receiver speaking the
+	  Air Independent Interface (AI2) protocol.
+
+	  To compile this driver as a module, choose M here: the module will
+	  be called gnss-ai2.
+
+	  If unsure, say N.
+
 endif # GNSS
