@@ -617,23 +617,6 @@ static int jd9930_v3p3_disable(struct regulator_dev *reg)
 
 #endif //] JD9930_V3P3_ENABLE
 
-static int jd9930_tmst_get_temperature(struct regulator_dev *reg)
-{
-	struct jd9930 *jd9930 = rdev_get_drvdata(reg);
-	const int iDefaultTemp = 25;
-	int iTemperature = iDefaultTemp;
-
-	if(jd9930_get_temperature(jd9930,&iTemperature)<0) { 
-		iTemperature = iDefaultTemp;
-	}
-
-	return iTemperature;
-}
-
-/*
- * Regulator operations
- */
-
 static struct regulator_ops jd9930_display_ops = {
 	.enable = jd9930_display_enable,
 //	.setflags = jd9930_display_setflags,
@@ -655,12 +638,6 @@ static struct regulator_ops jd9930_v3p3_ops = {
 	.enable = jd9930_v3p3_enable,
 	.disable = jd9930_v3p3_disable,
 };
-#if 0
-static struct regulator_ops jd9930_tmst_ops = {
-	.get_voltage = jd9930_tmst_get_temperature,
-};
-#endif
-
 
 /*
  * Regulator descriptors
@@ -696,15 +673,6 @@ static struct regulator_desc jd9930_reg[] = {
 	.owner = THIS_MODULE,
 },
 #endif //]JD9930_V3P3_ENABLE
-#if 0
-{
-	.name = "TMST_JD9930",
-	.id = JD9930_TMST,
-	.ops = &jd9930_tmst_ops,
-	.type = REGULATOR_VOLTAGE,
-	.owner = THIS_MODULE,
-},
-#endif
 };
 
 int jd9930_switch_nightmode(struct jd9930 *jd9930,int iIsNightMode)
