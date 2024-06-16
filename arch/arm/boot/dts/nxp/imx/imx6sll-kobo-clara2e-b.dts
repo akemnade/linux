@@ -26,12 +26,23 @@
 		enable-active-high;
 		startup-delay-us = <20000>;
 	};
+
+	thermal-zones {
+		epd-thermal {
+			polling-delay = <10000>;
+			polling-delay-passive = <10000>;
+			thermal-sensors = <&jd9930>;
+			trips {
+			};
+		};
+	};
 };
 
 &epdc {
-	V3P3-supply = <&V3P3_reg>;
+	V3P3-supply = <&v3p3_reg>;
 	VCOM-supply = <&vcom_reg>;
 	DISPLAY-supply = <&vposneg_reg>;
+	epd-thermal-zone = "epd-thermal";
 };
 
 &i2c2 {
@@ -45,6 +56,7 @@
 		en-ts-gpios = <&gpio2 9 GPIO_ACTIVE_HIGH>;
 		enable-gpios = <&gpio2 8 GPIO_ACTIVE_HIGH>;
 		fitipower,tdly-ms = <2 2 2 2>;
+		#thermal-sensor-cells = <0>;
 
 		regulators {
 			vcom_reg: vcom {
