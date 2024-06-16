@@ -581,13 +581,14 @@ EXPORT_SYMBOL_GPL(devm_power_supply_get_by_phandle);
 #endif /* CONFIG_OF */
 
 #define POWER_SUPPLY_TEMP_DGRD_MAX_VALUES 100
-int power_supply_get_battery_info(struct power_supply *psy,
+int power_supply_dev_get_battery_info(struct device *dev,
+				  struct fwnode_handle *node,
 				  struct power_supply_battery_info **info_out)
 {
 	struct power_supply_resistance_temp_table *resist_table;
 	u32 *dgrd_table;
 	struct power_supply_battery_info *info;
-	struct device_node *battery_np = NULL;
+	struct device_node *battery_np;
 	struct fwnode_reference_args args;
 	struct fwnode_handle *fwnode = NULL;
 	const char *value;
@@ -595,23 +596,23 @@ int power_supply_get_battery_info(struct power_supply *psy,
 	const __be32 *list;
 	u32 min_max[2];
 
-	if (psy->dev.of_node) {
-		battery_np = of_parse_phandle(psy->dev.of_node, "monitored-battery", 0);
-		if (!battery_np)
-			return -ENODEV;
+	if (!node)
+		node = dev_fwnode(dev);
 
-		fwnode = fwnode_handle_get(of_fwnode_handle(battery_np));
-	} else if (psy->dev.parent) {
-		err = fwnode_property_get_reference_args(
-					dev_fwnode(psy->dev.parent),
-					"monitored-battery", NULL, 0, 0, &args);
-		if (err)
-			return err;
+	if (!node)
+		dev_err(dev, "no charger node\n");
 
-		fwnode = args.fwnode;
+	fwnode = fwnode_find_reference(node, "monitored-battery", 0);
+	if (IS_ERR(fwnode)) {
+		dev_err(dev, "No battery node found\n");
+		return PTR_ERR(fwnode);
 	}
 
 	if (!fwnode)
+		return -ENOENT;
+
+	battery_np = to_of_node(fwnode);
+	if (!battery_np)
 		return -ENOENT;
 
 	err = fwnode_property_read_string(fwnode, "compatible", &value);
@@ -620,7 +621,7 @@ int power_supply_get_battery_info(struct power_supply *psy,
 
 
 	/* Try static batteries first */
-	err = samsung_sdi_battery_get_info(&psy->dev, value, &info);
+	err = samsung_sdi_battery_get_info(dev, value, &info);
 	if (!err)
 		goto out_ret_pointer;
 	else if (err == -ENODEV)
@@ -635,7 +636,7 @@ int power_supply_get_battery_info(struct power_supply *psy,
 		goto out_put_node;
 	}
 
-	info = devm_kzalloc(&psy->dev, sizeof(*info), GFP_KERNEL);
+	info = devm_kzalloc(dev, sizeof(*info), GFP_KERNEL);
 	if (!info) {
 		err = -ENOMEM;
 		goto out_put_node;
@@ -696,7 +697,7 @@ int power_supply_get_battery_info(struct power_supply *psy,
 		else if (!strcmp("lithium-ion-manganese-oxide", value))
 			info->technology = POWER_SUPPLY_TECHNOLOGY_LiMn;
 		else
-			dev_warn(&psy->dev, "%s unknown battery type\n", value);
+			dev_warn(dev, "%s unknown battery type\n", value);
 	}
 
 	fwnode_property_read_u32(fwnode, "energy-full-design-microwatt-hours",
@@ -759,14 +760,14 @@ int power_supply_get_battery_info(struct power_supply *psy,
 	}
 	/* table should consist of value pairs - maximum of 100 pairs */
 	if (len % 3 || len / 3 > POWER_SUPPLY_TEMP_DGRD_MAX_VALUES) {
-		dev_warn(&psy->dev,
+		dev_warn(dev,
 			 "bad amount of temperature-capacity degrade values\n");
 		err = -EINVAL;
 		goto out_put_node;
 	}
 	info->temp_dgrd_values = len / 3;
 	if (info->temp_dgrd_values) {
-		info->temp_dgrd = devm_kcalloc(&psy->dev,
+		info->temp_dgrd = devm_kcalloc(dev,
 					       info->temp_dgrd_values,
 					       sizeof(*info->temp_dgrd),
 					       GFP_KERNEL);
@@ -783,7 +784,7 @@ int power_supply_get_battery_info(struct power_supply *psy,
 						 "temp-degrade-table",
 						 dgrd_table, len);
 		if (err) {
-			dev_warn(&psy->dev,
+			dev_warn(dev,
 				 "bad temperature - capacity degrade values %d\n", err);
 			kfree(dgrd_table);
 			info->temp_dgrd_values = 0;
@@ -808,14 +809,14 @@ int power_supply_get_battery_info(struct power_supply *psy,
 	}
 	/* table should consist of value pairs - maximum of 100 pairs */
 	if (len % 3 || len / 3 > POWER_SUPPLY_TEMP_DGRD_MAX_VALUES) {
-		dev_warn(&psy->dev,
+		dev_warn(dev,
 			 "bad amount of temperature-capacity degrade values\n");
 		err = -EINVAL;
 		goto out_put_node;
 	}
 	info->temp_dgrd_values = len / 3;
 	if (info->temp_dgrd_values) {
-		info->temp_dgrd = devm_kcalloc(&psy->dev,
+		info->temp_dgrd = devm_kcalloc(dev,
 					       info->temp_dgrd_values,
 					       sizeof(*info->temp_dgrd),
 					       GFP_KERNEL);
@@ -832,7 +833,7 @@ int power_supply_get_battery_info(struct power_supply *psy,
 						 "temp-degrade-table",
 						 dgrd_table, len);
 		if (err) {
-			dev_warn(&psy->dev,
+			dev_warn(dev,
 				 "bad temperature - capacity degrade values %d\n", err);
 			kfree(dgrd_table);
 			info->temp_dgrd_values = 0;
@@ -853,7 +854,7 @@ int power_supply_get_battery_info(struct power_supply *psy,
 		err = len;
 		goto out_put_node;
 	} else if (len > POWER_SUPPLY_OCV_TEMP_MAX) {
-		dev_err(&psy->dev, "Too many temperature values\n");
+		dev_err(dev, "Too many temperature values\n");
 		err = -EINVAL;
 		goto out_put_node;
 	} else if (len > 0) {
@@ -868,14 +869,14 @@ int power_supply_get_battery_info(struct power_supply *psy,
 		char *propname __free(kfree) = kasprintf(GFP_KERNEL, "ocv-capacity-table-%d",
 							 index);
 		if (!propname) {
-			power_supply_put_battery_info(psy, info);
+			power_supply_dev_put_battery_info(dev, info);
 			err = -ENOMEM;
 			goto out_put_node;
 		}
 		list = of_get_property(battery_np, propname, &size);
 		if (!list || !size) {
-			dev_err(&psy->dev, "failed to get %s\n", propname);
-			power_supply_put_battery_info(psy, info);
+			dev_err(dev, "failed to get %s\n", propname);
+			power_supply_dev_put_battery_info(dev, info);
 			err = -EINVAL;
 			goto out_put_node;
 		}
@@ -884,9 +885,10 @@ int power_supply_get_battery_info(struct power_supply *psy,
 		info->ocv_table_size[index] = tab_len;
 
 		info->ocv_table[index] = table =
-			devm_kcalloc(&psy->dev, tab_len, sizeof(*table), GFP_KERNEL);
+			devm_kcalloc(dev, tab_len, sizeof(*table), GFP_KERNEL);
+
 		if (!info->ocv_table[index]) {
-			power_supply_put_battery_info(psy, info);
+			power_supply_dev_put_battery_info(dev, info);
 			err = -ENOMEM;
 			goto out_put_node;
 		}
@@ -904,12 +906,12 @@ int power_supply_get_battery_info(struct power_supply *psy,
 		goto out_ret_pointer;
 
 	info->resist_table_size = len / (2 * sizeof(__be32));
-	info->resist_table = resist_table = devm_kcalloc(&psy->dev,
+	info->resist_table = resist_table = devm_kcalloc(dev,
 							 info->resist_table_size,
 							 sizeof(*resist_table),
 							 GFP_KERNEL);
 	if (!info->resist_table) {
-		power_supply_put_battery_info(psy, info);
+		power_supply_dev_put_battery_info(dev, info);
 		err = -ENOMEM;
 		goto out_put_node;
 	}
@@ -925,25 +927,38 @@ out_ret_pointer:
 
 out_put_node:
 	fwnode_handle_put(fwnode);
-	of_node_put(battery_np);
 	return err;
+}
+EXPORT_SYMBOL_GPL(power_supply_dev_get_battery_info);
+
+int power_supply_get_battery_info(struct power_supply *psy,
+				  struct power_supply_battery_info **info)
+{
+	return power_supply_dev_get_battery_info(&psy->dev, NULL, info);
 }
 EXPORT_SYMBOL_GPL(power_supply_get_battery_info);
 
-void power_supply_put_battery_info(struct power_supply *psy,
-				   struct power_supply_battery_info *info)
+void power_supply_dev_put_battery_info(struct device *dev,
+				       struct power_supply_battery_info *info)
 {
 	int i;
 
 	for (i = 0; i < POWER_SUPPLY_OCV_TEMP_MAX; i++) {
 		if (info->ocv_table[i])
-			devm_kfree(&psy->dev, info->ocv_table[i]);
+			devm_kfree(dev, info->ocv_table[i]);
 	}
 
 	if (info->resist_table)
-		devm_kfree(&psy->dev, info->resist_table);
+		devm_kfree(dev, info->resist_table);
 
-	devm_kfree(&psy->dev, info);
+	devm_kfree(dev, info);
+}
+EXPORT_SYMBOL_GPL(power_supply_dev_put_battery_info);
+
+void power_supply_put_battery_info(struct power_supply *psy,
+				   struct power_supply_battery_info *info)
+{
+	power_supply_dev_put_battery_info(&psy->dev, info);
 }
 EXPORT_SYMBOL_GPL(power_supply_put_battery_info);
 
