@@ -16,21 +16,33 @@
 / {
 	model = "Kobo Clara 2E";
 	compatible = "kobo,clara2e-b", "fsl,imx6sll";
+
+	thermal-zones {
+		epd-thermal {
+			polling-delay = <10000>;
+			polling-delay-passive = <10000>;
+			thermal-sensors = <&jd9930>;
+			trips {
+			};
+		};
+	};
 };
 
 &epdc {
 	V3P3-supply = <&V3P3_reg>;
 	VCOM-supply = <&VCOM_reg>;
 	DISPLAY-supply = <&DISPLAY_reg>;
+	epd-thermal-zone = "epd-thermal";
 };
 
 &i2c2 {
-	pmic@18 {
+	jd9930: pmic@18 {
 		compatible = "fiti,jd9930";
 		reg = <0x18>;
 		pinctrl-names = "default", "sleep";
 		pinctrl-0 = <&pinctrl_jd9930_gpio>;
 		pinctrl-1 = <&pinctrl_jd9930_gpio_sleep>;
+		#thermal-sensor-cells = <0>;
 
 		/*
 		 * power on delay for JD9930
@@ -159,11 +171,6 @@
 			V3P3_reg: V3P3 {
 				regulator-name = "V3P3";
 			};
-/*
-			TMST_JD9930_reg: TMST_JD9930 {
-				regulator-name = "TMST_JD9930";
-			};
-*/
 		};
 	};
 };
