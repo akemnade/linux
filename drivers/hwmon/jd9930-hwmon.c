@@ -55,7 +55,6 @@ static int temp_from_reg(int val)
  * Functions declaration
  */
 static int jd9930_sensor_probe(struct platform_device *pdev);
-static int jd9930_sensor_remove(struct platform_device *pdev);
 
 static const struct platform_device_id jd9930_sns_id[] = {
 	{ "jd9930-sns", 0},
@@ -68,7 +67,6 @@ MODULE_DEVICE_TABLE(platform, jd9930_sns_id);
  */
 static struct platform_driver jd9930_sensor_driver = {
 	.probe = jd9930_sensor_probe,
-	.remove = jd9930_sensor_remove,
 	.id_table = jd9930_sns_id,
 	.driver = {
 		.name = "jd9930_sensor",
@@ -86,7 +84,7 @@ struct jd9930_data {
 
 
 
-int jd9930_get_temperature(struct jd9930 *jd9930,int *O_piTemperature)
+int jd9930_get_temperature(struct jd9930 *jd9930,long *O_piTemperature)
 {
 	int iTemp = 0;
 	unsigned int reg_val;
@@ -118,7 +116,7 @@ int jd9930_get_temperature(struct jd9930 *jd9930,int *O_piTemperature)
 	}
 	else {
 		printk(KERN_ERR"%s(),JD9930 temperature read error !!\n",__FUNCTION__);
-		return -1;
+		return -EIO;
 	}
 	iTemp = temp_from_reg(reg_val);
 
@@ -129,26 +127,6 @@ int jd9930_get_temperature(struct jd9930 *jd9930,int *O_piTemperature)
 	
 	return 0;
 }
-
-
-/*
- * Sysfs stuff
- */
-static ssize_t show_temp_input(struct device *dev,
-	struct device_attribute *attr, char *buf)
-{
-	struct jd9930_data *data = dev_get_drvdata(dev);
-	int iTemp ;
-
-	if(0==jd9930_get_temperature(data->jd9930,&iTemp)) {
-		return snprintf(buf, PAGE_SIZE, "%d\n", iTemp);
-	}
-	else {
-		return snprintf(buf, PAGE_SIZE, "?\n");
-	}
-}
-
-
 
 int jd9930_set_vcom(struct jd9930 *jd9930,int iVCOMmV,int iIsWriteToFlash)
 {
@@ -246,42 +224,47 @@ int jd9930_get_vcom(struct jd9930 *jd9930,int *O_piVCOMmV)
 	return 0;
 }
 
-static ssize_t show_vcom(struct device *dev,
-	struct device_attribute *attr, char *buf)
+static int jd9930_read(struct device *dev, enum hwmon_sensor_types type,
+		       u32 attr, int channel, long *temp)
 {
 	struct jd9930_data *data = dev_get_drvdata(dev);
-	int iVCOM_mV;
+	int ret;
+	if (attr != hwmon_temp_input)
+		return -EOPNOTSUPP;
 
-	jd9930_get_vcom(data->jd9930,&iVCOM_mV);
-	return snprintf(buf, PAGE_SIZE, "%dmV\n",iVCOM_mV);
+	ret = jd9930_get_temperature(data->jd9930, temp);
+	*temp = *temp * 1000;
+	return ret;
 }
 
-static ssize_t set_vcom(struct device *dev,
-	struct device_attribute *attr, const char *buf, size_t count)
+static umode_t jd9930_is_visible(const void *data,
+				 enum hwmon_sensor_types type,
+				 u32 attr, int channel)
 {
-	//unsigned int reg_val;
-	long vcom_reg_val = simple_strtol(buf,NULL,10);
-	struct jd9930_data *data = dev_get_drvdata(dev);
+	if (type != hwmon_temp)
+		return 0;
 
-	jd9930_set_vcom(data->jd9930,vcom_reg_val,0);
-	return count;
+	if (attr != hwmon_temp_input)
+		return 0;
+
+	return 0444;
 }
 
+static const struct hwmon_ops jd9930_hwmon_ops = {
+	.is_visible = jd9930_is_visible,
+	.read = jd9930_read,
+};
 
-static DEVICE_ATTR(temp_input, S_IRUGO, show_temp_input, NULL);
-static DEVICE_ATTR(vcom_value, S_IWUSR | S_IRUGO, show_vcom, set_vcom);
-
-static struct attribute *jd9930_attributes[] = {
-	&dev_attr_temp_input.attr,
-//	&dev_attr_intr_input.attr,
-	&dev_attr_vcom_value.attr,
+static const struct hwmon_channel_info *jd9930_info[] = {
+	HWMON_CHANNEL_INFO(chip, HWMON_C_REGISTER_TZ),
+	HWMON_CHANNEL_INFO(temp, HWMON_T_INPUT),
 	NULL
 };
 
-static const struct attribute_group jd9930_group = {
-	.attrs = jd9930_attributes,
+static const struct hwmon_chip_info jd9930_chip_info = {
+	.ops = &jd9930_hwmon_ops,
+	.info = jd9930_info,
 };
-
 /*
  * Real code
  */
@@ -292,48 +275,19 @@ static int jd9930_sensor_probe(struct platform_device *pdev)
 
 	printk("jd9930_sensor_probe starting\n");
 
-
-
-
-	data = kzalloc(sizeof(struct jd9930_data), GFP_KERNEL);
+	data = devm_kzalloc(&pdev->dev, sizeof(struct jd9930_data), GFP_KERNEL);
 	if (!data) {
-		err = -ENOMEM;
-		goto exit;
+		return -ENOMEM;
 	}
 	data->jd9930 = dev_get_drvdata(pdev->dev.parent);
-	/* Register sysfs hooks */
-	err = sysfs_create_group(&pdev->dev.kobj, &jd9930_group);
-	if (err)
-		goto exit_free;
-
-	data->hwmon_dev = hwmon_device_register(&pdev->dev);
-	if (IS_ERR(data->hwmon_dev)) {
-		err = PTR_ERR(data->hwmon_dev);
-		goto exit_remove_files;
-	}
-
 	platform_set_drvdata(pdev, data);
+	pdev->dev.of_node = pdev->dev.parent->of_node;
 
-	printk("jd9930_sensor_probe success\n");
-	return 0;
-
-exit_remove_files:
-	sysfs_remove_group(&pdev->dev.kobj, &jd9930_group);
-exit_free:
-	kfree(data);
-exit:
-	return err;
-}
-
-static int jd9930_sensor_remove(struct platform_device *pdev)
-{
-	struct jd9930_data *data = platform_get_drvdata(pdev);
-
-	hwmon_device_unregister(data->hwmon_dev);
-	sysfs_remove_group(&pdev->dev.kobj, &jd9930_group);
-
-	kfree(data);
-	return 0;
+	data->hwmon_dev = devm_hwmon_device_register_with_info(&pdev->dev,
+							       "jd9930",
+							       data,
+							       &jd9930_chip_info, NULL);
+	return PTR_ERR_OR_ZERO(data->hwmon_dev);
 }
 
 module_platform_driver(jd9930_sensor_driver);
