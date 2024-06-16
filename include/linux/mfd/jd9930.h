@@ -232,7 +232,6 @@ int jd9930_chip_power(struct jd9930 *jd9930,int iIsON);
 int jd9930_reg_write(struct jd9930 *jd9930,int reg_num, const unsigned int reg_val);
 int jd9930_reg_read(struct jd9930 *jd9930,int reg_num, unsigned int *reg_val);
 
-int jd9930_get_temperature(struct jd9930 *jd9930,int *O_piTemperature);
 int jd9930_get_vcom(struct jd9930 *jd9930,int *O_piVCOMmV);
 int jd9930_set_vcom(struct jd9930 *jd9930,int iVCOMmV,int iIsWriteToFlash);
 //int jd9930_restore_vcom(struct jd9930 *jd9930);
