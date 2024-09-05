@@ -223,6 +223,25 @@
 		output-low;
 		line-name = "blc_l";
 	};
+
+	unknown-high {
+		gpio-hog;
+		gpios = <15 GPIO_ACTIVE_HIGH /* maybe dsi chip reset? */
+			 21 GPIO_ACTIVE_HIGH
+			 26 GPIO_ACTIVE_HIGH>;
+		output-high;
+		line-name = "unknown-high";
+	};
+
+	unknown-low {
+		gpio-hog;
+		gpios = <18 GPIO_ACTIVE_HIGH
+			 19 GPIO_ACTIVE_HIGH
+			 20 GPIO_ACTIVE_HIGH
+			 22 GPIO_ACTIVE_HIGH>;
+		output-low;
+		line-name = "unknown-low";
+	};
 };
 
 &i2c1 {
@@ -561,6 +580,14 @@
 			OMAP4_IOPAD(0x1b4, PIN_OUTPUT | MUX_MODE3) /* gpio14 */
 			OMAP4_IOPAD(0x1b8, PIN_OUTPUT | MUX_MODE3) /* gpio16 */
 			OMAP4_IOPAD(0x1ba, PIN_OUTPUT | MUX_MODE3) /* gpio17 */
+
+			OMAP4_IOPAD(0x1b6, PIN_OUTPUT | MUX_MODE3) /* gpio15 */
+			OMAP4_IOPAD(0x1bc, PIN_OUTPUT | MUX_MODE3) /* gpio18 */
+			OMAP4_IOPAD(0x1be, PIN_OUTPUT | MUX_MODE3) /* gpio19 */
+			OMAP4_IOPAD(0x1c0, PIN_OUTPUT | MUX_MODE3) /* gpio20 */
+			OMAP4_IOPAD(0x1c2, PIN_OUTPUT | MUX_MODE3) /* gpio21 */
+			OMAP4_IOPAD(0x1c4, PIN_OUTPUT | MUX_MODE3) /* gpio22 */
+			OMAP4_IOPAD(0x1cc, PIN_OUTPUT | MUX_MODE3) /* gpio26 */
 		>;
 	};
 
