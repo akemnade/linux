@@ -365,10 +365,18 @@
 
 	clock-frequency = <200000>;
 
+	/* is sometimes not available, research needed */
+	gpio_head: gpio@20 {
+		compatible = "ti,tca6408";
+		reg = <0x20>;
+		gpio-controller;
+		#gpio-cells = <2>;
+	};
+
 	/*
-	 * Some GPIO expander seems to exist at 0x20 controlling at
-	 * least write enable of the EEPROM.
-         */
+	 * camera chip at 0x3c, available if <&gpio_head 1> high
+	 * and <&gpio_head 5> low
+	 */
 
 	eeprom@50 {
 		compatible = "rohm,br24t08", "atmel,24c08";
