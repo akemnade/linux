@@ -270,6 +270,13 @@
 			interrupts = <0>;
 		};
 
+		bci {
+			compatible = "ti,twl6032-charger";
+			interrupts = <2>, <5>;
+			io-channels = <&gpadc 10>;
+			io-channel-names = "vusb";
+		};
+
 		ldo2: regulator-ldo2 {
 			compatible = "ti,twl6032-ldo2";
 			regulator-min-microvolt = <1000000>;
@@ -344,7 +351,7 @@
 			#pwm-cells = <2>;
 		};
 
-		gpadc {
+		gpadc: gpadc {
 			compatible = "ti,twl6032-gpadc";
 			interrupts = <3>;
 			#io-channel-cells = <1>;
