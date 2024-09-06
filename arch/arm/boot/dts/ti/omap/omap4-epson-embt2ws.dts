@@ -17,6 +17,14 @@
 		reg = <0x80000000 0x40000000>; /* 1024M */
 	};
 
+	battery: battery {
+		compatible = "simple-battery";
+		device-chemistry = "lithium-ion";
+		charge-full-design-microamp-hours = <3000000>;
+		voltage-max-design-microvolt = <4200000>;
+		voltage-min-design-microvolt = <3300000>;
+	};
+
 	backlight-left {
 		compatible = "pwm-backlight";
 		pwms = <&twl_pwm 1 7812500>;
@@ -80,6 +88,13 @@
 			linux,code = <SW_ROTATE_LOCK>; /* SW_TOUCHPAD_LOCK */
 			linux,input-type = <EV_SW>;
 		};
+	};
+
+	fuel-gauge {
+		compatible = "adc-battery";
+		io-channels = <&gpadc 14>, <&gpadc 1>;
+		io-channel-names = "voltage", "temperature";
+		monitored-battery = <&battery>;
 	};
 
 	lb_v50: lb-v50 {
