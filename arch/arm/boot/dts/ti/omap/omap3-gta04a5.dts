@@ -44,6 +44,10 @@
 	};
 };
 
+&twl_gpio {
+	gpio-line-names = "", "", "", "", "", "", "MODEM_RESET_OUT";
+};
+
 &omap3_pmx_core {
 	bt_pins: bt-pins {
 		pinctrl-single,pins = <
