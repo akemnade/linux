@@ -32,6 +32,7 @@
 		 * here. Maybe 900000 is just the limit of the vendor charger?
 		 */
 		constant-charge-current-max-microamp = <900000>;
+		charge-term-current-microamp = <200000>;
 	};
 
 	backlight-left {
