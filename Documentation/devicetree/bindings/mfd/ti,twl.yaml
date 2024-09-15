@@ -105,6 +105,11 @@ allOf:
             regulator-initial-mode: false
 
       properties:
+        bci:
+          type: object
+          properties:
+            compatible:
+              const: ti,twl6030-charger
         gpadc:
           type: object
           properties:
@@ -136,6 +141,13 @@ allOf:
             regulator-initial-mode: false
 
       properties:
+        bci:
+          type: object
+          properties:
+            compatible:
+              items:
+                - const: ti,twl6032-charger
+                - const: ti,twl6030-charger
         gpadc:
           type: object
           properties:
@@ -221,6 +233,12 @@ examples:
         interrupt-parent = <&gic>;
         interrupt-controller;
         #interrupt-cells = <1>;
+
+        bci {
+          compatible = "ti,twl6030-charger";
+          interrupts = <2>, <5>;
+          monitored-battery = <&bat>;
+        };
 
         gpadc {
           compatible = "ti,twl6030-gpadc";
