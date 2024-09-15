@@ -1,0 +1,62 @@
+# SPDX-License-Identifier: GPL-2.0
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/power/supply/ti,twl6030-charger.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: TWL6030/32 BCI (Battery Charger Interface)
+
+description: |
+  The battery charger needs to be configured to do any charging besides of
+  precharging. The GPADC in the PMIC has to be used to get the related
+  voltages.
+
+maintainers:
+  - Andreas Kemnade <andreas@kemnade.info>
+
+allOf:
+  - $ref: power-supply.yaml#
+
+properties:
+  compatible:
+    oneOf:
+      - items:
+          - const: "ti,twl6030-charger"
+      - items:
+          - const: "ti,twl6032-charger"
+          - const: "ti,twl6030-charger"
+
+  interrupts:
+    minItems: 2
+    maxItems: 2
+
+  io-channels:
+    items:
+      - description: VBUS Voltage Channel
+
+  io-channel-names:
+    items:
+      - const: vusb
+
+  monitored-battery:
+    description:
+      phandle of battery characteristics devicetree node
+
+required:
+  - compatible
+  - interrupts
+  - monitored-battery
+
+additionalProperties: false
+
+examples:
+  - |
+    pmic {
+      bci {
+        compatible = "ti,twl6032-charger", "ti,twl6030-charger";
+        interrupts = <2>, <5>;
+        io-channels = <&gpadc 10>;
+        io-channel-names = "vusb";
+        monitored-battery = <&bat>;
+      };
+    };
