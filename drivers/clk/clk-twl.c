@@ -11,10 +11,22 @@
 #include <linux/platform_device.h>
 #include <linux/slab.h>
 
-#define VREG_STATE              2
+#define VREG_STATE		2
+#define VREG_GRP		0
 #define TWL6030_CFG_STATE_OFF   0x00
 #define TWL6030_CFG_STATE_ON    0x01
 #define TWL6030_CFG_STATE_MASK  0x03
+#define TWL6030_CFG_STATE_GRP_SHIFT	5
+#define TWL6030_CFG_STATE_APP_SHIFT	2
+#define TWL6030_CFG_STATE_MASK		0x03
+#define TWL6030_CFG_STATE_APP_MASK	(0x03 << TWL6030_CFG_STATE_APP_SHIFT)
+#define TWL6030_CFG_STATE_APP(v)	(((v) & TWL6030_CFG_STATE_APP_MASK) >>\
+						TWL6030_CFG_STATE_APP_SHIFT)
+#define P1_GRP BIT(0) /* processor power group */
+#define ALL_GRP (BIT(0) | BIT(1) | BIT(2))
+
+#define DRIVER_DATA_TWL6030 0
+#define DRIVER_DATA_TWL6032 1
 
 struct twl_clock_info {
 	struct device *dev;
@@ -51,6 +63,49 @@ static unsigned long twl_clks_recalc_rate(struct clk_hw *hw,
 					  unsigned long parent_rate)
 {
 	return 32768;
+}
+
+static int twl6030_clks_prepare(struct clk_hw *hw)
+{
+	struct twl_clock_info *cinfo = to_twl_clks_info(hw);
+	int grp;
+
+	grp = twlclk_read(cinfo, TWL_MODULE_PM_RECEIVER, VREG_GRP);
+	if (grp < 0)
+		return grp;
+
+	return twlclk_write(cinfo, TWL_MODULE_PM_RECEIVER, VREG_STATE,
+			    grp << TWL6030_CFG_STATE_GRP_SHIFT |
+			    TWL6030_CFG_STATE_ON);
+}
+
+static void twl6030_clks_unprepare(struct clk_hw *hw)
+{
+	struct twl_clock_info *cinfo = to_twl_clks_info(hw);
+
+	twlclk_write(cinfo, TWL_MODULE_PM_RECEIVER, VREG_STATE,
+		     ALL_GRP << TWL6030_CFG_STATE_GRP_SHIFT |
+		     TWL6030_CFG_STATE_OFF);
+}
+
+static int twl6030_clks_is_prepared(struct clk_hw *hw)
+{
+	struct twl_clock_info *cinfo = to_twl_clks_info(hw);
+	int val;
+
+	val = twlclk_read(cinfo, TWL_MODULE_PM_RECEIVER, VREG_GRP);
+	if (val < 0)
+		return val;
+
+	if (!(val & P1_GRP))
+		return 0;
+
+	val = twlclk_read(cinfo, TWL_MODULE_PM_RECEIVER, VREG_STATE);
+	if (val < 0)
+		return val;
+
+	val = TWL6030_CFG_STATE_APP(val);
+	return val == TWL6030_CFG_STATE_ON;
 }
 
 static int twl6032_clks_prepare(struct clk_hw *hw)
@@ -93,6 +148,13 @@ static int twl6032_clks_is_prepared(struct clk_hw *hw)
 	return val == TWL6030_CFG_STATE_ON;
 }
 
+static const struct clk_ops twl6030_clks_ops = {
+	.prepare	= twl6030_clks_prepare,
+	.unprepare	= twl6030_clks_unprepare,
+	.is_prepared	= twl6030_clks_is_prepared,
+	.recalc_rate	= twl_clks_recalc_rate,
+};
+
 static const struct clk_ops twl6032_clks_ops = {
 	.prepare	= twl6032_clks_prepare,
 	.unprepare	= twl6032_clks_unprepare,
@@ -103,6 +165,28 @@ static const struct clk_ops twl6032_clks_ops = {
 struct twl_clks_data {
 	struct clk_init_data init;
 	u8 base;
+};
+
+static const struct twl_clks_data twl6030_clks[] = {
+	{
+		.init = {
+			.name = "clk32kg",
+			.ops = &twl6030_clks_ops,
+			.flags = CLK_IGNORE_UNUSED,
+		},
+		.base = 0x8C,
+	},
+	{
+		.init = {
+			.name = "clk32kaudio",
+			.ops = &twl6030_clks_ops,
+			.flags = CLK_IGNORE_UNUSED,
+		},
+		.base = 0x8F,
+	},
+	{
+		/* sentinel */
+	}
 };
 
 static const struct twl_clks_data twl6032_clks[] = {
@@ -127,6 +211,11 @@ static const struct twl_clks_data twl6032_clks[] = {
 	}
 };
 
+static const struct twl_clks_data *const twl_clks[] = {
+	[DRIVER_DATA_TWL6030] = twl6030_clks,
+	[DRIVER_DATA_TWL6032] = twl6032_clks,
+};
+
 static int twl_clks_probe(struct platform_device *pdev)
 {
 	struct clk_hw_onecell_data *clk_data;
@@ -137,7 +226,7 @@ static int twl_clks_probe(struct platform_device *pdev)
 	int i;
 	int count;
 
-	hw_data = twl6032_clks;
+	hw_data = twl_clks[platform_get_device_id(pdev)->driver_data];
 	for (count = 0; hw_data[count].init.name; count++)
 		;
 
@@ -176,7 +265,11 @@ static int twl_clks_probe(struct platform_device *pdev)
 
 static const struct platform_device_id twl_clks_id[] = {
 	{
+		.name = "twl6030-clk",
+		.driver_data = DRIVER_DATA_TWL6030,
+	}, {
 		.name = "twl6032-clk",
+		.driver_data = DRIVER_DATA_TWL6032,
 	}, {
 		/* sentinel */
 	}
