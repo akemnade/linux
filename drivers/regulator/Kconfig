@@ -481,6 +481,10 @@ config REGULATOR_ISL6271A
 	help
 	  This driver supports ISL6271A voltage regulator chip.
 
+config REGULATOR_JD9930
+        tristate "Fiti power JD9930 Regulator Support"
+        depends on MFD_JD9930
+
 config REGULATOR_LM363X
 	tristate "TI LM363X voltage regulators"
 	depends on MFD_TI_LMU
@@ -1555,6 +1559,17 @@ config REGULATOR_TPS65090
 	help
 	  This driver provides support for the voltage regulators on the
 	  TI TPS65090 PMIC.
+
+config REGULATOR_TPS6518X
+	tristate "TI TPS6518x Power regulator"
+	depends on MFD_TPS6518X
+	help
+	  This driver provides support for the voltage regulators on the
+	  TI TPS6518X E-Ink PMIC.
+
+config REGULATOR_SY7636
+	tristate "Silergy SY7636 Regulator Support"
+	depends on MFD_SY7636
 
 config REGULATOR_TPS65132
 	tristate "TI TPS65132 Dual Output Power regulators"
