@@ -140,10 +140,11 @@ struct dp83822_private {
 	u16 fx_sd_enable;
 	u8 cfg_dac_minus;
 	u8 cfg_dac_plus;
+	struct ethtool_wolinfo wol;
 };
 
-static int dp83822_set_wol(struct phy_device *phydev,
-			   struct ethtool_wolinfo *wol)
+static int dp83822_config_wol(struct phy_device *phydev,
+			      struct ethtool_wolinfo *wol)
 {
 	struct net_device *ndev = phydev->attached_dev;
 	u16 value;
@@ -197,8 +198,23 @@ static int dp83822_set_wol(struct phy_device *phydev,
 				     MII_DP83822_WOL_CFG, value);
 	} else {
 		return phy_clear_bits_mmd(phydev, DP83822_DEVADDR,
-					  MII_DP83822_WOL_CFG, DP83822_WOL_EN);
+					  MII_DP83822_WOL_CFG,
+					  DP83822_WOL_EN |
+					  DP83822_WOL_MAGIC_EN |
+					  DP83822_WOL_SECURE_ON);
 	}
+}
+
+static int dp83822_set_wol(struct phy_device *phydev,
+			   struct ethtool_wolinfo *wol)
+{
+	struct dp83822_private *dp83822 = phydev->priv;
+	int ret;
+
+	ret = dp83822_config_wol(phydev, wol);
+	if (!ret)
+		memcpy(&dp83822->wol, wol, sizeof(*wol));
+	return ret;
 }
 
 static void dp83822_get_wol(struct phy_device *phydev,
@@ -255,8 +271,7 @@ static int dp83822_config_intr(struct phy_device *phydev)
 				DP83822_ENERGY_DET_INT_EN |
 				DP83822_LINK_QUAL_INT_EN);
 
-		/* Private data pointer is NULL on DP83825 */
-		if (!dp83822 || !dp83822->fx_enabled)
+		if (!dp83822->fx_enabled)
 			misr_status |= DP83822_ANEG_COMPLETE_INT_EN |
 				       DP83822_DUP_MODE_CHANGE_INT_EN |
 				       DP83822_SPEED_CHANGED_INT_EN;
@@ -276,8 +291,7 @@ static int dp83822_config_intr(struct phy_device *phydev)
 				DP83822_PAGE_RX_INT_EN |
 				DP83822_EEE_ERROR_CHANGE_INT_EN);
 
-		/* Private data pointer is NULL on DP83825 */
-		if (!dp83822 || !dp83822->fx_enabled)
+		if (!dp83822->fx_enabled)
 			misr_status |= DP83822_ANEG_ERR_INT_EN |
 				       DP83822_WOL_PKT_INT_EN;
 
@@ -344,13 +358,6 @@ static irqreturn_t dp83822_handle_interrupt(struct phy_device *phydev)
 	phy_trigger_machine(phydev);
 
 	return IRQ_HANDLED;
-}
-
-static int dp8382x_disable_wol(struct phy_device *phydev)
-{
-	return phy_clear_bits_mmd(phydev, DP83822_DEVADDR, MII_DP83822_WOL_CFG,
-				  DP83822_WOL_EN | DP83822_WOL_MAGIC_EN |
-				  DP83822_WOL_SECURE_ON);
 }
 
 static int dp83822_read_status(struct phy_device *phydev)
@@ -496,7 +503,7 @@ static int dp83822_config_init(struct phy_device *phydev)
 				return err;
 		}
 	}
-	return dp8382x_disable_wol(phydev);
+	return dp83822_config_wol(phydev, &dp83822->wol);
 }
 
 static int dp83826_config_rmii_mode(struct phy_device *phydev)
@@ -575,12 +582,14 @@ static int dp83826_config_init(struct phy_device *phydev)
 			return ret;
 	}
 
-	return dp8382x_disable_wol(phydev);
+	return dp83822_config_wol(phydev, &dp83822->wol);
 }
 
 static int dp8382x_config_init(struct phy_device *phydev)
 {
-	return dp8382x_disable_wol(phydev);
+	struct dp83822_private *dp83822 = phydev->priv;
+
+	return dp83822_config_wol(phydev, &dp83822->wol);
 }
 
 static int dp83822_phy_reset(struct phy_device *phydev)
@@ -680,10 +689,9 @@ static int dp83822_read_straps(struct phy_device *phydev)
 	return 0;
 }
 
-static int dp83822_probe(struct phy_device *phydev)
+static int dp8382x_probe(struct phy_device *phydev)
 {
 	struct dp83822_private *dp83822;
-	int ret;
 
 	dp83822 = devm_kzalloc(&phydev->mdio.dev, sizeof(*dp83822),
 			       GFP_KERNEL);
@@ -691,6 +699,20 @@ static int dp83822_probe(struct phy_device *phydev)
 		return -ENOMEM;
 
 	phydev->priv = dp83822;
+
+	return 0;
+}
+
+static int dp83822_probe(struct phy_device *phydev)
+{
+	struct dp83822_private *dp83822;
+	int ret;
+
+	ret = dp8382x_probe(phydev);
+	if (ret)
+		return ret;
+
+	dp83822 = phydev->priv;
 
 	ret = dp83822_read_straps(phydev);
 	if (ret)
@@ -706,14 +728,11 @@ static int dp83822_probe(struct phy_device *phydev)
 
 static int dp83826_probe(struct phy_device *phydev)
 {
-	struct dp83822_private *dp83822;
+	int ret;
 
-	dp83822 = devm_kzalloc(&phydev->mdio.dev, sizeof(*dp83822),
-			       GFP_KERNEL);
-	if (!dp83822)
-		return -ENOMEM;
-
-	phydev->priv = dp83822;
+	ret = dp8382x_probe(phydev);
+	if (ret)
+		return ret;
 
 	dp83826_of_init(phydev);
 
@@ -784,6 +803,7 @@ static int dp83822_resume(struct phy_device *phydev)
 		PHY_ID_MATCH_MODEL(_id),			\
 		.name		= (_name),			\
 		/* PHY_BASIC_FEATURES */			\
+		.probe          = dp8382x_probe,		\
 		.soft_reset	= dp83822_phy_reset,		\
 		.config_init	= dp8382x_config_init,		\
 		.get_wol = dp83822_get_wol,			\

@@ -6,7 +6,7 @@
 //!
 //! C headers: [`include/linux/phy.h`](srctree/include/linux/phy.h).
 
-use crate::{bindings, error::*, prelude::*, str::CStr, types::Opaque};
+use crate::{error::*, prelude::*, types::Opaque};
 
 use core::marker::PhantomData;
 
@@ -491,7 +491,7 @@ impl<T: Driver> Adapter<T> {
 pub struct DriverVTable(Opaque<bindings::phy_driver>);
 
 // SAFETY: `DriverVTable` doesn't expose any &self method to access internal data, so it's safe to
-// share `&DriverVTable` across execution context boundries.
+// share `&DriverVTable` across execution context boundaries.
 unsafe impl Sync for DriverVTable {}
 
 /// Creates a [`DriverVTable`] instance from [`Driver`].

@@ -6,17 +6,17 @@
 #include "buckets_types.h"
 #include "extents_types.h"
 
-enum bkey_invalid_flags;
+enum bch_validate_flags;
 
-int bch2_stripe_invalid(struct bch_fs *, struct bkey_s_c,
-			enum bkey_invalid_flags, struct printbuf *);
+int bch2_stripe_validate(struct bch_fs *, struct bkey_s_c, enum bch_validate_flags);
 void bch2_stripe_to_text(struct printbuf *, struct bch_fs *,
 			 struct bkey_s_c);
 int bch2_trigger_stripe(struct btree_trans *, enum btree_id, unsigned,
-			struct bkey_s_c, struct bkey_s, unsigned);
+			struct bkey_s_c, struct bkey_s,
+			enum btree_iter_update_trigger_flags);
 
 #define bch2_bkey_ops_stripe ((struct bkey_ops) {	\
-	.key_invalid	= bch2_stripe_invalid,		\
+	.key_validate	= bch2_stripe_validate,		\
 	.val_to_text	= bch2_stripe_to_text,		\
 	.swab		= bch2_ptr_swab,		\
 	.trigger	= bch2_trigger_stripe,		\
@@ -97,7 +97,9 @@ static inline bool __bch2_ptr_matches_stripe(const struct bch_extent_ptr *stripe
 					     const struct bch_extent_ptr *data_ptr,
 					     unsigned sectors)
 {
-	return  data_ptr->dev    == stripe_ptr->dev &&
+	return  (data_ptr->dev    == stripe_ptr->dev ||
+		 data_ptr->dev    == BCH_SB_MEMBER_INVALID ||
+		 stripe_ptr->dev  == BCH_SB_MEMBER_INVALID) &&
 		data_ptr->gen    == stripe_ptr->gen &&
 		data_ptr->offset >= stripe_ptr->offset &&
 		data_ptr->offset  < stripe_ptr->offset + sectors;
