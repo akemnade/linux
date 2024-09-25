@@ -1,0 +1,205 @@
+// SPDX-License-Identifier: (GPL-2.0)
+/*
+ * Device tree for the Kobo Clara 2E rev B ebook reader
+ *
+ * Name on mainboard is: 37NB-E60K2M+4B0
+ * Serials start with: E60K2M (a number also seen in
+ * vendor kernel sources)
+ *
+ * Copyright 2024 Andreas Kemnade
+ */
+
+/dts-v1/;
+
+#include "imx6sll-kobo-clara2e-common.dtsi"
+
+/ {
+	model = "Kobo Clara 2E";
+	compatible = "kobo,clara2e-b", "fsl,imx6sll";
+
+	thermal-zones {
+		epd-thermal {
+			polling-delay = <10000>;
+			polling-delay-passive = <10000>;
+			thermal-sensors = <&jd9930>;
+			trips {
+			};
+		};
+	};
+};
+
+&epdc {
+	V3P3-supply = <&V3P3_reg>;
+	VCOM-supply = <&VCOM_reg>;
+	DISPLAY-supply = <&DISPLAY_reg>;
+	epd-thermal-zone = "epd-thermal";
+};
+
+&i2c2 {
+	jd9930: pmic@18 {
+		compatible = "fiti,jd9930";
+		reg = <0x18>;
+		pinctrl-names = "default", "sleep";
+		pinctrl-0 = <&pinctrl_jd9930_gpio>;
+		pinctrl-1 = <&pinctrl_jd9930_gpio_sleep>;
+		#thermal-sensor-cells = <0>;
+
+		/*
+		 * power on delay for JD9930
+		 * 0x0 : 0ms
+		 * 0x1 : 1ms
+		 * 0x2 : 2ms
+		 * 0x3 : 4ms
+		 * chip default is 0ms .
+		 */
+		on_delay1 = <0x1>;
+		on_delay2 = <0x1>;
+		on_delay3 = <0x1>;
+		on_delay4 = <0x1>;
+
+		/*
+		 * VGH Extension Time (5bits) (VGH_EXT)
+		 * 0x0 : 0ms
+		 * 0x1 : 50ms
+		 * 0x2 : 100ms
+		 * ...
+		 * 0x15 : 1050ms
+		 * chip default is 0ms .
+		 */
+		vgh_ext = <0x0>;
+
+		/*
+		 * VGL Extension Time (7bits)(VGL_EXT)
+		 * 0x0 : 0ms
+		 * 0x1 : 50ms
+		 * 0x2 : 100ms
+		 * ...
+		 * 0x7e : 6300ms
+		 * chip default is 0ms .
+		 */
+		vgl_ext = <0xa>; // 500ms
+
+		/*
+		 * VGHNM Extension Time (7bits)(VGHNM_EXT)
+		 * 0x0 : 0ms
+		 * 0x1 : 50ms
+		 * 0x2 : 100ms
+		 * ...
+		 * 0x7e : 6300ms
+		 * chip default is 0ms .
+		 */
+		vghnm_ext = <0x20>; // 1600ms
+
+		/*
+		 * VGHNM Output Voltage (6bits)(VGHNM)
+		 * 0x0 : 5%
+		 * 0x1 : 6%
+		 * 0x2 : 7%
+		 * 0x3 : 8%
+		 * ...
+		 * 0x2d : 50%
+		 * chip default is 5% .
+		 */
+		vghnm = <0x7>; // 25.117*12% := 3V
+
+		/*
+		 * Disable Delay Time (4bits)(DISA_DELAY)
+		 * 0x0 : 0ms
+		 * 0x1 : 5ms
+		 * 0x2 : 10ms
+		 * 0x3 : 15ms
+		 * ...
+		 * 0xe : 70ms
+		 * 0xf : 75ms
+		 * chip default is 0ms .
+		 */
+		disa_delay = <0x1>;
+
+		/*
+		 * XON Delay Time (5bits)(XON_DELAY)
+		 * 0x0 : 0ms
+		 * 0x1 : 10ms
+		 * 0x2 : 20ms
+		 * 0x3 : 30ms
+		 * ...
+		 * 0x1e : 300ms
+		 * 0x1f : 310ms
+		 * chip default is 0ms .
+		 */
+		xon_delay = <0xf>; // 150ms
+
+		/*
+		 * XON LEN Time (8bits)(XON_LEN)
+		 * 0x0 : 0ms
+		 * 0x1 : 10ms
+		 * 0x2 : 20ms
+		 * 0x3 : 30ms
+		 * ...
+		 * 0x1e : 300ms
+		 * ...
+		 * 0xfa : 2500ms
+		 * chip default is 0ms .
+		 */
+		xon_len = <0x96>; // 1500ms .
+
+		pwrgood-gpios = <&gpio2 7 0>;
+		//gpio_pmic_xon_ctrl = <&gpio2 11 GPIO_ACTIVE_HIGH>;
+		ts_en-gpios = <&gpio2 9 GPIO_ACTIVE_HIGH>;
+		powerup-gpios = <&gpio2 8 GPIO_ACTIVE_HIGH>;
+
+		/* gpio_pmic_v3p3 = <&gpio2 14 GPIO_ACTIVE_HIGH>; */
+		pwrall-gpios = <&gpio2 14 GPIO_ACTIVE_HIGH>;
+		regulators {
+			DISPLAY_reg: DISPLAY {
+				regulator-name = "DISPLAY";
+			};
+
+			VCOM_reg: VCOM {
+				regulator-name = "VCOM";
+				/* 2's-compliment, -4325000 */
+				regulator-min-microvolt = <2350000>;
+				/* 2's-compliment, -500000 */
+				regulator-max-microvolt = <2350000>;
+			};
+
+			VPOSNEG_reg: VPOSNEG {
+				regulator-name = "VPOSNEG";
+				regulator-min-microvolt = <15060000>;
+				regulator-max-microvolt = <15060000>;
+			};
+
+			V3P3_reg: V3P3 {
+				regulator-name = "V3P3";
+			};
+		};
+	};
+};
+
+&iomuxc {
+	pinctrl_jd9930_gpio: jd9930-gpiogrp {
+		fsl,pins = <
+			MX6SLL_PAD_EPDC_PWR_WAKE__GPIO2_IO14               0x40010059 /* PWRALL */
+			MX6SLL_PAD_EPDC_VCOM0__GPIO2_IO03                 0x40013059 /* NC */
+			MX6SLL_PAD_EPDC_PWR_CTRL0__GPIO2_IO07                   0x17059 /* EP_PG */
+			MX6SLL_PAD_EPDC_PWR_CTRL1__GPIO2_IO08           0x40010059 /* EP_EN */
+			MX6SLL_PAD_EPDC_PWR_CTRL2__GPIO2_IO09          0x40010059 /* EP_TS */
+			MX6SLL_PAD_EPDC_PWR_STAT__GPIO2_IO13            0x13059 /* NC */
+			/* conflicts with usb ?! */
+//			MX6SLL_PAD_EPDC_PWR_COM__GPIO2_IO11            0x40017059 /* XON */
+
+		>;
+	};
+
+	pinctrl_jd9930_gpio_sleep: jd9930-gpio-sleepgrp {
+		fsl,pins = <
+			MX6SLL_PAD_EPDC_PWR_WAKE__GPIO2_IO14            0x13059 /* PWRALL */
+			MX6SLL_PAD_EPDC_VCOM0__GPIO2_IO03                       0x13059 /* NC */
+			MX6SLL_PAD_EPDC_PWR_CTRL0__GPIO2_IO07           0x10059 /* EP_PG */
+			MX6SLL_PAD_EPDC_PWR_CTRL1__GPIO2_IO08           0x13059 /* EP_EN */
+			MX6SLL_PAD_EPDC_PWR_CTRL2__GPIO2_IO09           0x13059 /* EP_TS */
+			MX6SLL_PAD_EPDC_PWR_STAT__GPIO2_IO13            0x13059 /* NC */
+			/* conflicts with usb ?! */
+//			MX6SLL_PAD_EPDC_PWR_COM__GPIO2_IO11          0x40013059 /* XON */
+		>;
+	};
+};
