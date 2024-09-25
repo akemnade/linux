@@ -573,12 +573,15 @@ struct power_supply *devm_power_supply_get_by_phandle(struct device *dev,
 EXPORT_SYMBOL_GPL(devm_power_supply_get_by_phandle);
 #endif /* CONFIG_OF */
 
-int power_supply_get_battery_info(struct power_supply *psy,
+#define POWER_SUPPLY_TEMP_DGRD_MAX_VALUES 100
+int power_supply_dev_get_battery_info(struct device *dev,
+				  struct fwnode_handle *node,
 				  struct power_supply_battery_info **info_out)
 {
 	struct power_supply_resistance_temp_table *resist_table;
+	u32 *dgrd_table;
 	struct power_supply_battery_info *info;
-	struct device_node *battery_np = NULL;
+	struct device_node *battery_np;
 	struct fwnode_reference_args args;
 	struct fwnode_handle *fwnode = NULL;
 	const char *value;
@@ -586,23 +589,23 @@ int power_supply_get_battery_info(struct power_supply *psy,
 	const __be32 *list;
 	u32 min_max[2];
 
-	if (psy->of_node) {
-		battery_np = of_parse_phandle(psy->of_node, "monitored-battery", 0);
-		if (!battery_np)
-			return -ENODEV;
+	if (!node)
+		node = dev_fwnode(dev);
 
-		fwnode = fwnode_handle_get(of_fwnode_handle(battery_np));
-	} else if (psy->dev.parent) {
-		err = fwnode_property_get_reference_args(
-					dev_fwnode(psy->dev.parent),
-					"monitored-battery", NULL, 0, 0, &args);
-		if (err)
-			return err;
+	if (!node)
+		dev_err(dev, "no charger node\n");
 
-		fwnode = args.fwnode;
+	fwnode = fwnode_find_reference(node, "monitored-battery", 0);
+	if (IS_ERR(fwnode)) {
+		dev_err(dev, "No battery node found\n");
+		return PTR_ERR(fwnode);
 	}
 
 	if (!fwnode)
+		return -ENOENT;
+
+	battery_np = to_of_node(fwnode);
+	if (!battery_np)
 		return -ENOENT;
 
 	err = fwnode_property_read_string(fwnode, "compatible", &value);
@@ -611,7 +614,7 @@ int power_supply_get_battery_info(struct power_supply *psy,
 
 
 	/* Try static batteries first */
-	err = samsung_sdi_battery_get_info(&psy->dev, value, &info);
+	err = samsung_sdi_battery_get_info(dev, value, &info);
 	if (!err)
 		goto out_ret_pointer;
 	else if (err == -ENODEV)
@@ -626,7 +629,7 @@ int power_supply_get_battery_info(struct power_supply *psy,
 		goto out_put_node;
 	}
 
-	info = devm_kzalloc(&psy->dev, sizeof(*info), GFP_KERNEL);
+	info = devm_kzalloc(dev, sizeof(*info), GFP_KERNEL);
 	if (!info) {
 		err = -ENOMEM;
 		goto out_put_node;
@@ -687,9 +690,11 @@ int power_supply_get_battery_info(struct power_supply *psy,
 		else if (!strcmp("lithium-ion-manganese-oxide", value))
 			info->technology = POWER_SUPPLY_TECHNOLOGY_LiMn;
 		else
-			dev_warn(&psy->dev, "%s unknown battery type\n", value);
+			dev_warn(dev, "%s unknown battery type\n", value);
 	}
 
+	fwnode_property_read_u32(fwnode, "degrade-cycle-microamp-hours",
+			     &info->degrade_cycle_uah);
 	fwnode_property_read_u32(fwnode, "energy-full-design-microwatt-hours",
 			     &info->energy_full_design_uwh);
 	fwnode_property_read_u32(fwnode, "charge-full-design-microamp-hours",
@@ -741,12 +746,110 @@ int power_supply_get_battery_info(struct power_supply *psy,
 	if (!battery_np)
 		goto out_ret_pointer;
 
+	len = of_property_count_u32_elems(battery_np, "temp-degrade-table");
+	if (len == -EINVAL)
+		len = 0;
+	if (len < 0) {
+		err = len;
+		goto out_put_node;
+	}
+	/* table should consist of value pairs - maximum of 100 pairs */
+	if (len % 3 || len / 3 > POWER_SUPPLY_TEMP_DGRD_MAX_VALUES) {
+		dev_warn(dev,
+			 "bad amount of temperature-capacity degrade values\n");
+		err = -EINVAL;
+		goto out_put_node;
+	}
+	info->temp_dgrd_values = len / 3;
+	if (info->temp_dgrd_values) {
+		info->temp_dgrd = devm_kcalloc(dev,
+					       info->temp_dgrd_values,
+					       sizeof(*info->temp_dgrd),
+					       GFP_KERNEL);
+		if (!info->temp_dgrd) {
+			err = -ENOMEM;
+			goto out_put_node;
+		}
+		dgrd_table = kcalloc(len, sizeof(*dgrd_table), GFP_KERNEL);
+		if (!dgrd_table) {
+			err = -ENOMEM;
+			goto out_put_node;
+		}
+		err = of_property_read_u32_array(battery_np,
+						 "temp-degrade-table",
+						 dgrd_table, len);
+		if (err) {
+			dev_warn(dev,
+				 "bad temperature - capacity degrade values %d\n", err);
+			kfree(dgrd_table);
+			info->temp_dgrd_values = 0;
+			goto out_put_node;
+		}
+		for (index = 0; index < info->temp_dgrd_values; index++) {
+			struct power_supply_temp_degr *d = &info->temp_dgrd[index];
+
+			d->temp_degrade_1C = dgrd_table[index * 3];
+			d->degrade_at_set = dgrd_table[index * 3 + 1];
+			d->temp_set_point = dgrd_table[index * 3 + 2];
+		}
+		kfree(dgrd_table);
+	}
+
+	len = of_property_count_u32_elems(battery_np, "temp-degrade-table");
+	if (len == -EINVAL)
+		len = 0;
+	if (len < 0) {
+		err = len;
+		goto out_put_node;
+	}
+	/* table should consist of value pairs - maximum of 100 pairs */
+	if (len % 3 || len / 3 > POWER_SUPPLY_TEMP_DGRD_MAX_VALUES) {
+		dev_warn(dev,
+			 "bad amount of temperature-capacity degrade values\n");
+		err = -EINVAL;
+		goto out_put_node;
+	}
+	info->temp_dgrd_values = len / 3;
+	if (info->temp_dgrd_values) {
+		info->temp_dgrd = devm_kcalloc(dev,
+					       info->temp_dgrd_values,
+					       sizeof(*info->temp_dgrd),
+					       GFP_KERNEL);
+		if (!info->temp_dgrd) {
+			err = -ENOMEM;
+			goto out_put_node;
+		}
+		dgrd_table = kcalloc(len, sizeof(*dgrd_table), GFP_KERNEL);
+		if (!dgrd_table) {
+			err = -ENOMEM;
+			goto out_put_node;
+		}
+		err = of_property_read_u32_array(battery_np,
+						 "temp-degrade-table",
+						 dgrd_table, len);
+		if (err) {
+			dev_warn(dev,
+				 "bad temperature - capacity degrade values %d\n", err);
+			kfree(dgrd_table);
+			info->temp_dgrd_values = 0;
+			goto out_put_node;
+		}
+		for (index = 0; index < info->temp_dgrd_values; index++) {
+			struct power_supply_temp_degr *d = &info->temp_dgrd[index];
+
+			d->temp_degrade_1C = dgrd_table[index * 3];
+			d->degrade_at_set = dgrd_table[index * 3 + 1];
+			d->temp_set_point = dgrd_table[index * 3 + 2];
+		}
+		kfree(dgrd_table);
+	}
+
 	len = of_property_count_u32_elems(battery_np, "ocv-capacity-celsius");
 	if (len < 0 && len != -EINVAL) {
 		err = len;
 		goto out_put_node;
 	} else if (len > POWER_SUPPLY_OCV_TEMP_MAX) {
-		dev_err(&psy->dev, "Too many temperature values\n");
+		dev_err(dev, "Too many temperature values\n");
 		err = -EINVAL;
 		goto out_put_node;
 	} else if (len > 0) {
@@ -761,15 +864,15 @@ int power_supply_get_battery_info(struct power_supply *psy,
 
 		propname = kasprintf(GFP_KERNEL, "ocv-capacity-table-%d", index);
 		if (!propname) {
-			power_supply_put_battery_info(psy, info);
+			power_supply_dev_put_battery_info(dev, info);
 			err = -ENOMEM;
 			goto out_put_node;
 		}
 		list = of_get_property(battery_np, propname, &size);
 		if (!list || !size) {
-			dev_err(&psy->dev, "failed to get %s\n", propname);
+			dev_err(dev, "failed to get %s\n", propname);
 			kfree(propname);
-			power_supply_put_battery_info(psy, info);
+			power_supply_dev_put_battery_info(dev, info);
 			err = -EINVAL;
 			goto out_put_node;
 		}
@@ -779,9 +882,9 @@ int power_supply_get_battery_info(struct power_supply *psy,
 		info->ocv_table_size[index] = tab_len;
 
 		table = info->ocv_table[index] =
-			devm_kcalloc(&psy->dev, tab_len, sizeof(*table), GFP_KERNEL);
+			devm_kcalloc(dev, tab_len, sizeof(*table), GFP_KERNEL);
 		if (!info->ocv_table[index]) {
-			power_supply_put_battery_info(psy, info);
+			power_supply_dev_put_battery_info(dev, info);
 			err = -ENOMEM;
 			goto out_put_node;
 		}
@@ -799,12 +902,12 @@ int power_supply_get_battery_info(struct power_supply *psy,
 		goto out_ret_pointer;
 
 	info->resist_table_size = len / (2 * sizeof(__be32));
-	resist_table = info->resist_table = devm_kcalloc(&psy->dev,
+	resist_table = info->resist_table = devm_kcalloc(dev,
 							 info->resist_table_size,
 							 sizeof(*resist_table),
 							 GFP_KERNEL);
 	if (!info->resist_table) {
-		power_supply_put_battery_info(psy, info);
+		power_supply_dev_put_battery_info(dev, info);
 		err = -ENOMEM;
 		goto out_put_node;
 	}
@@ -820,25 +923,43 @@ out_ret_pointer:
 
 out_put_node:
 	fwnode_handle_put(fwnode);
-	of_node_put(battery_np);
 	return err;
+}
+EXPORT_SYMBOL_GPL(power_supply_dev_get_battery_info);
+
+int power_supply_get_battery_info(struct power_supply *psy,
+				  struct power_supply_battery_info **info)
+{
+	struct fwnode_handle *fw = NULL;
+
+	if (psy->of_node)
+		fw = of_fwnode_handle(psy->of_node);
+
+	return power_supply_dev_get_battery_info(&psy->dev, fw, info);
 }
 EXPORT_SYMBOL_GPL(power_supply_get_battery_info);
 
-void power_supply_put_battery_info(struct power_supply *psy,
-				   struct power_supply_battery_info *info)
+void power_supply_dev_put_battery_info(struct device *dev,
+				       struct power_supply_battery_info *info)
 {
 	int i;
 
 	for (i = 0; i < POWER_SUPPLY_OCV_TEMP_MAX; i++) {
 		if (info->ocv_table[i])
-			devm_kfree(&psy->dev, info->ocv_table[i]);
+			devm_kfree(dev, info->ocv_table[i]);
 	}
 
 	if (info->resist_table)
-		devm_kfree(&psy->dev, info->resist_table);
+		devm_kfree(dev, info->resist_table);
 
-	devm_kfree(&psy->dev, info);
+	devm_kfree(dev, info);
+}
+EXPORT_SYMBOL_GPL(power_supply_dev_put_battery_info);
+
+void power_supply_put_battery_info(struct power_supply *psy,
+				   struct power_supply_battery_info *info)
+{
+	power_supply_dev_put_battery_info(&psy->dev, info);
 }
 EXPORT_SYMBOL_GPL(power_supply_put_battery_info);
 
@@ -968,6 +1089,48 @@ int power_supply_battery_info_get_prop(struct power_supply_battery_info *info,
 	}
 }
 EXPORT_SYMBOL_GPL(power_supply_battery_info_get_prop);
+
+/**
+ * power_supply_dcap2ocv_simple() - find the battery OCV by capacity
+ * @table: Pointer to battery OCV/CAP lookup table
+ * @table_len: OCV/CAP table length
+ * @cap: Current cap value in units of 0.1%
+ *
+ * OCV (Open Circuit Voltage) is often used to estimate the battery SOC (State
+ * Of Charge). Usually conversion tables are used to store the corresponding
+ * OCV and SOC. Systems which use so called "Zero Adjust" where at the near
+ * end-of-battery condition the SOC from coulomb counter is used to retrieve
+ * the OCV - and OCV and VSYS difference is used to re-estimate the battery
+ * capacity. This helper function can be used to look up battery OCV according
+ * to current capacity value from one OCV table, and the OCV table must be
+ * ordered descending.
+ *
+ * Return: the battery OCV in uV.
+ */
+int power_supply_dcap2ocv_simple(struct power_supply_battery_ocv_table *table,
+				int table_len, int dcap)
+{
+	int i, ocv, tmp;
+
+	for (i = 0; i < table_len; i++)
+		if (dcap > table[i].capacity * 10)
+			break;
+
+	if (i > 0 && i < table_len) {
+		tmp = (table[i - 1].ocv - table[i].ocv) *
+		      (dcap - table[i].capacity * 10);
+
+		tmp /= (table[i - 1].capacity - table[i].capacity) * 10;
+		ocv = tmp + table[i].ocv;
+	} else if (i == 0) {
+		ocv = table[0].ocv;
+	} else {
+		ocv = table[table_len - 1].ocv;
+	}
+
+	return ocv;
+}
+EXPORT_SYMBOL_GPL(power_supply_dcap2ocv_simple);
 
 /**
  * power_supply_temp2resist_simple() - find the battery internal resistance
@@ -1119,6 +1282,45 @@ int power_supply_ocv2cap_simple(struct power_supply_battery_ocv_table *table,
 }
 EXPORT_SYMBOL_GPL(power_supply_ocv2cap_simple);
 
+/**
+ * power_supply_ocv2dcap_simple() - find the battery capacity at 0.1% accuracy
+ * @table: Pointer to battery OCV lookup table
+ * @table_len: OCV table length
+ * @ocv: Current OCV value
+ *
+ * This helper function is used to look up battery capacity according to
+ * current OCV value from one OCV table, and the OCV table must be ordered
+ * descending. Return the SOC in the units of 0.1% for improved accuracy.
+ *
+ * Return: the battery capacity using the unit 0.1%.
+ */
+int power_supply_ocv2dcap_simple(struct power_supply_battery_ocv_table *table,
+				int table_len, int ocv)
+{
+	int i, cap, tmp;
+
+	for (i = 0; i < table_len; i++)
+		if (ocv > table[i].ocv)
+			break;
+
+	if (i > 0 && i < table_len) {
+		tmp = (table[i - 1].capacity - table[i].capacity) *
+			(ocv - table[i].ocv) * 10;
+		tmp /= table[i - 1].ocv - table[i].ocv;
+		cap = tmp + table[i].capacity * 10;
+	} else if (i == 0) {
+		cap = table[0].capacity * 10;
+	} else {
+		cap = table[table_len - 1].capacity * 10;
+	}
+
+	if (cap < 0)
+		cap = 0;
+
+	return cap;
+}
+EXPORT_SYMBOL_GPL(power_supply_ocv2dcap_simple);
+
 struct power_supply_battery_ocv_table *
 power_supply_find_ocv2cap_table(struct power_supply_battery_info *info,
 				int temp, int *table_len)
@@ -1146,6 +1348,59 @@ power_supply_find_ocv2cap_table(struct power_supply_battery_info *info,
 	return info->ocv_table[best_index];
 }
 EXPORT_SYMBOL_GPL(power_supply_find_ocv2cap_table);
+
+/**
+ * power_supply_batinfo_dcap2ocv() - Compute OCV based on SOC
+ * @info: Pointer to battery information.
+ * @dcao: Battery capacity in units of 0.1%
+ * @temp: Temperatur in Celsius
+ *
+ * Compute the open circuit voltage at given temperature matching given
+ * capacity for a battery described by given battery info. Computation is
+ * done based on tables of known capacity - open circuit voltage value pairs.
+ * Requires the OCV tables being populated in the battery info.
+ *
+ * Return: The battery OCV in uV or -EINVAL if OCV table is not available.
+ */
+int power_supply_batinfo_dcap2ocv(struct power_supply_battery_info *info,
+				 int dcap, int temp)
+{
+	struct power_supply_battery_ocv_table *table;
+	int table_len;
+
+	table = power_supply_find_ocv2cap_table(info, temp, &table_len);
+	if (!table)
+		return -EINVAL;
+
+	return power_supply_dcap2ocv_simple(table, table_len, dcap);
+}
+EXPORT_SYMBOL_GPL(power_supply_batinfo_dcap2ocv);
+
+/**
+ * power_supply_batinfo_ocv2dcap - compute SOC based on OCV and temperature
+ * @info:	pointer to battery information
+ * @ocv:	Open circuit voltage in uV
+ * @temp:	Temperature in Celsius
+ *
+ * Use OCV tables in battery info to compute the battery capacity based on
+ * provided open circuit voltage at given and temperature.
+ *
+ * Return: battery capacity correspondinggiven OCV and temperature at 0.1%.
+ *         -EINVAL if OCV table is not present.
+ */
+int power_supply_batinfo_ocv2dcap(struct power_supply_battery_info *info,
+				  int ocv, int temp)
+{
+	struct power_supply_battery_ocv_table *table;
+	int table_len;
+
+	table = power_supply_find_ocv2cap_table(info, temp, &table_len);
+	if (!table)
+		return -EINVAL;
+
+	return power_supply_ocv2dcap_simple(table, table_len, ocv);
+}
+EXPORT_SYMBOL_GPL(power_supply_batinfo_ocv2dcap);
 
 int power_supply_batinfo_ocv2cap(struct power_supply_battery_info *info,
 				 int ocv, int temp)
