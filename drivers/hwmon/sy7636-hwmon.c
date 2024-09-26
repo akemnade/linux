@@ -55,7 +55,7 @@ static int temp_from_reg(int val)
  * Functions declaration
  */
 static int sy7636_sensor_probe(struct platform_device *pdev);
-static int sy7636_sensor_remove(struct platform_device *pdev);
+static void sy7636_sensor_remove(struct platform_device *pdev);
 
 static const struct platform_device_id sy7636_sns_id[] = {
 	{ "sy7636-sns", 0},
@@ -352,7 +352,7 @@ exit:
 	return err;
 }
 
-static int sy7636_sensor_remove(struct platform_device *pdev)
+static void sy7636_sensor_remove(struct platform_device *pdev)
 {
 	struct sy7636_data *data = platform_get_drvdata(pdev);
 
@@ -360,7 +360,6 @@ static int sy7636_sensor_remove(struct platform_device *pdev)
 	sysfs_remove_group(&pdev->dev.kobj, &sy7636_group);
 
 	kfree(data);
-	return 0;
 }
 
 module_platform_driver(sy7636_sensor_driver);
