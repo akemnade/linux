@@ -16,7 +16,7 @@
 #include <drm/drm_drv.h>
 #include <drm/drm_fb_dma_helper.h>
 #include <drm/drm_fb_helper.h>
-#include <drm/drm_fbdev_generic.h>
+#include <drm/drm_fbdev_dma.h>
 #include <drm/drm_file.h>
 #include <drm/drm_format_helper.h>
 #include <drm/drm_framebuffer.h>
@@ -332,18 +332,17 @@ static int mxc_epdc_probe(struct platform_device *pdev)
 
 	ret = drm_dev_register(&priv->drm, 0);
 
-	drm_fbdev_generic_setup(&priv->drm, 32);
+	drm_fbdev_dma_setup(&priv->drm, 32);
 	return 0;
 }
 
-static int mxc_epdc_remove(struct platform_device *pdev)
+static void mxc_epdc_remove(struct platform_device *pdev)
 {
 	struct mxc_epdc *priv = platform_get_drvdata(pdev);
 
 	drm_dev_unregister(&priv->drm);
 	drm_kms_helper_poll_fini(&priv->drm);
 	drm_mode_config_cleanup(&priv->drm);
-	return 0;
 }
 
 static const struct of_device_id imx_epdc_dt_ids[] = {
