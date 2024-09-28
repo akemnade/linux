@@ -1120,18 +1120,7 @@ static int jd9930_regulator_probe(struct platform_device *pdev)
     	dev_dbg(jd9930->dev, "%s success\n",__FUNCTION__);
 	return 0;
 err:
-	while (--i >= 0)
-		regulator_unregister(rdev[i]);
 	return ret;
-}
-
-static int jd9930_regulator_remove(struct platform_device *pdev)
-{
-	struct jd9930_data *priv = platform_get_drvdata(pdev);
-	struct regulator_dev **rdev = priv->rdev;
-	int i;
-
-	return 0;
 }
 
 static const struct platform_device_id jd9930_pmic_id[] = {
@@ -1142,7 +1131,6 @@ MODULE_DEVICE_TABLE(platform, jd9930_pmic_id);
 
 static struct platform_driver jd9930_regulator_driver = {
 	.probe = jd9930_regulator_probe,
-	.remove = jd9930_regulator_remove,
 	.id_table = jd9930_pmic_id,
 	.driver = {
 		.name = "jd9930-pmic",
