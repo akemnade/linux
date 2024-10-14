@@ -64,7 +64,7 @@
 					 <1325000 1325000 1325000>;
 			opp-supported-hw = <0xffffffff 3>;
 		};
-
+#if 0
 		opp-1000000000 {
 			/* OPP1G */
 			opp-hz = /bits/ 64 <1000000000>;
@@ -73,6 +73,7 @@
 			/* only on am/dm37x with speed-binned bit set */
 			opp-supported-hw = <0xffffffff 2>;
 		};
+#endif
 	};
 
 	opp_supply_mpu_iva: opp-supply {
