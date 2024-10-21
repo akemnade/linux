@@ -223,6 +223,30 @@ union power_supply_propval {
 struct device_node;
 struct power_supply;
 
+/**
+ * struct power_supply_temp_degr - impact of temperature to battery capacity
+ *
+ * Usually temperature impacts on battery capacity. For systems where it is
+ * sufficient to describe capacity change as a series of temperature ranges
+ * where the change is linear (Eg delta cap = temperature_change * constant +
+ * offset) can be described by this structure.
+ *
+ * Please note - in order to avoid unnecessary rounding errors the change
+ * of capacity (uAh) is per change of temperature degree C while the temperature
+ * range floor is in tenths of degree C
+ *
+ * @temp_set_point:	Temperature where cap change is as given in
+ *			degrade_at_set. Units are 0.1 degree C
+ * @degrade_at_set:	Capacity difference (from ideal) at temp_set_point
+ *			temperature
+ * @temp_degrade_1C:	Capacity change / temperature change (uAh / degree C)
+ */
+struct power_supply_temp_degr {
+	int temp_set_point;
+	int degrade_at_set;
+	int temp_degrade_1C;
+};
+
 /* Run-time specific power supply configuration */
 struct power_supply_config {
 	struct device_node *of_node;
@@ -755,6 +779,9 @@ struct power_supply_battery_info {
 	int ocv_table_size[POWER_SUPPLY_OCV_TEMP_MAX];
 	struct power_supply_resistance_temp_table *resist_table;
 	int resist_table_size;
+	int temp_dgrd_values;
+	struct power_supply_temp_degr *temp_dgrd;
+	int degrade_cycle_uah;
 	const struct power_supply_vbat_ri_table *vbat2ri_discharging;
 	int vbat2ri_discharging_size;
 	const struct power_supply_vbat_ri_table *vbat2ri_charging;
@@ -793,6 +820,11 @@ extern int power_supply_get_battery_info(struct power_supply *psy,
 					 struct power_supply_battery_info **info_out);
 extern void power_supply_put_battery_info(struct power_supply *psy,
 					  struct power_supply_battery_info *info);
+extern void power_supply_dev_put_battery_info(struct device *dev,
+					     struct power_supply_battery_info *info);
+extern int power_supply_dev_get_battery_info(struct device *dev,
+					     struct fwnode_handle *node,
+					     struct power_supply_battery_info **info_out);
 extern bool power_supply_battery_info_has_prop(struct power_supply_battery_info *info,
 					       enum power_supply_property psp);
 extern int power_supply_battery_info_get_prop(struct power_supply_battery_info *info,
@@ -800,11 +832,20 @@ extern int power_supply_battery_info_get_prop(struct power_supply_battery_info *
 					      union power_supply_propval *val);
 extern int power_supply_ocv2cap_simple(struct power_supply_battery_ocv_table *table,
 				       int table_len, int ocv);
+int power_supply_dcap2ocv_simple(struct power_supply_battery_ocv_table *table,
+				int table_len, int dcap);
+int power_supply_ocv2dcap_simple(struct power_supply_battery_ocv_table *table,
+				 int table_len, int ocv);
+int power_supply_batinfo_ocv2dcap(struct power_supply_battery_info *info,
+				  int ocv, int temp);
+
 extern struct power_supply_battery_ocv_table *
 power_supply_find_ocv2cap_table(struct power_supply_battery_info *info,
 				int temp, int *table_len);
 extern int power_supply_batinfo_ocv2cap(struct power_supply_battery_info *info,
 					int ocv, int temp);
+int power_supply_batinfo_dcap2ocv(struct power_supply_battery_info *info,
+				 int dcap, int temp);
 extern int
 power_supply_temp2resist_simple(struct power_supply_resistance_temp_table *table,
 				int table_len, int temp);
