@@ -16,7 +16,7 @@
 #include <drm/drm_drv.h>
 #include <drm/drm_fb_dma_helper.h>
 #include <drm/drm_fb_helper.h>
-#include <drm/drm_fbdev_dma.h>
+#include <drm/drm_fbdev_ttm.h>
 #include <drm/drm_file.h>
 #include <drm/drm_format_helper.h>
 #include <drm/drm_framebuffer.h>
@@ -332,7 +332,7 @@ static int mxc_epdc_probe(struct platform_device *pdev)
 
 	ret = drm_dev_register(&priv->drm, 0);
 
-	drm_fbdev_dma_setup(&priv->drm, 32);
+	drm_fbdev_ttm_setup(&priv->drm, 32);
 	return 0;
 }
 
