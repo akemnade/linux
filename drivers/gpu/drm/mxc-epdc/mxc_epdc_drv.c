@@ -246,7 +246,7 @@ static void mxc_epdc_pipe_update(struct drm_simple_display_pipe *pipe,
 	if (priv->epdc_mem_virt == NULL)
 		return;
 
-	gem = drm_fb_dma_get_gem_obj(old_state->fb, 0);
+	gem = drm_fb_dma_get_gem_obj(pipe->plane.state->fb, 0);
 	drm_atomic_helper_damage_iter_init(&iter, old_state, pipe->plane.state);
 	drm_atomic_for_each_plane_damage(&iter, &clip) {
 
