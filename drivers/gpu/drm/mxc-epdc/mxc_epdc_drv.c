@@ -11,6 +11,7 @@
 
 #include <drm/drm_atomic.h>
 #include <drm/drm_atomic_helper.h>
+#include <drm/clients/drm_client_setup.h>
 #include <drm/drm_crtc_helper.h>
 #include <drm/drm_damage_helper.h>
 #include <drm/drm_drv.h>
@@ -35,7 +36,6 @@
 
 #define DRIVER_NAME "mxc_epdc"
 #define DRIVER_DESC "IMX EPDC"
-#define DRIVER_DATE "20201007"
 #define DRIVER_MAJOR 1
 #define DRIVER_MINOR 0
 #define DRIVER_PATCHLEVEL 0
@@ -276,10 +276,10 @@ static struct drm_driver mxc_epdc_driver = {
 	.fops = &fops,
 	.dumb_create	    = drm_gem_dma_dumb_create,
 	.gem_prime_import_sg_table = drm_gem_dma_prime_import_sg_table,
+	DRM_FBDEV_TTM_DRIVER_OPS,
 
 	.name = DRIVER_NAME,
 	.desc = DRIVER_DESC,
-	.date = DRIVER_DATE,
 	.major = DRIVER_MAJOR,
 	.minor = DRIVER_MINOR,
 	.patchlevel = DRIVER_PATCHLEVEL,
@@ -332,7 +332,7 @@ static int mxc_epdc_probe(struct platform_device *pdev)
 
 	ret = drm_dev_register(&priv->drm, 0);
 
-	drm_fbdev_ttm_setup(&priv->drm, 32);
+	drm_client_setup(&priv->drm, NULL);
 	return 0;
 }
 
