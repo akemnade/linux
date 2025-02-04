@@ -518,7 +518,7 @@ static struct platform_driver gnss_ai2_driver = {
 		.name = "gnss-ai2",
 	},
 	.probe		= gnss_ai2_probe,
-	.remove_new	= gnss_ai2_remove,
+	.remove		= gnss_ai2_remove,
 	.id_table	= gnss_ai2_id,
 };
 module_platform_driver(gnss_ai2_driver);
