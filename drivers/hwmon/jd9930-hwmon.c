@@ -48,7 +48,9 @@
  */
 static int temp_from_reg(int val)
 {
-	return val;
+	s8 v = val;
+
+	return v;
 }
 
 /*
