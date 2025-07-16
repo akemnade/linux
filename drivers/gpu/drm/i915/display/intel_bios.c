@@ -1402,12 +1402,21 @@ parse_power_conservation_features(struct intel_display *display,
 					    panel_type);
 }
 
+static void vbt_edp_to_pps_delays(struct intel_pps_delays *pps,
+				  const struct edp_power_seq *edp_pps)
+{
+	pps->power_up = edp_pps->t1_t3;
+	pps->backlight_on = edp_pps->t8;
+	pps->backlight_off = edp_pps->t9;
+	pps->power_down = edp_pps->t10;
+	pps->power_cycle = edp_pps->t11_t12;
+}
+
 static void
 parse_edp(struct intel_display *display,
 	  struct intel_panel *panel)
 {
 	const struct bdb_edp *edp;
-	const struct edp_power_seq *edp_pps;
 	const struct edp_fast_link_params *edp_link_params;
 	int panel_type = panel->vbt.panel_type;
 
@@ -1428,10 +1437,10 @@ parse_edp(struct intel_display *display,
 	}
 
 	/* Get the eDP sequencing and link info */
-	edp_pps = &edp->power_seqs[panel_type];
 	edp_link_params = &edp->fast_link_params[panel_type];
 
-	panel->vbt.edp.pps = *edp_pps;
+	vbt_edp_to_pps_delays(&panel->vbt.edp.pps,
+			      &edp->power_seqs[panel_type]);
 
 	if (display->vbt.version >= 224) {
 		panel->vbt.edp.rate =
@@ -2893,7 +2902,6 @@ init_vbt_panel_defaults(struct intel_panel *panel)
 static void
 init_vbt_missing_defaults(struct intel_display *display)
 {
-	struct drm_i915_private *i915 = to_i915(display->drm);
 	unsigned int ports = DISPLAY_RUNTIME_INFO(display)->port_mask;
 	enum port port;
 
@@ -2903,13 +2911,13 @@ init_vbt_missing_defaults(struct intel_display *display)
 	for_each_port_masked(port, ports) {
 		struct intel_bios_encoder_data *devdata;
 		struct child_device_config *child;
-		enum phy phy = intel_port_to_phy(i915, port);
+		enum phy phy = intel_port_to_phy(display, port);
 
 		/*
 		 * VBT has the TypeC mode (native,TBT/USB) and we don't want
 		 * to detect it.
 		 */
-		if (intel_phy_is_tc(i915, phy))
+		if (intel_phy_is_tc(display, phy))
 			continue;
 
 		/* Create fake child device config */

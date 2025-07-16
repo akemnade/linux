@@ -816,7 +816,10 @@ static bool should_verify_link_capability_destructively(struct dc_link *link,
 {
 	bool destrictive = false;
 	struct dc_link_settings max_link_cap;
-	bool is_link_enc_unavailable = link->link_enc &&
+	bool is_link_enc_unavailable = false;
+
+	if (!link->dc->config.unify_link_enc_assignment)
+		is_link_enc_unavailable = link->link_enc &&
 			link->dc->res_pool->funcs->link_encs_assign &&
 			!link_enc_cfg_is_link_enc_avail(
 					link->ctx->dc,
@@ -829,7 +832,8 @@ static bool should_verify_link_capability_destructively(struct dc_link *link,
 
 		if (link->dc->debug.skip_detection_link_training ||
 				dc_is_embedded_signal(link->local_sink->sink_signal) ||
-				link->ep_type == DISPLAY_ENDPOINT_USB4_DPIA) {
+				(link->ep_type == DISPLAY_ENDPOINT_USB4_DPIA &&
+				!link->dc->config.enable_dpia_pre_training)) {
 			destrictive = false;
 		} else if (link_dp_get_encoding_format(&max_link_cap) ==
 				DP_8b_10b_ENCODING) {

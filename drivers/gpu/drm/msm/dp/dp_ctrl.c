@@ -11,6 +11,7 @@
 #include <linux/phy/phy.h>
 #include <linux/phy/phy-dp.h>
 #include <linux/pm_opp.h>
+#include <linux/string_choices.h>
 
 #include <drm/display/drm_dp_helper.h>
 #include <drm/drm_fixed.h>
@@ -178,7 +179,6 @@ static void msm_dp_ctrl_configure_source_params(struct msm_dp_ctrl_private *ctrl
 	u32 cc, tb;
 
 	msm_dp_catalog_ctrl_lane_mapping(ctrl->catalog);
-	msm_dp_catalog_ctrl_mainlink_ctrl(ctrl->catalog, true);
 	msm_dp_catalog_setup_peripheral_flush(ctrl->catalog);
 
 	msm_dp_ctrl_config_ctrl(ctrl);
@@ -1367,9 +1367,9 @@ int msm_dp_ctrl_core_clk_enable(struct msm_dp_ctrl *msm_dp_ctrl)
 
 	drm_dbg_dp(ctrl->drm_dev, "enable core clocks \n");
 	drm_dbg_dp(ctrl->drm_dev, "stream_clks:%s link_clks:%s core_clks:%s\n",
-		   ctrl->stream_clks_on ? "on" : "off",
-		   ctrl->link_clks_on ? "on" : "off",
-		   ctrl->core_clks_on ? "on" : "off");
+		   str_on_off(ctrl->stream_clks_on),
+		   str_on_off(ctrl->link_clks_on),
+		   str_on_off(ctrl->core_clks_on));
 
 	return 0;
 }
@@ -1386,9 +1386,9 @@ void msm_dp_ctrl_core_clk_disable(struct msm_dp_ctrl *msm_dp_ctrl)
 
 	drm_dbg_dp(ctrl->drm_dev, "disable core clocks \n");
 	drm_dbg_dp(ctrl->drm_dev, "stream_clks:%s link_clks:%s core_clks:%s\n",
-		   ctrl->stream_clks_on ? "on" : "off",
-		   ctrl->link_clks_on ? "on" : "off",
-		   ctrl->core_clks_on ? "on" : "off");
+		   str_on_off(ctrl->stream_clks_on),
+		   str_on_off(ctrl->link_clks_on),
+		   str_on_off(ctrl->core_clks_on));
 }
 
 static int msm_dp_ctrl_link_clk_enable(struct msm_dp_ctrl *msm_dp_ctrl)
@@ -1417,9 +1417,9 @@ static int msm_dp_ctrl_link_clk_enable(struct msm_dp_ctrl *msm_dp_ctrl)
 
 	drm_dbg_dp(ctrl->drm_dev, "enable link clocks\n");
 	drm_dbg_dp(ctrl->drm_dev, "stream_clks:%s link_clks:%s core_clks:%s\n",
-		   ctrl->stream_clks_on ? "on" : "off",
-		   ctrl->link_clks_on ? "on" : "off",
-		   ctrl->core_clks_on ? "on" : "off");
+		   str_on_off(ctrl->stream_clks_on),
+		   str_on_off(ctrl->link_clks_on),
+		   str_on_off(ctrl->core_clks_on));
 
 	return 0;
 }
@@ -1436,9 +1436,9 @@ static void msm_dp_ctrl_link_clk_disable(struct msm_dp_ctrl *msm_dp_ctrl)
 
 	drm_dbg_dp(ctrl->drm_dev, "disabled link clocks\n");
 	drm_dbg_dp(ctrl->drm_dev, "stream_clks:%s link_clks:%s core_clks:%s\n",
-		   ctrl->stream_clks_on ? "on" : "off",
-		   ctrl->link_clks_on ? "on" : "off",
-		   ctrl->core_clks_on ? "on" : "off");
+		   str_on_off(ctrl->stream_clks_on),
+		   str_on_off(ctrl->link_clks_on),
+		   str_on_off(ctrl->core_clks_on));
 }
 
 static int msm_dp_ctrl_enable_mainlink_clocks(struct msm_dp_ctrl_private *ctrl)
@@ -2071,6 +2071,7 @@ void msm_dp_ctrl_off_link(struct msm_dp_ctrl *msm_dp_ctrl)
 
 	msm_dp_catalog_ctrl_mainlink_ctrl(ctrl->catalog, false);
 
+	dev_pm_opp_set_rate(ctrl->dev, 0);
 	msm_dp_ctrl_link_clk_disable(&ctrl->msm_dp_ctrl);
 
 	DRM_DEBUG_DP("Before, phy=%p init_count=%d power_on=%d\n",

@@ -197,7 +197,7 @@ void i915_hotplug_interrupt_update_locked(struct drm_i915_private *dev_priv,
  * @bits: bits to enable
  * NOTE: the HPD enable bits are modified both inside and outside
  * of an interrupt context. To avoid that read-modify-write cycles
- * interfer, these bits are protected by a spinlock. Since this
+ * interfere, these bits are protected by a spinlock. Since this
  * function is usually not called from a context where the lock is
  * held already, this function acquires the lock itself. A non-locking
  * version is also available.
@@ -1457,7 +1457,11 @@ void intel_hpd_enable_detection(struct intel_encoder *encoder)
 
 void intel_hpd_irq_setup(struct drm_i915_private *i915)
 {
-	if (i915->display.irq.display_irqs_enabled && i915->display.funcs.hotplug)
+	if ((IS_VALLEYVIEW(i915) || IS_CHERRYVIEW(i915)) &&
+	    !i915->display.irq.vlv_display_irqs_enabled)
+		return;
+
+	if (i915->display.funcs.hotplug)
 		i915->display.funcs.hotplug->hpd_irq_setup(i915);
 }
 

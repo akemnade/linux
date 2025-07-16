@@ -91,6 +91,7 @@ struct intel_wm_funcs {
 				    struct intel_crtc *crtc);
 	int (*compute_global_watermarks)(struct intel_atomic_state *state);
 	void (*get_hw_state)(struct drm_i915_private *i915);
+	void (*sanitize)(struct drm_i915_private *i915);
 };
 
 struct intel_audio_state {
@@ -386,7 +387,6 @@ struct intel_display {
 	struct {
 		/* list of fbdev register on this device */
 		struct intel_fbdev *fbdev;
-		struct work_struct suspend_work;
 	} fbdev;
 
 	struct {
@@ -453,7 +453,14 @@ struct intel_display {
 	} ips;
 
 	struct {
-		bool display_irqs_enabled;
+		/*
+		 * Most platforms treat the display irq block as an always-on
+		 * power domain. vlv/chv can disable it at runtime and need
+		 * special care to avoid writing any of the display block
+		 * registers outside of the power domain. We defer setting up
+		 * the display irqs in this case to the runtime pm.
+		 */
+		bool vlv_display_irqs_enabled;
 
 		/* For i915gm/i945gm vblank irq workaround */
 		u8 vblank_enabled;
@@ -505,6 +512,13 @@ struct intel_display {
 		/* restore state for suspend/resume and display reset */
 		struct drm_atomic_state *modeset_state;
 		struct drm_modeset_acquire_ctx reset_ctx;
+		/* modeset stuck tracking for reset */
+		atomic_t pending_fb_pin;
+		u32 saveDSPARB;
+		u32 saveSWF0[16];
+		u32 saveSWF1[16];
+		u32 saveSWF3[3];
+		u16 saveGCDGMBUS;
 	} restore;
 
 	struct {
@@ -542,6 +556,9 @@ struct intel_display {
 
 		/* unbound hipri wq for page flips/plane updates */
 		struct workqueue_struct *flip;
+
+		/* hipri wq for commit cleanups */
+		struct workqueue_struct *cleanup;
 	} wq;
 
 	/* Grouping using named structs. Keep sorted. */

@@ -638,8 +638,6 @@ void intel_dmc_disable_program(struct intel_display *display)
 	pipedmc_clock_gating_wa(display, true);
 	disable_all_event_handlers(display);
 	pipedmc_clock_gating_wa(display, false);
-
-	intel_dmc_wl_disable(display);
 }
 
 void assert_dmc_loaded(struct intel_display *display)
@@ -994,19 +992,16 @@ static int parse_dmc_fw(struct intel_dmc *dmc, const struct firmware *fw)
 
 static void intel_dmc_runtime_pm_get(struct intel_display *display)
 {
-	struct drm_i915_private *i915 = to_i915(display->drm);
-
 	drm_WARN_ON(display->drm, display->dmc.wakeref);
-	display->dmc.wakeref = intel_display_power_get(i915, POWER_DOMAIN_INIT);
+	display->dmc.wakeref = intel_display_power_get(display, POWER_DOMAIN_INIT);
 }
 
 static void intel_dmc_runtime_pm_put(struct intel_display *display)
 {
-	struct drm_i915_private *i915 = to_i915(display->drm);
 	intel_wakeref_t wakeref __maybe_unused =
 		fetch_and_zero(&display->dmc.wakeref);
 
-	intel_display_power_put(i915, POWER_DOMAIN_INIT, wakeref);
+	intel_display_power_put(display, POWER_DOMAIN_INIT, wakeref);
 }
 
 static const char *dmc_fallback_path(struct intel_display *display)
@@ -1145,8 +1140,6 @@ void intel_dmc_suspend(struct intel_display *display)
 
 	if (dmc)
 		flush_work(&dmc->work);
-
-	intel_dmc_wl_disable(display);
 
 	/* Drop the reference held in case DMC isn't loaded. */
 	if (!intel_dmc_has_payload(display))

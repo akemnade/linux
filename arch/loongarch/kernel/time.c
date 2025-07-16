@@ -111,7 +111,7 @@ static unsigned long __init get_loops_per_jiffy(void)
 	return lpj;
 }
 
-static long init_offset __nosavedata;
+static long init_offset;
 
 void save_counter(void)
 {
@@ -132,7 +132,7 @@ int constant_clockevent_init(void)
 #else
 	unsigned long min_delta = 1000;
 #endif
-	unsigned long max_delta = (1UL << 48) - 1;
+	unsigned long max_delta = GENMASK_ULL(boot_cpu_data.timerbits, 0);
 	struct clock_event_device *cd;
 	static int irq = 0, timer_irq_installed = 0;
 

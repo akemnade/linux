@@ -37,7 +37,7 @@ int xe_gt_record_default_lrcs(struct xe_gt *gt);
 
 /**
  * xe_gt_record_user_engines - save data related to engines available to
- * usersapce
+ * userspace
  * @gt: GT structure
  *
  * Walk the available HW engines from gt->info.engine_mask and calculate data
@@ -54,7 +54,6 @@ int xe_gt_resume(struct xe_gt *gt);
 void xe_gt_reset_async(struct xe_gt *gt);
 void xe_gt_sanitize(struct xe_gt *gt);
 int xe_gt_sanitize_freq(struct xe_gt *gt);
-void xe_gt_remove(struct xe_gt *gt);
 
 /**
  * xe_gt_wait_for_reset - wait for gt's async reset to finalize.
