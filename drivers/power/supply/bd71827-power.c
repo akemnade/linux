@@ -27,7 +27,9 @@
 #include <linux/slab.h>
 #include <linux/uaccess.h>
 
+#ifndef MAX
 #define MAX(X, Y) ((X) >= (Y) ? (X) : (Y))
+#endif
 #define uAMP_TO_mAMP(ma) ((ma) / 1000)
 
 #define LINEAR_INTERPOLATE(y_hi, y_lo, x_hi, x_lo, x) \
