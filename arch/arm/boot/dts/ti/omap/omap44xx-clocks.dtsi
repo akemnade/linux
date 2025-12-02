@@ -155,6 +155,8 @@
 		clock-output-names = "dpll_abe_ck";
 		clocks = <&abe_dpll_refclk_mux_ck>, <&abe_dpll_bypass_clk_mux_ck>;
 		reg = <0x01e0>, <0x01e4>, <0x01ec>, <0x01e8>;
+		assigned-clocks = <&dpll_abe_ck>;
+		assigned-clock-rates = <98304000>;
 	};
 
 	dpll_abe_x2_ck: dpll_abe_x2_ck@1f0 {
@@ -175,6 +177,8 @@
 		reg = <0x01f0>;
 		ti,index-starts-at-one;
 		ti,invert-autoidle-bit;
+		assigned-clocks = <&dpll_abe_m2x2_ck>;
+		assigned-clock-rates = <196608000>;
 	};
 
 	abe_24m_fclk: abe_24m_fclk {
@@ -207,6 +211,8 @@
 		reg = <0x01f4>;
 		ti,index-starts-at-one;
 		ti,invert-autoidle-bit;
+		assigned-clocks = <&dpll_abe_m3x2_ck>;
+		assigned-clock-rates = <196608000>;
 	};
 
 	core_hsd_byp_clk_mux_ck: core_hsd_byp_clk_mux_ck@12c {
@@ -336,6 +342,8 @@
 		ti,max-div = <31>;
 		reg = <0x01f0>;
 		ti,index-starts-at-one;
+		assigned-clocks = <&dpll_abe_m2_ck>;
+		assigned-clock-rates = <98304000>;
 	};
 
 	dpll_core_m3x2_gate_ck: dpll_core_m3x2_gate_ck@134 {
@@ -558,6 +566,8 @@
 		clock-output-names = "abe_dpll_refclk_mux_ck";
 		clocks = <&sys_clkin_ck>, <&sys_32k_ck>;
 		reg = <0x010c>;
+		assigned-clocks = <&abe_dpll_refclk_mux_ck>;
+		assigned-clock-parents = <&sys_32k_ck>;
 	};
 
 	dbgclk_mux_ck: dbgclk_mux_ck {
