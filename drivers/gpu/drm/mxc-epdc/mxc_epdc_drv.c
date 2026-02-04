@@ -203,8 +203,20 @@ static void mxc_epdc_pipe_enable(struct drm_simple_display_pipe *pipe,
 				   &priv->working_buffer_phys,
 				   GFP_DMA | GFP_KERNEL);
 
-	if (priv->working_buffer_virt && priv->epdc_mem_virt)
+	if (priv->working_buffer_virt && priv->epdc_mem_virt) {
+		struct drm_rect clip;
+		struct drm_gem_dma_object *gem;
 		mxc_epdc_init_sequence(priv, m);
+		clip.x1 = 0;
+		clip.y1 = 0;
+		clip.x2 = m->hdisplay;
+		clip.y2 = m->vdisplay;
+		gem = drm_fb_dma_get_gem_obj(plane_state->fb, 0);
+		mxc_epdc_send_single_update(&clip,
+					    plane_state->fb->pitches[0],
+					    gem->vaddr, priv);
+	}
+
 }
 
 static void mxc_epdc_pipe_disable(struct drm_simple_display_pipe *pipe)
