@@ -297,6 +297,22 @@ static struct drm_driver mxc_epdc_driver = {
 	.patchlevel = DRIVER_PATCHLEVEL,
 };
 
+static int mxc_epdc_pm_suspend(struct device *dev)
+{
+	struct mxc_epdc *priv = dev_get_drvdata(dev);
+	mxc_epdc_flush_updates(priv);
+	return 0;
+}
+
+static int mxc_epdc_pm_resume(struct device *dev)
+{
+	return 0;
+}
+
+static const struct dev_pm_ops mxc_epdc_pm_ops = {
+        SET_SYSTEM_SLEEP_PM_OPS(mxc_epdc_pm_suspend,
+				mxc_epdc_pm_resume)
+};
 
 static int mxc_epdc_probe(struct platform_device *pdev)
 {
@@ -369,6 +385,7 @@ static struct platform_driver pdev = {
 	.driver = {
 		.name   = "mxc_epdc",
 		.of_match_table = of_match_ptr(imx_epdc_dt_ids),
+		.pm = &mxc_epdc_pm_ops,
 	},
 	.probe  = mxc_epdc_probe,
 	.remove = mxc_epdc_remove,
