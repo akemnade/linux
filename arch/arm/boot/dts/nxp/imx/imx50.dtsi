@@ -101,6 +101,23 @@
 		interrupt-parent = <&tzic>;
 		ranges;
 
+		ahb: bus@40000000 {
+			compatible = "simple-bus";
+			#address-cells = <1>;
+			#size-cells = <1>;
+			reg = <0x40000000 0x10000000>;
+			ranges;
+
+			epdc: display-controller@41010000 {
+				compatible = "imx-epdc";
+				reg = <0x41010000 0x2000>;
+				interrupts = <27>;
+				clocks = <&clks IMX5_CLK_EPDC_AXI_GATE>, <&clks IMX5_CLK_EPDC_PIX_GATE>;
+				clock-names = "epdc_axi", "epdc_pix";
+				status = "disabled";
+			};
+		};
+
 		aips1: bus@50000000 { /* AIPS1 */
 			compatible = "fsl,aips-bus", "simple-bus";
 			#address-cells = <1>;
