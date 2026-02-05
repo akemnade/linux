@@ -61,6 +61,9 @@
 #define MXC_CCM_CCGR5		(ccm_base + 0x7c)
 #define MXC_CCM_CCGR6		(ccm_base + 0x80)
 #define MXC_CCM_CCGR7		(ccm_base + 0x84)
+#define MXC_CCM_CLKSEQ_BYPASS	(ccm_base + 0x90)
+#define MXC_CCM_EPDC_PIX	(ccm_base + 0xA0)
+#define MXC_CCM_EPDC_AXI	(ccm_base + 0xA8)
 
 /* Low-power Audio Playback Mode clock */
 static const char *lp_apm_sel[] = { "osc", };
@@ -124,6 +127,9 @@ static const char *mx51_spdif1_com_sel[] = { "spdif1_podf", "ssi2_root_gate", };
 static const char *step_sels[] = { "lp_apm", };
 static const char *cpu_podf_sels[] = { "pll1_sw", "step_sel" };
 static const char *ieee1588_sels[] = { "pll3_sw", "pll4_sw", "dummy" /* usbphy2_clk */, "dummy" /* fec_phy_clk */ };
+
+static const char *imx50_epdc_pix_sel[] = { "osc", "dummy" /* pfd5 */, "pll1_sw", "dummy" /* Camp 1 */ };
+static const char *imx50_epdc_axi_sel[] = { "osc", "dummy" /* pfd3 */, "pll1_sw", "dummy" };
 
 static struct clk *clk[IMX5_CLK_END];
 static struct clk_onecell_data clk_data;
@@ -336,6 +342,22 @@ static void __init mx50_clocks_init(struct device_node *np)
 						mx53_cko2_sel, ARRAY_SIZE(mx53_cko2_sel));
 	clk[IMX5_CLK_CKO2_PODF]		= imx_clk_divider("cko2_podf", "cko2_sel", MXC_CCM_CCOSR, 21, 3);
 	clk[IMX5_CLK_CKO2]		= imx_clk_gate2("cko2", "cko2_podf", MXC_CCM_CCOSR, 24);
+
+	clk[IMX5_CLK_EPDC_AXI_SEL]	= imx_clk_mux("epdc_axi_sel", MXC_CCM_CLKSEQ_BYPASS, 4, 2,
+						imx50_epdc_axi_sel, ARRAY_SIZE(imx50_epdc_axi_sel));
+	clk[IMX5_CLK_EPDC_PIX_SEL]	= imx_clk_mux("epdc_pix_sel", MXC_CCM_CLKSEQ_BYPASS, 12, 2,
+						imx50_epdc_pix_sel, ARRAY_SIZE(imx50_epdc_pix_sel));
+	clk[IMX5_CLK_EPDC_AXI_DIV]	= to_clk(imx_clk_hw_divider_gate("epdc_axi_div", "epdc_axi_sel",
+						CLK_SET_RATE_PARENT, MXC_CCM_EPDC_AXI,
+						0, 6, 0, NULL, &imx_ccm_lock));
+	clk[IMX5_CLK_EPDC_AXI_GATE]	= imx_clk_gate2("epdc_axi_gate", "epdc_axi_div", MXC_CCM_EPDC_AXI, 30);
+	clk[IMX5_CLK_EPDC_PIX_PRED]	= to_clk(imx_clk_hw_divider_gate("epdc_pix_pred", "epdc_pix_sel",
+						CLK_SET_RATE_PARENT, MXC_CCM_EPDC_PIX,
+						12, 2, 0, NULL, &imx_ccm_lock));
+	clk[IMX5_CLK_EPDC_PIX_PODF]	= to_clk(imx_clk_hw_divider_gate("epdc_pix_podf", "epdc_pix_pred",
+						CLK_SET_RATE_PARENT, MXC_CCM_EPDC_PIX,
+						0, 12, 0, NULL, &imx_ccm_lock));
+	clk[IMX5_CLK_EPDC_AXI_GATE]	= imx_clk_gate2("epdc_pix_gate", "epdc_pix_podf", MXC_CCM_EPDC_PIX, 30);
 
 	imx_check_clocks(clk, ARRAY_SIZE(clk));
 
