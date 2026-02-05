@@ -76,7 +76,7 @@
 			};
 
 			epdc: epdc@0228c000 {
-				compatible = "fsl,imx6ull-epdc", "fsl,imx7d-epdc";
+				compatible = "fsl,imx6ull-epdc", "fsl,imx-epdc";
 				interrupts = <GIC_SPI 112 IRQ_TYPE_LEVEL_HIGH>;
 				reg = <0x0228c000 0x4000>;
 				clocks = <&clks IMX6ULL_CLK_EPDC_ACLK>,
