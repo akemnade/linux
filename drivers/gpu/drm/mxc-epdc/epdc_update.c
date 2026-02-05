@@ -18,6 +18,8 @@
 
 #define EPDC_V2_NUM_LUTS	64
 #define EPDC_V2_MAX_NUM_UPDATES 64
+#define EPDC_V1_NUM_LUTS	16
+#define EPDC_V1_MAX_NUM_UPDATES 20
 #define INVALID_LUT	     (-1)
 #define DRY_RUN_NO_LUT	  100
 
@@ -229,8 +231,15 @@ static irqreturn_t mxc_epdc_irq_handler(int irq, void *dev_id)
 
 	ints_fired = epdc_read(priv, EPDC_IRQ_MASK) & epdc_read(priv, EPDC_IRQ);
 
-	luts1_ints_fired = epdc_read(priv, EPDC_IRQ_MASK1) & epdc_read(priv, EPDC_IRQ1);
-	luts2_ints_fired = epdc_read(priv, EPDC_IRQ_MASK2) & epdc_read(priv, EPDC_IRQ2);
+	if (priv->rev < 20) {
+		luts1_ints_fired = 0;
+		luts2_ints_fired = 0;
+	} else {
+		luts1_ints_fired = epdc_read(priv, EPDC_IRQ_MASK1) &
+				   epdc_read(priv, EPDC_IRQ1);
+		luts2_ints_fired = epdc_read(priv, EPDC_IRQ_MASK2) &
+				   epdc_read(priv, EPDC_IRQ2);
+	}
 
 	if (!(ints_fired || luts1_ints_fired || luts2_ints_fired))
 		return IRQ_HANDLED;
@@ -406,6 +415,15 @@ static void epdc_submit_update(struct mxc_epdc *priv,
 		epdc_write(priv, EPDC_UPD_FIXED, reg_val);
 	}
 
+	if (priv->rev <= 20) {
+		/*
+		 * Old NXP framebuffer code uses some histogram input from PXP,
+		 * for simplicity just use some sane default here
+		 */
+		if (waveform_mode == WAVEFORM_MODE_AUTO)
+			waveform_mode = priv->wv_modes.mode_gc16;
+	}
+
 	if (waveform_mode == WAVEFORM_MODE_AUTO)
 		reg_val |= EPDC_UPD_CTRL_AUTOWV;
 	else
@@ -541,10 +559,9 @@ static void epdc_submit_work_func(struct work_struct *work)
 		container_of(work, struct mxc_epdc, epdc_submit_work);
 	struct update_data_list *upd_data_list = NULL;
 	struct drm_rect adj_update_region, *upd_region;
+	int ret;
 	bool end_merge = false;
 	u32 update_addr;
-	uint8_t *update_addr_virt;
-	int ret;
 
 	/* Protect access to buffer queues and to update HW */
 	mutex_lock(&priv->queue_mutex);
@@ -678,9 +695,6 @@ static void epdc_submit_work_func(struct work_struct *work)
 	update_addr = priv->epdc_mem_phys +
 		((upd_region->y1 * priv->epdc_mem_width) +
 		upd_region->x1);
-	update_addr_virt = (u8 *)(priv->epdc_mem_virt) +
-		((upd_region->y1 * priv->epdc_mem_width) +
-		upd_region->x1);
 	upd_data_list->update_desc->epdc_stride = priv->epdc_mem_width;
 
 	adj_update_region = upd_data_list->update_desc->upd_data.update_region;
@@ -723,6 +737,10 @@ static void epdc_submit_work_func(struct work_struct *work)
 	}
 
 	ret = epdc_choose_next_lut(priv, &upd_data_list->lut_num);
+	if (ret && (priv->rev < 20)) {
+		/* TODO rev < 20 TCE underrun prevention */
+		dev_dbg(priv->drm.dev, "should enable TCE prevention\n");
+	}
 
 	/* LUTs are available, so we get one here */
 	priv->cur_update = upd_data_list;
@@ -929,8 +947,12 @@ static void epdc_intr_work_func(struct work_struct *work)
 	epdc_luts_avail = epdc_any_luts_available(priv);
 	epdc_collision = epdc_is_collision(priv);
 
-	epdc_irq_stat = (u64)epdc_read(priv, EPDC_IRQ1) |
+	if (priv->rev < 20)
+		epdc_irq_stat = (u64)epdc_read(priv, EPDC_IRQ);
+	else {
+		epdc_irq_stat = (u64)epdc_read(priv, EPDC_IRQ1) |
 			((u64)epdc_read(priv, EPDC_IRQ2) << 32);
+	}
 	epdc_waiting_on_wb = (priv->cur_update != NULL) ? true : false;
 
 	/* Free any LUTs that have completed */
@@ -1174,8 +1196,13 @@ int mxc_epdc_init_update(struct mxc_epdc *priv)
 	 * active update requests, update collisions,
 	 * and freely available updates.
 	 */
-	priv->num_luts = EPDC_V2_NUM_LUTS;
-	priv->max_num_updates = EPDC_V2_MAX_NUM_UPDATES;
+	if (priv->rev < 20) {
+		priv->num_luts = EPDC_V1_NUM_LUTS;
+		priv->max_num_updates = EPDC_V1_MAX_NUM_UPDATES;
+	} else {
+		priv->num_luts = EPDC_V2_NUM_LUTS;
+		priv->max_num_updates = EPDC_V2_MAX_NUM_UPDATES;
+	}
 
 	INIT_LIST_HEAD(&priv->upd_pending_list);
 	INIT_LIST_HEAD(&priv->upd_buf_queue);
