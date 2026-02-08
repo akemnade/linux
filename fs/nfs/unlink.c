@@ -390,7 +390,8 @@ nfs_async_rename(struct inode *old_dir, struct inode *new_dir,
 
 	nfs_sb_active(old_dir->i_sb);
 
-	NFS_PROTO(data->old_dir)->rename_setup(&msg, old_dentry, new_dentry);
+	NFS_PROTO(data->old_dir)->rename_setup(&msg, old_dentry, new_dentry,
+					old_dir == new_dir ? old_dir : NULL);
 
 	return rpc_run_task(&task_setup_data);
 }
@@ -464,18 +465,17 @@ nfs_sillyrename(struct inode *dir, struct dentry *dentry)
 
 	sdentry = NULL;
 	do {
-		int slen;
 		dput(sdentry);
 		sillycounter++;
-		slen = scnprintf(silly, sizeof(silly),
-				SILLYNAME_PREFIX "%0*llx%0*x",
-				SILLYNAME_FILEID_LEN, fileid,
-				SILLYNAME_COUNTER_LEN, sillycounter);
+		scnprintf(silly, sizeof(silly),
+			  SILLYNAME_PREFIX "%0*llx%0*x",
+			  SILLYNAME_FILEID_LEN, fileid,
+			  SILLYNAME_COUNTER_LEN, sillycounter);
 
 		dfprintk(VFS, "NFS: trying to rename %pd to %s\n",
 				dentry, silly);
 
-		sdentry = lookup_one_len(silly, dentry->d_parent, slen);
+		sdentry = lookup_noperm(&QSTR(silly), dentry->d_parent);
 		/*
 		 * N.B. Better to return EBUSY here ... it could be
 		 * dangerous to delete the file while it's in use.

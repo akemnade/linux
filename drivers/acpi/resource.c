@@ -17,6 +17,7 @@
 #include <linux/slab.h>
 #include <linux/irq.h>
 #include <linux/dmi.h>
+#include <linux/string_choices.h>
 
 #ifdef CONFIG_X86
 #define valid_IRQ(i) (((i) != 0) && ((i) != 2))
@@ -511,6 +512,13 @@ static const struct dmi_system_id irq1_level_low_skip_override[] = {
 		},
 	},
 	{
+		/* Asus Vivobook Pro N6506CU* */
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "ASUSTeK COMPUTER INC."),
+			DMI_MATCH(DMI_BOARD_NAME, "N6506CU"),
+		},
+	},
+	{
 		/* LG Electronics 17U70P */
 		.matches = {
 			DMI_MATCH(DMI_SYS_VENDOR, "LG Electronics"),
@@ -534,7 +542,7 @@ static const struct dmi_system_id irq1_level_low_skip_override[] = {
  */
 static const struct dmi_system_id irq1_edge_low_force_override[] = {
 	{
-		/* MECHREV Jiaolong17KS Series GM7XG0M */
+		/* MECHREVO Jiaolong17KS Series GM7XG0M */
 		.matches = {
 			DMI_MATCH(DMI_BOARD_NAME, "GM7XG0M"),
 		},
@@ -667,6 +675,13 @@ static const struct dmi_system_id irq1_edge_low_force_override[] = {
 		},
 	},
 	{
+		/* MACHENIKE L16P/L16P */
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "MACHENIKE"),
+			DMI_MATCH(DMI_BOARD_NAME, "L16P"),
+		},
+	},
+	{
 		/*
 		 * TongFang GM5HG0A in case of the SKIKK Vanaheim relabel the
 		 * board-name is changed, so check OEM strings instead. Note
@@ -766,7 +781,7 @@ static void acpi_dev_get_irqresource(struct resource *res, u32 gsi,
 			pr_warn("ACPI: IRQ %d override to %s%s, %s%s\n", gsi,
 				t ? "level" : "edge",
 				trig == triggering ? "" : "(!)",
-				p ? "low" : "high",
+				str_low_high(p),
 				pol == polarity ? "" : "(!)");
 			triggering = trig;
 			polarity = pol;

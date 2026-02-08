@@ -94,11 +94,17 @@ static inline void device_set_wakeup_path(struct device *dev)
 	dev->power.wakeup_path = true;
 }
 
+static inline void device_set_out_band_wakeup(struct device *dev)
+{
+	dev->power.out_band_wakeup = true;
+}
+
+static inline bool device_out_band_wakeup(struct device *dev)
+{
+	return dev->power.out_band_wakeup;
+}
+
 /* drivers/base/power/wakeup.c */
-extern struct wakeup_source *wakeup_source_create(const char *name);
-extern void wakeup_source_destroy(struct wakeup_source *ws);
-extern void wakeup_source_add(struct wakeup_source *ws);
-extern void wakeup_source_remove(struct wakeup_source *ws);
 extern struct wakeup_source *wakeup_source_register(struct device *dev,
 						    const char *name);
 extern void wakeup_source_unregister(struct wakeup_source *ws);
@@ -128,17 +134,6 @@ static inline bool device_can_wakeup(struct device *dev)
 {
 	return dev->power.can_wakeup;
 }
-
-static inline struct wakeup_source *wakeup_source_create(const char *name)
-{
-	return NULL;
-}
-
-static inline void wakeup_source_destroy(struct wakeup_source *ws) {}
-
-static inline void wakeup_source_add(struct wakeup_source *ws) {}
-
-static inline void wakeup_source_remove(struct wakeup_source *ws) {}
 
 static inline struct wakeup_source *wakeup_source_register(struct device *dev,
 							   const char *name)
@@ -176,6 +171,13 @@ static inline bool device_wakeup_path(struct device *dev)
 }
 
 static inline void device_set_wakeup_path(struct device *dev) {}
+
+static inline void device_set_out_band_wakeup(struct device *dev) {}
+
+static inline bool device_out_band_wakeup(struct device *dev)
+{
+	return false;
+}
 
 static inline void __pm_stay_awake(struct wakeup_source *ws) {}
 

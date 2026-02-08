@@ -107,8 +107,14 @@ static void usb_parse_ss_endpoint_companion(struct device *ddev, int cfgno,
 	 */
 	desc = (struct usb_ss_ep_comp_descriptor *) buffer;
 
-	if (desc->bDescriptorType != USB_DT_SS_ENDPOINT_COMP ||
-			size < USB_DT_SS_EP_COMP_SIZE) {
+	if (size < USB_DT_SS_EP_COMP_SIZE) {
+		dev_notice(ddev,
+			   "invalid SuperSpeed endpoint companion descriptor "
+			   "of length %d, skipping\n", size);
+		return;
+	}
+
+	if (desc->bDescriptorType != USB_DT_SS_ENDPOINT_COMP) {
 		dev_notice(ddev, "No SuperSpeed endpoint companion for config %d "
 				" interface %d altsetting %d ep %d: "
 				"using minimum values\n",
@@ -307,7 +313,7 @@ static int usb_parse_endpoint(struct device *ddev, int cfgno,
 		goto skip_to_next_endpoint_or_interface_descriptor;
 	}
 
-	i = d->bEndpointAddress & USB_ENDPOINT_NUMBER_MASK;
+	i = usb_endpoint_num(d);
 	if (i == 0) {
 		dev_notice(ddev, "config %d interface %d altsetting %d has an "
 		    "invalid descriptor for endpoint zero, skipping\n",
@@ -501,8 +507,8 @@ static int usb_parse_endpoint(struct device *ddev, int cfgno,
 	}
 
 	/* Parse a possible eUSB2 periodic endpoint companion descriptor */
-	if (bcdUSB == 0x0220 && d->wMaxPacketSize == 0 &&
-	    (usb_endpoint_xfer_isoc(d) || usb_endpoint_xfer_int(d)))
+	if (udev->speed == USB_SPEED_HIGH && bcdUSB == 0x0220 &&
+	    !le16_to_cpu(d->wMaxPacketSize) && usb_endpoint_is_isoc_in(d))
 		usb_parse_eusb2_isoc_endpoint_companion(ddev, cfgno, inum, asnum,
 							endpoint, buffer, size);
 
@@ -1033,6 +1039,11 @@ int usb_get_bos_descriptor(struct usb_device *dev)
 	int length, total_len, num, i, ssac;
 	__u8 cap_type;
 	int ret;
+
+	if (dev->quirks & USB_QUIRK_NO_BOS) {
+		dev_dbg(ddev, "skipping BOS descriptor\n");
+		return -ENOMSG;
+	}
 
 	bos = kzalloc(sizeof(*bos), GFP_KERNEL);
 	if (!bos)

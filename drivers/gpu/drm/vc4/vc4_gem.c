@@ -30,6 +30,7 @@
 #include <linux/dma-fence-array.h>
 
 #include <drm/drm_exec.h>
+#include <drm/drm_print.h>
 #include <drm/drm_syncobj.h>
 
 #include "uapi/drm/vc4_drm.h"
@@ -326,7 +327,7 @@ vc4_reset_work(struct work_struct *work)
 static void
 vc4_hangcheck_elapsed(struct timer_list *t)
 {
-	struct vc4_dev *vc4 = from_timer(vc4, t, hangcheck.timer);
+	struct vc4_dev *vc4 = timer_container_of(vc4, t, hangcheck.timer);
 	struct drm_device *dev = &vc4->base;
 	uint32_t ct0ca, ct1ca;
 	unsigned long irqflags;

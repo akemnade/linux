@@ -14,7 +14,7 @@ static __le32 ext4_mmp_csum(struct super_block *sb, struct mmp_struct *mmp)
 	int offset = offsetof(struct mmp_struct, mmp_checksum);
 	__u32 csum;
 
-	csum = ext4_chksum(sbi, sbi->s_csum_seed, (char *)mmp, offset);
+	csum = ext4_chksum(sbi->s_csum_seed, (char *)mmp, offset);
 
 	return cpu_to_le32(csum);
 }
@@ -57,16 +57,12 @@ static int write_mmp_block_thawed(struct super_block *sb,
 
 static int write_mmp_block(struct super_block *sb, struct buffer_head *bh)
 {
-	int err;
-
 	/*
 	 * We protect against freezing so that we don't create dirty buffers
 	 * on frozen filesystem.
 	 */
-	sb_start_write(sb);
-	err = write_mmp_block_thawed(sb, bh);
-	sb_end_write(sb);
-	return err;
+	scoped_guard(super_write, sb)
+		return write_mmp_block_thawed(sb, bh);
 }
 
 /*
@@ -231,9 +227,9 @@ static int kmmpd(void *data)
 		 * Adjust the mmp_check_interval depending on how much time
 		 * it took for the MMP block to be written.
 		 */
-		mmp_check_interval = max(min(EXT4_MMP_CHECK_MULT * diff / HZ,
-					     EXT4_MMP_MAX_CHECK_INTERVAL),
-					 EXT4_MMP_MIN_CHECK_INTERVAL);
+		mmp_check_interval = clamp(EXT4_MMP_CHECK_MULT * diff / HZ,
+					   EXT4_MMP_MIN_CHECK_INTERVAL,
+					   EXT4_MMP_MAX_CHECK_INTERVAL);
 		mmp->mmp_check_interval = cpu_to_le16(mmp_check_interval);
 	}
 

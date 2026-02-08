@@ -9,10 +9,6 @@
 #include <linux/module.h>
 #include <linux/slab.h>
 
-struct lzo_ctx {
-	void *lzo_comp_mem;
-};
-
 static void *lzo_alloc_ctx(void)
 {
 	void *ctx;
@@ -74,8 +70,10 @@ static int lzo_sdecompress(struct crypto_scomp *tfm, const u8 *src,
 }
 
 static struct scomp_alg scomp = {
-	.alloc_ctx		= lzo_alloc_ctx,
-	.free_ctx		= lzo_free_ctx,
+	.streams		= {
+		.alloc_ctx	= lzo_alloc_ctx,
+		.free_ctx	= lzo_free_ctx,
+	},
 	.compress		= lzo_scompress,
 	.decompress		= lzo_sdecompress,
 	.base			= {
@@ -95,7 +93,7 @@ static void __exit lzo_mod_fini(void)
 	crypto_unregister_scomp(&scomp);
 }
 
-subsys_initcall(lzo_mod_init);
+module_init(lzo_mod_init);
 module_exit(lzo_mod_fini);
 
 MODULE_LICENSE("GPL");

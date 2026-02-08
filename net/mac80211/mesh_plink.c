@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2008, 2009 open80211s Ltd.
- * Copyright (C) 2019, 2021-2024 Intel Corporation
+ * Copyright (C) 2019, 2021-2025 Intel Corporation
  * Author:     Luis Carlos Cobo <luisca@cozybit.com>
  */
 #include <linux/gfp.h>
@@ -264,7 +264,7 @@ static int mesh_plink_frame_tx(struct ieee80211_sub_if_data *sdata,
 
 	if (action != WLAN_SP_MESH_PEERING_CLOSE) {
 		struct ieee80211_supported_band *sband;
-		u32 rate_flags, basic_rates;
+		u32 basic_rates;
 
 		sband = ieee80211_get_sband(sdata);
 		if (!sband) {
@@ -280,16 +280,12 @@ static int mesh_plink_frame_tx(struct ieee80211_sub_if_data *sdata,
 			put_unaligned_le16(sta->sta.aid, pos);
 		}
 
-		rate_flags =
-			ieee80211_chandef_rate_flags(&sdata->vif.bss_conf.chanreq.oper);
 		basic_rates = sdata->vif.bss_conf.basic_rates;
 
 		if (ieee80211_put_srates_elem(skb, sband, basic_rates,
-					      rate_flags, 0,
-					      WLAN_EID_SUPP_RATES) ||
+					      0, WLAN_EID_SUPP_RATES) ||
 		    ieee80211_put_srates_elem(skb, sband, basic_rates,
-					      rate_flags, 0,
-					      WLAN_EID_EXT_SUPP_RATES) ||
+					      0, WLAN_EID_EXT_SUPP_RATES) ||
 		    mesh_add_rsn_ie(sdata, skb) ||
 		    mesh_add_meshid_ie(sdata, skb) ||
 		    mesh_add_meshconf_ie(sdata, skb))
@@ -657,7 +653,7 @@ out:
 
 void mesh_plink_timer(struct timer_list *t)
 {
-	struct mesh_sta *mesh = from_timer(mesh, t, plink_timer);
+	struct mesh_sta *mesh = timer_container_of(mesh, t, plink_timer);
 	struct sta_info *sta;
 	u16 reason = 0;
 	struct ieee80211_sub_if_data *sdata;
@@ -1252,7 +1248,10 @@ void mesh_rx_plink_frame(struct ieee80211_sub_if_data *sdata,
 		if (baselen > len)
 			return;
 	}
-	elems = ieee802_11_parse_elems(baseaddr, len - baselen, true, NULL);
+	elems = ieee802_11_parse_elems(baseaddr, len - baselen,
+				       IEEE80211_FTYPE_MGMT |
+				       IEEE80211_STYPE_ACTION,
+				       NULL);
 	if (elems) {
 		mesh_process_plink_frame(sdata, mgmt, elems, rx_status);
 		kfree(elems);

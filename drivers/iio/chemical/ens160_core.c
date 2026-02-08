@@ -267,8 +267,8 @@ static irqreturn_t ens160_trigger_handler(int irq, void *p)
 	if (ret)
 		goto err;
 
-	iio_push_to_buffers_with_timestamp(indio_dev, &data->scan,
-					   pf->timestamp);
+	iio_push_to_buffers_with_ts(indio_dev, &data->scan, sizeof(data->scan),
+				    pf->timestamp);
 err:
 	iio_trigger_notify_done(indio_dev->trig);
 
@@ -305,8 +305,7 @@ static int ens160_setup_trigger(struct iio_dev *indio_dev, int irq)
 	trig = devm_iio_trigger_alloc(dev, "%s-dev%d", indio_dev->name,
 				      iio_device_id(indio_dev));
 	if (!trig)
-		return dev_err_probe(dev, -ENOMEM,
-				     "failed to allocate trigger\n");
+		return -ENOMEM;
 
 	trig->ops = &ens160_trigger_ops;
 	iio_trigger_set_drvdata(trig, indio_dev);

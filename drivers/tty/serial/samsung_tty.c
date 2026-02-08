@@ -52,7 +52,7 @@
 #define S3C24XX_SERIAL_MINOR	64
 
 #ifdef CONFIG_ARM64
-#define UART_NR			12
+#define UART_NR			18
 #else
 #define UART_NR			CONFIG_SERIAL_SAMSUNG_UARTS
 #endif
@@ -189,6 +189,8 @@ static void wr_reg(const struct uart_port *port, u32 reg, u32 val)
 		break;
 	case UPIO_MEM32:
 		writel_relaxed(val, portaddr(port, reg));
+		break;
+	default:
 		break;
 	}
 }
@@ -2713,6 +2715,8 @@ static void wr_reg_barrier(const struct uart_port *port, u32 reg, u32 val)
 	case UPIO_MEM32:
 		writel(val, portaddr(port, reg));
 		break;
+	default:
+		break;
 	}
 }
 
@@ -2825,6 +2829,8 @@ OF_EARLYCON_DECLARE(s5pv210, "samsung,s5pv210-uart",
 OF_EARLYCON_DECLARE(exynos4210, "samsung,exynos4210-uart",
 			s5pv210_early_console_setup);
 OF_EARLYCON_DECLARE(artpec8, "axis,artpec8-uart",
+			s5pv210_early_console_setup);
+OF_EARLYCON_DECLARE(exynos850, "samsung,exynos850-uart",
 			s5pv210_early_console_setup);
 
 static int __init gs101_early_console_setup(struct earlycon_device *device,

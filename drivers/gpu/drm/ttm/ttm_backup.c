@@ -4,6 +4,8 @@
  */
 
 #include <drm/ttm/ttm_backup.h>
+
+#include <linux/export.h>
 #include <linux/page-flags.h>
 #include <linux/swap.h>
 
@@ -112,21 +114,14 @@ ttm_backup_backup_page(struct file *backup, struct page *page,
 
 	if (writeback && !folio_mapped(to_folio) &&
 	    folio_clear_dirty_for_io(to_folio)) {
-		struct writeback_control wbc = {
-			.sync_mode = WB_SYNC_NONE,
-			.nr_to_write = SWAP_CLUSTER_MAX,
-			.range_start = 0,
-			.range_end = LLONG_MAX,
-			.for_reclaim = 1,
-		};
 		folio_set_reclaim(to_folio);
-		ret = mapping->a_ops->writepage(folio_file_page(to_folio, idx), &wbc);
+		ret = shmem_writeout(to_folio, NULL, NULL);
 		if (!folio_test_writeback(to_folio))
 			folio_clear_reclaim(to_folio);
 		/*
-		 * If writepage succeeds, it unlocks the folio.
-		 * writepage() errors are otherwise dropped, since writepage()
-		 * is only best effort here.
+		 * If writeout succeeds, it unlocks the folio.	errors
+		 * are otherwise dropped, since writeout is only best
+		 * effort here.
 		 */
 		if (ret)
 			folio_unlock(to_folio);

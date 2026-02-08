@@ -685,7 +685,8 @@ ext:
 void
 bfad_bfa_tmo(struct timer_list *t)
 {
-	struct bfad_s	      *bfad = from_timer(bfad, t, hal_tmo);
+	struct bfad_s	      *bfad = timer_container_of(bfad, t,
+							      hal_tmo);
 	unsigned long	flags;
 	struct list_head	       doneq;
 
@@ -1527,7 +1528,6 @@ bfad_pci_slot_reset(struct pci_dev *pdev)
 		goto out_disable_device;
 	}
 
-	pci_save_state(pdev);
 	pci_set_master(pdev);
 
 	rc = dma_set_mask_and_coherent(&bfad->pcidev->dev, DMA_BIT_MASK(64));

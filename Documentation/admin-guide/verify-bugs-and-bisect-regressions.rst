@@ -267,7 +267,7 @@ culprit might be known already. For further details on what actually qualifies
 as a regression check out Documentation/admin-guide/reporting-regressions.rst.
 
 If you run into any problems while following this guide or have ideas how to
-improve it, :ref:`please let the kernel developers know <submit_improvements>`.
+improve it, :ref:`please let the kernel developers know <submit_improvements_vbbr>`.
 
 .. _introprep_bissbs:
 
@@ -1055,7 +1055,7 @@ follow these instructions.
 
 [:ref:`details <introoptional_bisref>`]
 
-.. _submit_improvements:
+.. _submit_improvements_vbbr:
 
 Conclusion
 ----------
@@ -1757,7 +1757,7 @@ or all of these tasks:
   to your bootloader's configuration.
 
 You have to take care of some or all of the tasks yourself, if your
-distribution lacks a installkernel script or does only handle part of them.
+distribution lacks an installkernel script or does only handle part of them.
 Consult the distribution's documentation for details. If in doubt, install the
 kernel manually::
 

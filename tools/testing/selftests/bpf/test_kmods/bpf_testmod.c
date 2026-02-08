@@ -62,6 +62,18 @@ struct bpf_testmod_struct_arg_5 {
 	long d;
 };
 
+union bpf_testmod_union_arg_1 {
+	char a;
+	short b;
+	struct bpf_testmod_struct_arg_1 arg;
+};
+
+union bpf_testmod_union_arg_2 {
+	int a;
+	long b;
+	struct bpf_testmod_struct_arg_2 arg;
+};
+
 __bpf_hook_start();
 
 noinline int
@@ -129,9 +141,27 @@ bpf_testmod_test_struct_arg_9(u64 a, void *b, short c, int d, void *e, char f,
 }
 
 noinline int
+bpf_testmod_test_union_arg_1(union bpf_testmod_union_arg_1 a, int b, int c)
+{
+	bpf_testmod_test_struct_arg_result = a.arg.a + b + c;
+	return bpf_testmod_test_struct_arg_result;
+}
+
+noinline int
+bpf_testmod_test_union_arg_2(int a, union bpf_testmod_union_arg_2 b)
+{
+	bpf_testmod_test_struct_arg_result = a + b.arg.a + b.arg.b;
+	return bpf_testmod_test_struct_arg_result;
+}
+
+noinline int
 bpf_testmod_test_arg_ptr_to_struct(struct bpf_testmod_struct_arg_1 *a) {
 	bpf_testmod_test_struct_arg_result = a->a;
 	return bpf_testmod_test_struct_arg_result;
+}
+
+__weak noinline void bpf_testmod_looooooooooooooooooooooooooooooong_name(void)
+{
 }
 
 __bpf_kfunc void
@@ -212,6 +242,16 @@ __bpf_kfunc void bpf_kfunc_trusted_num_test(int *ptr)
 
 __bpf_kfunc void bpf_kfunc_rcu_task_test(struct task_struct *ptr)
 {
+}
+
+__bpf_kfunc struct task_struct *bpf_kfunc_ret_rcu_test(void)
+{
+	return NULL;
+}
+
+__bpf_kfunc int *bpf_kfunc_ret_rcu_test_nostruct(int rdonly_buf_size)
+{
+	return NULL;
 }
 
 __bpf_kfunc struct bpf_testmod_ctx *
@@ -377,11 +417,35 @@ noinline int bpf_testmod_fentry_test11(u64 a, void *b, short c, int d,
 	return a + (long)b + c + d + (long)e + f + g + h + i + j + k;
 }
 
+noinline void bpf_testmod_stacktrace_test(void)
+{
+	/* used for stacktrace test as attach function */
+	asm volatile ("");
+}
+
+noinline void bpf_testmod_stacktrace_test_3(void)
+{
+	bpf_testmod_stacktrace_test();
+	asm volatile ("");
+}
+
+noinline void bpf_testmod_stacktrace_test_2(void)
+{
+	bpf_testmod_stacktrace_test_3();
+	asm volatile ("");
+}
+
+noinline void bpf_testmod_stacktrace_test_1(void)
+{
+	bpf_testmod_stacktrace_test_2();
+	asm volatile ("");
+}
+
 int bpf_testmod_fentry_ok;
 
 noinline ssize_t
 bpf_testmod_test_read(struct file *file, struct kobject *kobj,
-		      struct bin_attribute *bin_attr,
+		      const struct bin_attribute *bin_attr,
 		      char *buf, loff_t off, size_t len)
 {
 	struct bpf_testmod_test_read_ctx ctx = {
@@ -394,6 +458,8 @@ bpf_testmod_test_read(struct file *file, struct kobject *kobj,
 	struct bpf_testmod_struct_arg_3 *struct_arg3;
 	struct bpf_testmod_struct_arg_4 struct_arg4 = {21, 22};
 	struct bpf_testmod_struct_arg_5 struct_arg5 = {23, 24, 25, 26};
+	union bpf_testmod_union_arg_1 union_arg1 = { .arg = {1} };
+	union bpf_testmod_union_arg_2 union_arg2 = { .arg = {2, 3} };
 	int i = 1;
 
 	while (bpf_testmod_return_ptr(i))
@@ -411,9 +477,12 @@ bpf_testmod_test_read(struct file *file, struct kobject *kobj,
 	(void)bpf_testmod_test_struct_arg_9(16, (void *)17, 18, 19, (void *)20,
 					    21, 22, struct_arg5, 27);
 
+	(void)bpf_testmod_test_union_arg_1(union_arg1, 4, 5);
+	(void)bpf_testmod_test_union_arg_2(6, union_arg2);
+
 	(void)bpf_testmod_test_arg_ptr_to_struct(&struct_arg1_2);
 
-	(void)trace_bpf_testmod_test_raw_tp_null(NULL);
+	(void)trace_bpf_testmod_test_raw_tp_null_tp(NULL);
 
 	bpf_testmod_test_struct_ops3();
 
@@ -431,14 +500,14 @@ bpf_testmod_test_read(struct file *file, struct kobject *kobj,
 	if (bpf_testmod_loop_test(101) > 100)
 		trace_bpf_testmod_test_read(current, &ctx);
 
-	trace_bpf_testmod_test_nullable_bare(NULL);
+	trace_bpf_testmod_test_nullable_bare_tp(NULL);
 
 	/* Magic number to enable writable tp */
 	if (len == 64) {
 		struct bpf_testmod_test_writable_ctx writable = {
 			.val = 1024,
 		};
-		trace_bpf_testmod_test_writable_bare(&writable);
+		trace_bpf_testmod_test_writable_bare_tp(&writable);
 		if (writable.early_ret)
 			return snprintf(buf, len, "%d\n", writable.val);
 	}
@@ -452,6 +521,8 @@ bpf_testmod_test_read(struct file *file, struct kobject *kobj,
 			21, 22, 23, 24, 25, 26) != 231)
 		goto out;
 
+	bpf_testmod_stacktrace_test_1();
+
 	bpf_testmod_fentry_ok = 1;
 out:
 	return -EIO; /* always fail */
@@ -461,7 +532,7 @@ ALLOW_ERROR_INJECTION(bpf_testmod_test_read, ERRNO);
 
 noinline ssize_t
 bpf_testmod_test_write(struct file *file, struct kobject *kobj,
-		      struct bin_attribute *bin_attr,
+		      const struct bin_attribute *bin_attr,
 		      char *buf, loff_t off, size_t len)
 {
 	struct bpf_testmod_test_write_ctx ctx = {
@@ -470,7 +541,7 @@ bpf_testmod_test_write(struct file *file, struct kobject *kobj,
 		.len = len,
 	};
 
-	trace_bpf_testmod_test_write_bare(current, &ctx);
+	trace_bpf_testmod_test_write_bare_tp(current, &ctx);
 
 	return -EIO; /* always fail */
 }
@@ -497,14 +568,20 @@ static struct bin_attribute bin_attr_bpf_testmod_file __ro_after_init = {
 #ifdef __x86_64__
 
 static int
+uprobe_handler(struct uprobe_consumer *self, struct pt_regs *regs, __u64 *data)
+{
+	regs->cx = 0x87654321feebdaed;
+	return 0;
+}
+
+static int
 uprobe_ret_handler(struct uprobe_consumer *self, unsigned long func,
 		   struct pt_regs *regs, __u64 *data)
 
 {
 	regs->ax  = 0x12345678deadbeef;
-	regs->cx  = 0x87654321feebdaed;
 	regs->r11 = (u64) -1;
-	return true;
+	return 0;
 }
 
 struct testmod_uprobe {
@@ -516,6 +593,7 @@ struct testmod_uprobe {
 static DEFINE_MUTEX(testmod_uprobe_mutex);
 
 static struct testmod_uprobe uprobe = {
+	.consumer.handler = uprobe_handler,
 	.consumer.ret_handler = uprobe_ret_handler,
 };
 
@@ -563,7 +641,7 @@ static void testmod_unregister_uprobe(void)
 
 static ssize_t
 bpf_testmod_uprobe_write(struct file *file, struct kobject *kobj,
-			 struct bin_attribute *bin_attr,
+			 const struct bin_attribute *bin_attr,
 			 char *buf, loff_t off, size_t len)
 {
 	unsigned long offset = 0;
@@ -619,6 +697,8 @@ BTF_ID_FLAGS(func, bpf_kfunc_trusted_vma_test, KF_TRUSTED_ARGS)
 BTF_ID_FLAGS(func, bpf_kfunc_trusted_task_test, KF_TRUSTED_ARGS)
 BTF_ID_FLAGS(func, bpf_kfunc_trusted_num_test, KF_TRUSTED_ARGS)
 BTF_ID_FLAGS(func, bpf_kfunc_rcu_task_test, KF_RCU)
+BTF_ID_FLAGS(func, bpf_kfunc_ret_rcu_test, KF_RET_NULL | KF_RCU_PROTECTED)
+BTF_ID_FLAGS(func, bpf_kfunc_ret_rcu_test_nostruct, KF_RET_NULL | KF_RCU_PROTECTED)
 BTF_ID_FLAGS(func, bpf_testmod_ctx_create, KF_ACQUIRE | KF_RET_NULL)
 BTF_ID_FLAGS(func, bpf_testmod_ctx_release, KF_RELEASE)
 BTF_ID_FLAGS(func, bpf_testmod_ops3_call_test_1)
@@ -846,7 +926,7 @@ __bpf_kfunc int bpf_kfunc_call_kernel_connect(struct addr_args *args)
 		goto out;
 	}
 
-	err = kernel_connect(sock, (struct sockaddr *)&args->addr,
+	err = kernel_connect(sock, (struct sockaddr_unsized *)&args->addr,
 			     args->addrlen, 0);
 out:
 	mutex_unlock(&sock_lock);
@@ -869,7 +949,7 @@ __bpf_kfunc int bpf_kfunc_call_kernel_bind(struct addr_args *args)
 		goto out;
 	}
 
-	err = kernel_bind(sock, (struct sockaddr *)&args->addr, args->addrlen);
+	err = kernel_bind(sock, (struct sockaddr_unsized *)&args->addr, args->addrlen);
 out:
 	mutex_unlock(&sock_lock);
 
@@ -1053,6 +1133,8 @@ __bpf_kfunc int bpf_kfunc_st_ops_inc10(struct st_ops_args *args)
 	return args->a;
 }
 
+__bpf_kfunc int bpf_kfunc_multi_st_ops_test_1(struct st_ops_args *args, u32 id);
+
 BTF_KFUNCS_START(bpf_testmod_check_kfunc_ids)
 BTF_ID_FLAGS(func, bpf_testmod_test_mod_kfunc)
 BTF_ID_FLAGS(func, bpf_kfunc_call_test1)
@@ -1093,6 +1175,7 @@ BTF_ID_FLAGS(func, bpf_kfunc_st_ops_test_prologue, KF_TRUSTED_ARGS | KF_SLEEPABL
 BTF_ID_FLAGS(func, bpf_kfunc_st_ops_test_epilogue, KF_TRUSTED_ARGS | KF_SLEEPABLE)
 BTF_ID_FLAGS(func, bpf_kfunc_st_ops_test_pro_epilogue, KF_TRUSTED_ARGS | KF_SLEEPABLE)
 BTF_ID_FLAGS(func, bpf_kfunc_st_ops_inc10, KF_TRUSTED_ARGS)
+BTF_ID_FLAGS(func, bpf_kfunc_multi_st_ops_test_1, KF_TRUSTED_ARGS)
 BTF_KFUNCS_END(bpf_testmod_check_kfunc_ids)
 
 static int bpf_testmod_ops_init(struct btf *btf)
@@ -1340,7 +1423,7 @@ static int st_ops_gen_prologue_with_kfunc(struct bpf_insn *insn_buf, bool direct
 	*insn++ = BPF_STX_MEM(BPF_DW, BPF_REG_6, BPF_REG_7, offsetof(struct st_ops_args, a));
 	*insn++ = BPF_JMP_IMM(BPF_JA, 0, 0, 2);
 	*insn++ = BPF_MOV64_REG(BPF_REG_1, BPF_REG_0);
-	*insn++ = BPF_CALL_KFUNC(0, bpf_cgroup_release_id),
+	*insn++ = BPF_CALL_KFUNC(0, bpf_cgroup_release_id);
 	*insn++ = BPF_MOV64_REG(BPF_REG_1, BPF_REG_8);
 	*insn++ = prog->insnsi[0];
 
@@ -1379,7 +1462,7 @@ static int st_ops_gen_epilogue_with_kfunc(struct bpf_insn *insn_buf, const struc
 	*insn++ = BPF_STX_MEM(BPF_DW, BPF_REG_1, BPF_REG_6, offsetof(struct st_ops_args, a));
 	*insn++ = BPF_JMP_IMM(BPF_JA, 0, 0, 2);
 	*insn++ = BPF_MOV64_REG(BPF_REG_1, BPF_REG_0);
-	*insn++ = BPF_CALL_KFUNC(0, bpf_cgroup_release_id),
+	*insn++ = BPF_CALL_KFUNC(0, bpf_cgroup_release_id);
 	*insn++ = BPF_MOV64_REG(BPF_REG_0, BPF_REG_6);
 	*insn++ = BPF_ALU64_IMM(BPF_MUL, BPF_REG_0, 2);
 	*insn++ = BPF_EXIT_INSN();
@@ -1524,6 +1607,114 @@ static struct bpf_struct_ops testmod_st_ops = {
 	.owner = THIS_MODULE,
 };
 
+struct hlist_head multi_st_ops_list;
+static DEFINE_SPINLOCK(multi_st_ops_lock);
+
+static int multi_st_ops_init(struct btf *btf)
+{
+	spin_lock_init(&multi_st_ops_lock);
+	INIT_HLIST_HEAD(&multi_st_ops_list);
+
+	return 0;
+}
+
+static int multi_st_ops_init_member(const struct btf_type *t,
+				    const struct btf_member *member,
+				    void *kdata, const void *udata)
+{
+	return 0;
+}
+
+static struct bpf_testmod_multi_st_ops *multi_st_ops_find_nolock(u32 id)
+{
+	struct bpf_testmod_multi_st_ops *st_ops;
+
+	hlist_for_each_entry(st_ops, &multi_st_ops_list, node) {
+		if (st_ops->id == id)
+			return st_ops;
+	}
+
+	return NULL;
+}
+
+int bpf_kfunc_multi_st_ops_test_1(struct st_ops_args *args, u32 id)
+{
+	struct bpf_testmod_multi_st_ops *st_ops;
+	unsigned long flags;
+	int ret = -1;
+
+	spin_lock_irqsave(&multi_st_ops_lock, flags);
+	st_ops = multi_st_ops_find_nolock(id);
+	if (st_ops)
+		ret = st_ops->test_1(args);
+	spin_unlock_irqrestore(&multi_st_ops_lock, flags);
+
+	return ret;
+}
+
+static int multi_st_ops_reg(void *kdata, struct bpf_link *link)
+{
+	struct bpf_testmod_multi_st_ops *st_ops =
+		(struct bpf_testmod_multi_st_ops *)kdata;
+	unsigned long flags;
+	int err = 0;
+	u32 id;
+
+	if (!st_ops->test_1)
+		return -EINVAL;
+
+	id = bpf_struct_ops_id(kdata);
+
+	spin_lock_irqsave(&multi_st_ops_lock, flags);
+	if (multi_st_ops_find_nolock(id)) {
+		pr_err("multi_st_ops(id:%d) has already been registered\n", id);
+		err = -EEXIST;
+		goto unlock;
+	}
+
+	st_ops->id = id;
+	hlist_add_head(&st_ops->node, &multi_st_ops_list);
+unlock:
+	spin_unlock_irqrestore(&multi_st_ops_lock, flags);
+
+	return err;
+}
+
+static void multi_st_ops_unreg(void *kdata, struct bpf_link *link)
+{
+	struct bpf_testmod_multi_st_ops *st_ops;
+	unsigned long flags;
+	u32 id;
+
+	id = bpf_struct_ops_id(kdata);
+
+	spin_lock_irqsave(&multi_st_ops_lock, flags);
+	st_ops = multi_st_ops_find_nolock(id);
+	if (st_ops)
+		hlist_del(&st_ops->node);
+	spin_unlock_irqrestore(&multi_st_ops_lock, flags);
+}
+
+static int bpf_testmod_multi_st_ops__test_1(struct st_ops_args *args)
+{
+	return 0;
+}
+
+static struct bpf_testmod_multi_st_ops multi_st_ops_cfi_stubs = {
+	.test_1 = bpf_testmod_multi_st_ops__test_1,
+};
+
+struct bpf_struct_ops testmod_multi_st_ops = {
+	.verifier_ops = &bpf_testmod_verifier_ops,
+	.init = multi_st_ops_init,
+	.init_member = multi_st_ops_init_member,
+	.reg = multi_st_ops_reg,
+	.unreg = multi_st_ops_unreg,
+	.cfi_stubs = &multi_st_ops_cfi_stubs,
+	.name = "bpf_testmod_multi_st_ops",
+	.owner = THIS_MODULE,
+};
+
 extern int bpf_fentry_test1(int a);
 
 static int bpf_testmod_init(void)
@@ -1546,6 +1737,7 @@ static int bpf_testmod_init(void)
 	ret = ret ?: register_bpf_struct_ops(&bpf_testmod_ops2, bpf_testmod_ops2);
 	ret = ret ?: register_bpf_struct_ops(&bpf_testmod_ops3, bpf_testmod_ops3);
 	ret = ret ?: register_bpf_struct_ops(&testmod_st_ops, bpf_testmod_st_ops);
+	ret = ret ?: register_bpf_struct_ops(&testmod_multi_st_ops, bpf_testmod_multi_st_ops);
 	ret = ret ?: register_btf_id_dtor_kfuncs(bpf_testmod_dtors,
 						 ARRAY_SIZE(bpf_testmod_dtors),
 						 THIS_MODULE);

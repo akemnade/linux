@@ -120,9 +120,40 @@
  *      memory.  Hence, we will reclaim written/unwritten/hole extents from
  *      the tree under a heavy memory pressure.
  *
+ * ==========================================================================
+ * 3. Assurance of Ext4 extent status tree consistency
+ *
+ * When mapping blocks, Ext4 queries the extent status tree first and should
+ * always trusts that the extent status tree is consistent and up to date.
+ * Therefore, it is important to adheres to the following rules when createing,
+ * modifying and removing extents.
+ *
+ *  1. Besides fastcommit replay, when Ext4 creates or queries block mappings,
+ *     the extent information should always be processed through the extent
+ *     status tree instead of being organized manually through the on-disk
+ *     extent tree.
+ *
+ *  2. When updating the extent tree, Ext4 should acquire the i_data_sem
+ *     exclusively and update the extent status tree atomically. If the extents
+ *     to be modified are large enough to exceed the range that a single
+ *     i_data_sem can process (as ext4_datasem_ensure_credits() may drop
+ *     i_data_sem to restart a transaction), it must (e.g. as ext4_punch_hole()
+ *     does):
+ *
+ *     a) Hold the i_rwsem and invalidate_lock exclusively. This ensures
+ *        exclusion against page faults, as well as reads and writes that may
+ *        concurrently modify the extent status tree.
+ *     b) Evict all page cache in the affected range and recommend rebuilding
+ *        or dropping the extent status tree after modifying the on-disk
+ *        extent tree. This ensures exclusion against concurrent writebacks
+ *        that do not hold those locks but only holds a folio lock.
+ *
+ *  3. Based on the rules above, when querying block mappings, Ext4 should at
+ *     least hold the i_rwsem or invalidate_lock or folio lock(s) for the
+ *     specified querying range.
  *
  * ==========================================================================
- * 3. Performance analysis
+ * 4. Performance analysis
  *
  *   --	overhead
  *	1. There is a cache extent for write access, so if writes are
@@ -134,7 +165,7 @@
  *
  *
  * ==========================================================================
- * 4. TODO list
+ * 5. TODO list
  *
  *   -- Refactor delayed space reservation
  *
@@ -202,6 +233,13 @@ static inline ext4_lblk_t ext4_es_end(struct extent_status *es)
 {
 	BUG_ON(es->es_lblk + es->es_len < es->es_lblk);
 	return es->es_lblk + es->es_len - 1;
+}
+
+static inline void ext4_es_inc_seq(struct inode *inode)
+{
+	struct ext4_inode_info *ei = EXT4_I(inode);
+
+	WRITE_ONCE(ei->i_es_seq, ei->i_es_seq + 1);
 }
 
 /*
@@ -875,7 +913,6 @@ void ext4_es_insert_extent(struct inode *inode, ext4_lblk_t lblk,
 	newes.es_lblk = lblk;
 	newes.es_len = len;
 	ext4_es_store_pblock_status(&newes, pblk, status);
-	trace_ext4_es_insert_extent(inode, &newes);
 
 	ext4_es_insert_extent_check(inode, &newes);
 
@@ -924,6 +961,11 @@ retry:
 		}
 		pending = err3;
 	}
+	/*
+	 * TODO: For cache on-disk extents, there is no need to increment
+	 * the sequence counter, this requires future optimization.
+	 */
+	ext4_es_inc_seq(inode);
 error:
 	write_unlock(&EXT4_I(inode)->i_es_lock);
 	/*
@@ -950,6 +992,7 @@ error:
 	if (err1 || err2 || err3 < 0)
 		goto retry;
 
+	trace_ext4_es_insert_extent(inode, &newes);
 	ext4_es_print_tree(inode);
 	return;
 }
@@ -996,8 +1039,8 @@ void ext4_es_cache_extent(struct inode *inode, ext4_lblk_t lblk,
  * Return: 1 on found, 0 on not
  */
 int ext4_es_lookup_extent(struct inode *inode, ext4_lblk_t lblk,
-			  ext4_lblk_t *next_lblk,
-			  struct extent_status *es)
+			  ext4_lblk_t *next_lblk, struct extent_status *es,
+			  u64 *pseq)
 {
 	struct ext4_es_tree *tree;
 	struct ext4_es_stats *stats;
@@ -1056,6 +1099,8 @@ out:
 			} else
 				*next_lblk = 0;
 		}
+		if (pseq)
+			*pseq = EXT4_I(inode)->i_es_seq;
 	} else {
 		percpu_counter_inc(&stats->es_stats_cache_misses);
 	}
@@ -1519,7 +1564,6 @@ void ext4_es_remove_extent(struct inode *inode, ext4_lblk_t lblk,
 	if (EXT4_SB(inode->i_sb)->s_mount_state & EXT4_FC_REPLAY)
 		return;
 
-	trace_ext4_es_remove_extent(inode, lblk, len);
 	es_debug("remove [%u/%u) from extent status tree of inode %lu\n",
 		 lblk, len, inode->i_ino);
 
@@ -1539,16 +1583,21 @@ retry:
 	 */
 	write_lock(&EXT4_I(inode)->i_es_lock);
 	err = __es_remove_extent(inode, lblk, end, &reserved, es);
+	if (err)
+		goto error;
 	/* Free preallocated extent if it didn't get used. */
 	if (es) {
 		if (!es->es_len)
 			__es_free_extent(es);
 		es = NULL;
 	}
+	ext4_es_inc_seq(inode);
+error:
 	write_unlock(&EXT4_I(inode)->i_es_lock);
 	if (err)
 		goto retry;
 
+	trace_ext4_es_remove_extent(inode, lblk, len);
 	ext4_es_print_tree(inode);
 	ext4_da_release_space(inode, reserved);
 }
@@ -2109,8 +2158,6 @@ void ext4_es_insert_delayed_extent(struct inode *inode, ext4_lblk_t lblk,
 	newes.es_lblk = lblk;
 	newes.es_len = len;
 	ext4_es_store_pblock_status(&newes, ~0, EXTENT_STATUS_DELAYED);
-	trace_ext4_es_insert_delayed_extent(inode, &newes, lclu_allocated,
-					    end_allocated);
 
 	ext4_es_insert_extent_check(inode, &newes);
 
@@ -2165,11 +2212,14 @@ retry:
 			pr2 = NULL;
 		}
 	}
+	ext4_es_inc_seq(inode);
 error:
 	write_unlock(&EXT4_I(inode)->i_es_lock);
 	if (err1 || err2 || err3 < 0)
 		goto retry;
 
+	trace_ext4_es_insert_delayed_extent(inode, &newes, lclu_allocated,
+					    end_allocated);
 	ext4_es_print_tree(inode);
 	ext4_print_pending_tree(inode);
 	return;

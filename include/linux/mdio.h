@@ -45,10 +45,7 @@ struct mdio_device {
 	unsigned int reset_deassert_delay;
 };
 
-static inline struct mdio_device *to_mdio_device(const struct device *dev)
-{
-	return container_of(dev, struct mdio_device, dev);
-}
+#define to_mdio_device(__dev)	container_of_const(__dev, struct mdio_device, dev)
 
 /* struct mdio_driver_common: Common to all MDIO drivers */
 struct mdio_driver_common {
@@ -98,7 +95,6 @@ void mdio_device_remove(struct mdio_device *mdiodev);
 void mdio_device_reset(struct mdio_device *mdiodev, int value);
 int mdio_driver_register(struct mdio_driver *drv);
 void mdio_driver_unregister(struct mdio_driver *drv);
-int mdio_device_bus_match(struct device *dev, const struct device_driver *drv);
 
 static inline void mdio_device_get(struct mdio_device *mdiodev)
 {
@@ -693,16 +689,7 @@ struct phy_device *mdiobus_get_phy(struct mii_bus *bus, int addr);
  * init/exit. Each module may only use this macro once, and calling it
  * replaces module_init() and module_exit().
  */
-#define mdio_module_driver(_mdio_driver)				\
-static int __init mdio_module_init(void)				\
-{									\
-	return mdio_driver_register(&_mdio_driver);			\
-}									\
-module_init(mdio_module_init);						\
-static void __exit mdio_module_exit(void)				\
-{									\
-	mdio_driver_unregister(&_mdio_driver);				\
-}									\
-module_exit(mdio_module_exit)
+#define mdio_module_driver(_mdio_driver) \
+	module_driver(_mdio_driver, mdio_driver_register, mdio_driver_unregister)
 
 #endif /* __LINUX_MDIO_H__ */

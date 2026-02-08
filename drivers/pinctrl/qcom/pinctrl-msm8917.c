@@ -1302,7 +1302,7 @@ static const struct pinfunction msm8917_functions[] = {
 	MSM_PIN_FUNCTION(gcc_gp3_clk_b),
 	MSM_PIN_FUNCTION(gcc_plltest),
 	MSM_PIN_FUNCTION(gcc_tlmm),
-	MSM_PIN_FUNCTION(gpio),
+	MSM_GPIO_PIN_FUNCTION(gpio),
 	MSM_PIN_FUNCTION(gsm0_tx),
 	MSM_PIN_FUNCTION(key_focus),
 	MSM_PIN_FUNCTION(key_snapshot),
@@ -1607,7 +1607,6 @@ static struct platform_driver msm8917_pinctrl_driver = {
 		.of_match_table = msm8917_pinctrl_of_match,
 	},
 	.probe = msm8917_pinctrl_probe,
-	.remove = msm_pinctrl_remove,
 };
 
 static int __init msm8917_pinctrl_init(void)

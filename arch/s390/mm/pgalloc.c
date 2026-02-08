@@ -12,18 +12,20 @@
 #include <asm/mmu_context.h>
 #include <asm/page-states.h>
 #include <asm/pgalloc.h>
-#include <asm/gmap.h>
-#include <asm/tlb.h>
 #include <asm/tlbflush.h>
 
-unsigned long *crst_table_alloc(struct mm_struct *mm)
+unsigned long *crst_table_alloc_noprof(struct mm_struct *mm)
 {
-	struct ptdesc *ptdesc = pagetable_alloc(GFP_KERNEL, CRST_ALLOC_ORDER);
+	gfp_t gfp = GFP_KERNEL_ACCOUNT;
+	struct ptdesc *ptdesc;
 	unsigned long *table;
 
+	if (mm == &init_mm)
+		gfp &= ~__GFP_ACCOUNT;
+	ptdesc = pagetable_alloc_noprof(gfp, CRST_ALLOC_ORDER);
 	if (!ptdesc)
 		return NULL;
-	table = ptdesc_to_virt(ptdesc);
+	table = ptdesc_address(ptdesc);
 	__arch_set_page_dat(table, 1UL << CRST_ALLOC_ORDER);
 	return table;
 }
@@ -38,11 +40,15 @@ void crst_table_free(struct mm_struct *mm, unsigned long *table)
 static void __crst_table_upgrade(void *arg)
 {
 	struct mm_struct *mm = arg;
+	struct ctlreg asce;
 
 	/* change all active ASCEs to avoid the creation of new TLBs */
 	if (current->active_mm == mm) {
-		get_lowcore()->user_asce.val = mm->context.asce;
-		local_ctl_load(7, &get_lowcore()->user_asce);
+		asce.val = mm->context.asce;
+		get_lowcore()->user_asce = asce;
+		local_ctl_load(7, &asce);
+		if (!test_thread_flag(TIF_ASCE_PRIMARY))
+			local_ctl_load(1, &asce);
 	}
 	__tlb_flush_local();
 }
@@ -51,6 +57,8 @@ int crst_table_upgrade(struct mm_struct *mm, unsigned long end)
 {
 	unsigned long *pgd = NULL, *p4d = NULL, *__pgd;
 	unsigned long asce_limit = mm->context.asce_limit;
+
+	mmap_assert_write_locked(mm);
 
 	/* upgrade should only happen from 3 to 4, 3 to 5, or 4 to 5 levels */
 	VM_BUG_ON(asce_limit < _REGION2_SIZE);
@@ -74,13 +82,6 @@ int crst_table_upgrade(struct mm_struct *mm, unsigned long end)
 	}
 
 	spin_lock_bh(&mm->page_table_lock);
-
-	/*
-	 * This routine gets called with mmap_lock lock held and there is
-	 * no reason to optimize for the case of otherwise. However, if
-	 * that would ever change, the below check will let us know.
-	 */
-	VM_BUG_ON(asce_limit != mm->context.asce_limit);
 
 	if (p4d) {
 		__pgd = (unsigned long *) mm->pgd;
@@ -115,14 +116,14 @@ err_p4d:
 
 #ifdef CONFIG_PGSTE
 
-struct ptdesc *page_table_alloc_pgste(struct mm_struct *mm)
+struct ptdesc *page_table_alloc_pgste_noprof(struct mm_struct *mm)
 {
 	struct ptdesc *ptdesc;
 	u64 *table;
 
-	ptdesc = pagetable_alloc(GFP_KERNEL, 0);
+	ptdesc = pagetable_alloc_noprof(GFP_KERNEL_ACCOUNT, 0);
 	if (ptdesc) {
-		table = (u64 *)ptdesc_to_virt(ptdesc);
+		table = (u64 *)ptdesc_address(ptdesc);
 		__arch_set_page_dat(table, 1);
 		memset64(table, _PAGE_INVALID, PTRS_PER_PTE);
 		memset64(table + PTRS_PER_PTE, 0, PTRS_PER_PTE);
@@ -137,19 +138,22 @@ void page_table_free_pgste(struct ptdesc *ptdesc)
 
 #endif /* CONFIG_PGSTE */
 
-unsigned long *page_table_alloc(struct mm_struct *mm)
+unsigned long *page_table_alloc_noprof(struct mm_struct *mm)
 {
+	gfp_t gfp = GFP_KERNEL_ACCOUNT;
 	struct ptdesc *ptdesc;
 	unsigned long *table;
 
-	ptdesc = pagetable_alloc(GFP_KERNEL, 0);
+	if (mm == &init_mm)
+		gfp &= ~__GFP_ACCOUNT;
+	ptdesc = pagetable_alloc_noprof(gfp, 0);
 	if (!ptdesc)
 		return NULL;
-	if (!pagetable_pte_ctor(ptdesc)) {
+	if (!pagetable_pte_ctor(mm, ptdesc)) {
 		pagetable_free(ptdesc);
 		return NULL;
 	}
-	table = ptdesc_to_virt(ptdesc);
+	table = ptdesc_address(ptdesc);
 	__arch_set_page_dat(table, 1);
 	memset64((u64 *)table, _PAGE_INVALID, PTRS_PER_PTE);
 	memset64((u64 *)table + PTRS_PER_PTE, 0, PTRS_PER_PTE);
@@ -160,6 +164,8 @@ void page_table_free(struct mm_struct *mm, unsigned long *table)
 {
 	struct ptdesc *ptdesc = virt_to_ptdesc(table);
 
+	if (pagetable_is_reserved(ptdesc))
+		return free_reserved_ptdesc(ptdesc);
 	pagetable_dtor_free(ptdesc);
 }
 
@@ -176,11 +182,6 @@ void pte_free_defer(struct mm_struct *mm, pgtable_t pgtable)
 	struct ptdesc *ptdesc = virt_to_ptdesc(pgtable);
 
 	call_rcu(&ptdesc->pt_rcu_head, pte_free_now);
-	/*
-	 * THPs are not allowed for KVM guests. Warn if pgste ever reaches here.
-	 * Turn to the generic pte_free_defer() version once gmap is removed.
-	 */
-	WARN_ON_ONCE(mm_has_pgste(mm));
 }
 #endif /* CONFIG_TRANSPARENT_HUGEPAGE */
 
@@ -246,7 +247,7 @@ static inline unsigned long base_lra(unsigned long address)
 	unsigned long real;
 
 	asm volatile(
-		"	lra	%0,0(%1)\n"
+		"	lra	%0,0(%1)"
 		: "=d" (real) : "a" (address) : "cc");
 	return real;
 }

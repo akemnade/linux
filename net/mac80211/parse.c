@@ -6,7 +6,7 @@
  * Copyright 2007	Johannes Berg <johannes@sipsolutions.net>
  * Copyright 2013-2014  Intel Mobile Communications GmbH
  * Copyright (C) 2015-2017	Intel Deutschland GmbH
- * Copyright (C) 2018-2024 Intel Corporation
+ * Copyright (C) 2018-2025 Intel Corporation
  *
  * element parsing for mac80211
  */
@@ -285,6 +285,24 @@ _ieee802_11_parse_elems_full(struct ieee80211_elems_parse_params *params,
 	u32 crc = params->crc;
 
 	bitmap_zero(seen_elems, 256);
+
+	switch (params->type) {
+	/* we don't need to parse assoc request, luckily (it's value 0) */
+	case IEEE80211_FTYPE_MGMT | IEEE80211_STYPE_ASSOC_REQ:
+	case IEEE80211_FTYPE_MGMT | IEEE80211_STYPE_REASSOC_REQ:
+	default:
+		WARN(1, "invalid frame type 0x%x for element parsing\n",
+		     params->type);
+		break;
+	case IEEE80211_FTYPE_MGMT | IEEE80211_STYPE_ASSOC_RESP:
+	case IEEE80211_FTYPE_MGMT | IEEE80211_STYPE_REASSOC_RESP:
+	case IEEE80211_FTYPE_MGMT | IEEE80211_STYPE_PROBE_REQ:
+	case IEEE80211_FTYPE_MGMT | IEEE80211_STYPE_PROBE_RESP:
+	case IEEE80211_FTYPE_MGMT | IEEE80211_STYPE_BEACON:
+	case IEEE80211_FTYPE_MGMT | IEEE80211_STYPE_ACTION:
+	case IEEE80211_FTYPE_EXT | IEEE80211_STYPE_S1G_BEACON:
+		break;
+	}
 
 	for_each_element(elem, params->start, params->len) {
 		const struct element *subelem;
@@ -566,7 +584,8 @@ _ieee802_11_parse_elems_full(struct ieee80211_elems_parse_params *params,
 			if (params->mode < IEEE80211_CONN_MODE_VHT)
 				break;
 
-			if (!params->action) {
+			if (params->type != (IEEE80211_FTYPE_MGMT |
+					     IEEE80211_STYPE_ACTION)) {
 				elem_parse_failed =
 					IEEE80211_PARSE_ERR_UNEXPECTED_ELEM;
 				break;
@@ -582,7 +601,8 @@ _ieee802_11_parse_elems_full(struct ieee80211_elems_parse_params *params,
 		case WLAN_EID_CHANNEL_SWITCH_WRAPPER:
 			if (params->mode < IEEE80211_CONN_MODE_VHT)
 				break;
-			if (params->action) {
+			if (params->type == (IEEE80211_FTYPE_MGMT |
+					     IEEE80211_STYPE_ACTION)) {
 				elem_parse_failed =
 					IEEE80211_PARSE_ERR_UNEXPECTED_ELEM;
 				break;
@@ -758,7 +778,6 @@ static size_t ieee802_11_find_bssid_profile(const u8 *start, size_t len,
 {
 	const struct element *elem, *sub;
 	size_t profile_len = 0;
-	bool found = false;
 
 	if (!bss || !bss->transmitted_bss)
 		return profile_len;
@@ -809,15 +828,14 @@ static size_t ieee802_11_find_bssid_profile(const u8 *start, size_t len,
 					       index[2],
 					       new_bssid);
 			if (ether_addr_equal(new_bssid, bss->bssid)) {
-				found = true;
 				elems->bssid_index_len = index[1];
 				elems->bssid_index = (void *)&index[2];
-				break;
+				return profile_len;
 			}
 		}
 	}
 
-	return found ? profile_len : 0;
+	return 0;
 }
 
 static void
@@ -944,7 +962,7 @@ ieee80211_prep_mle_link_parse(struct ieee80211_elems_parse *elems_parse,
 	sub->len = end - sub->start;
 
 	sub->mode = params->mode;
-	sub->action = params->action;
+	sub->type = params->type;
 	sub->from_ap = params->from_ap;
 	sub->link_id = -1;
 
@@ -1043,7 +1061,7 @@ ieee802_11_parse_elems_full(struct ieee80211_elems_parse_params *params)
 		sub.start = elems_parse->scratch_pos;
 		sub.mode = params->mode;
 		sub.len = nontx_len;
-		sub.action = params->action;
+		sub.type = params->type;
 		sub.link_id = params->link_id;
 
 		/* consume the space used for non-transmitted profile */
@@ -1101,7 +1119,6 @@ int ieee80211_parse_bitrates(enum nl80211_chan_width width,
 			     const struct ieee80211_supported_band *sband,
 			     const u8 *srates, int srates_len, u32 *rates)
 {
-	u32 rate_flags = ieee80211_chanwidth_rate_flags(width);
 	struct ieee80211_rate *br;
 	int brate, rate, i, j, count = 0;
 
@@ -1112,8 +1129,6 @@ int ieee80211_parse_bitrates(enum nl80211_chan_width width,
 
 		for (j = 0; j < sband->n_bitrates; j++) {
 			br = &sband->bitrates[j];
-			if ((rate_flags & br->flags) != rate_flags)
-				continue;
 
 			brate = DIV_ROUND_UP(br->bitrate, 5);
 			if (brate == rate) {

@@ -7,8 +7,7 @@
  *
  */
 
-#define KMSG_COMPONENT "hmcdrv"
-#define pr_fmt(fmt) KMSG_COMPONENT ": " fmt
+#define pr_fmt(fmt) "hmcdrv: " fmt
 
 #include <linux/kernel.h>
 #include <linux/mm.h>
@@ -159,7 +158,7 @@ ssize_t diag_ftp_cmd(const struct hmcdrv_ftp_cmdspec *ftp, size_t *fsize)
 		goto out;
 	}
 
-	len = strscpy(ldfpl->fident, ftp->fname, sizeof(ldfpl->fident));
+	len = strscpy(ldfpl->fident, ftp->fname);
 	if (len < 0) {
 		len = -EINVAL;
 		goto out_free;

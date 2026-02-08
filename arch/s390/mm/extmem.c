@@ -7,8 +7,7 @@
  * Copyright IBM Corp. 2002, 2004
  */
 
-#define KMSG_COMPONENT "extmem"
-#define pr_fmt(fmt) KMSG_COMPONENT ": " fmt
+#define pr_fmt(fmt) "extmem: " fmt
 
 #include <linux/kernel.h>
 #include <linux/string.h>
@@ -530,6 +529,14 @@ segment_modify_shared (char *name, int do_nonshared)
 	return rc;
 }
 
+static void __dcss_diag_purge_on_cpu_0(void *data)
+{
+	struct dcss_segment *seg = (struct dcss_segment *)data;
+	unsigned long dummy;
+
+	dcss_diag(&purgeseg_scode, seg->dcss_name, &dummy, &dummy);
+}
+
 /*
  * Decrease the use count of a DCSS segment and remove
  * it from the address space if nobody is using it
@@ -538,7 +545,6 @@ segment_modify_shared (char *name, int do_nonshared)
 void
 segment_unload(char *name)
 {
-	unsigned long dummy;
 	struct dcss_segment *seg;
 
 	if (!machine_is_vm())
@@ -556,7 +562,14 @@ segment_unload(char *name)
 	kfree(seg->res);
 	vmem_remove_mapping(seg->start_addr, seg->end - seg->start_addr + 1);
 	list_del(&seg->list);
-	dcss_diag(&purgeseg_scode, seg->dcss_name, &dummy, &dummy);
+	/*
+	 * Workaround for z/VM issue, where calling the DCSS unload diag on
+	 * a non-IPL CPU would cause bogus sclp maximum memory detection on
+	 * next IPL.
+	 * IPL CPU 0 cannot be set offline, so the dcss_diag() call can
+	 * directly be scheduled to that CPU.
+	 */
+	smp_call_function_single(0, __dcss_diag_purge_on_cpu_0, seg, 1);
 	kfree(seg);
 out_unlock:
 	mutex_unlock(&dcss_lock);
@@ -584,14 +597,16 @@ segment_save(char *name)
 		goto out;
 	}
 
-	sprintf(cmd1, "DEFSEG %s", name);
+	snprintf(cmd1, sizeof(cmd1), "DEFSEG %s", name);
 	for (i=0; i<seg->segcnt; i++) {
-		sprintf(cmd1+strlen(cmd1), " %lX-%lX %s",
-			seg->range[i].start >> PAGE_SHIFT,
-			seg->range[i].end >> PAGE_SHIFT,
-			segtype_string[seg->range[i].start & 0xff]);
+		size_t len = strlen(cmd1);
+
+		snprintf(cmd1 + len, sizeof(cmd1) - len, " %lX-%lX %s",
+			 seg->range[i].start >> PAGE_SHIFT,
+			 seg->range[i].end >> PAGE_SHIFT,
+			 segtype_string[seg->range[i].start & 0xff]);
 	}
-	sprintf(cmd2, "SAVESEG %s", name);
+	snprintf(cmd2, sizeof(cmd2), "SAVESEG %s", name);
 	response = 0;
 	cpcmd(cmd1, NULL, 0, &response);
 	if (response) {

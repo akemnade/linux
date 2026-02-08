@@ -218,8 +218,7 @@ int btrfs_block_rsv_add(struct btrfs_fs_info *fs_info,
 	if (num_bytes == 0)
 		return 0;
 
-	ret = btrfs_reserve_metadata_bytes(fs_info, block_rsv->space_info,
-					   num_bytes, flush);
+	ret = btrfs_reserve_metadata_bytes(block_rsv->space_info, num_bytes, flush);
 	if (!ret)
 		btrfs_block_rsv_add_bytes(block_rsv, num_bytes, true);
 
@@ -259,8 +258,7 @@ int btrfs_block_rsv_refill(struct btrfs_fs_info *fs_info,
 	if (!ret)
 		return 0;
 
-	ret = btrfs_reserve_metadata_bytes(fs_info, block_rsv->space_info,
-					   num_bytes, flush);
+	ret = btrfs_reserve_metadata_bytes(block_rsv->space_info, num_bytes, flush);
 	if (!ret) {
 		btrfs_block_rsv_add_bytes(block_rsv, num_bytes, false);
 		return 0;
@@ -387,7 +385,7 @@ void btrfs_update_global_block_rsv(struct btrfs_fs_info *fs_info)
 		num_bytes = block_rsv->reserved - block_rsv->size;
 		btrfs_space_info_update_bytes_may_use(sinfo, -num_bytes);
 		block_rsv->reserved = block_rsv->size;
-		btrfs_try_granting_tickets(fs_info, sinfo);
+		btrfs_try_granting_tickets(sinfo);
 	}
 
 	block_rsv->full = (block_rsv->reserved == block_rsv->size);
@@ -418,6 +416,9 @@ void btrfs_init_root_block_rsv(struct btrfs_root *root)
 	case BTRFS_CHUNK_TREE_OBJECTID:
 		root->block_rsv = &fs_info->chunk_block_rsv;
 		break;
+	case BTRFS_TREE_LOG_OBJECTID:
+		root->block_rsv = &fs_info->treelog_rsv;
+		break;
 	default:
 		root->block_rsv = NULL;
 		break;
@@ -437,6 +438,14 @@ void btrfs_init_global_block_rsv(struct btrfs_fs_info *fs_info)
 	fs_info->empty_block_rsv.space_info = space_info;
 	fs_info->delayed_block_rsv.space_info = space_info;
 	fs_info->delayed_refs_rsv.space_info = space_info;
+
+	/* The treelog_rsv uses a dedicated space_info on the zoned mode. */
+	if (!btrfs_is_zoned(fs_info)) {
+		fs_info->treelog_rsv.space_info = space_info;
+	} else {
+		ASSERT(space_info->sub_group[0]->subgroup_id == BTRFS_SUB_GROUP_TREELOG);
+		fs_info->treelog_rsv.space_info = space_info->sub_group[0];
+	}
 
 	btrfs_update_global_block_rsv(fs_info);
 }
@@ -519,8 +528,8 @@ again:
 				block_rsv->type, ret);
 	}
 try_reserve:
-	ret = btrfs_reserve_metadata_bytes(fs_info, block_rsv->space_info,
-					   blocksize, BTRFS_RESERVE_NO_FLUSH);
+	ret = btrfs_reserve_metadata_bytes(block_rsv->space_info, blocksize,
+					   BTRFS_RESERVE_NO_FLUSH);
 	if (!ret)
 		return block_rsv;
 	/*
@@ -541,7 +550,7 @@ try_reserve:
 	 * one last time to force a reservation if there's enough actual space
 	 * on disk to make the reservation.
 	 */
-	ret = btrfs_reserve_metadata_bytes(fs_info, block_rsv->space_info, blocksize,
+	ret = btrfs_reserve_metadata_bytes(block_rsv->space_info, blocksize,
 					   BTRFS_RESERVE_FLUSH_EMERGENCY);
 	if (!ret)
 		return block_rsv;

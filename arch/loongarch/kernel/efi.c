@@ -115,7 +115,9 @@ void __init efi_init(void)
 
 	efi_systab_report_header(&efi_systab->hdr, efi_systab->fw_vendor);
 
-	set_bit(EFI_64BIT, &efi.flags);
+	if (IS_ENABLED(CONFIG_64BIT))
+		set_bit(EFI_64BIT, &efi.flags);
+
 	efi_nr_tables	 = efi_systab->nr_tables;
 	efi_config_table = (unsigned long)efi_systab->tables;
 
@@ -143,6 +145,18 @@ void __init efi_init(void)
 
 		if (efi_memmap_init_early(&data) < 0)
 			panic("Unable to map EFI memory map.\n");
+
+		/*
+		 * Reserve the physical memory region occupied by the EFI
+		 * memory map table (header + descriptors). This is crucial
+		 * for kdump, as the kdump kernel relies on this original
+		 * memmap passed by the bootloader. Without reservation,
+		 * this region could be overwritten by the primary kernel.
+		 * Also, set the EFI_PRESERVE_BS_REGIONS flag to indicate that
+		 * critical boot services code/data regions like this are preserved.
+		 */
+		memblock_reserve((phys_addr_t)boot_memmap, sizeof(*tbl) + data.size);
+		set_bit(EFI_PRESERVE_BS_REGIONS, &efi.flags);
 
 		early_memunmap(tbl, sizeof(*tbl));
 	}

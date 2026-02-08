@@ -111,8 +111,9 @@ static int s390_vary_chpid(struct chp_id chpid, int on)
 	char dbf_text[15];
 	int status;
 
-	sprintf(dbf_text, on?"varyon%x.%02x":"varyoff%x.%02x", chpid.cssid,
-		chpid.id);
+	scnprintf(dbf_text, sizeof(dbf_text),
+		  on ? "varyon%x.%02x" : "varyoff%x.%02x",
+		  chpid.cssid, chpid.id);
 	CIO_TRACE_EVENT(2, dbf_text);
 
 	status = chp_get_status(chpid);
@@ -470,7 +471,7 @@ static struct attribute *chp_attrs[] = {
 };
 static const struct attribute_group chp_attr_group = {
 	.attrs = chp_attrs,
-	.bin_attrs_new = chp_bin_attrs,
+	.bin_attrs = chp_bin_attrs,
 };
 static const struct attribute_group *chp_attr_groups[] = {
 	&chp_attr_group,

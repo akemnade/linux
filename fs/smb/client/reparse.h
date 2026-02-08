@@ -93,7 +93,7 @@ static inline bool reparse_inode_match(struct inode *inode,
 	if (cinode->reparse_tag != IO_REPARSE_TAG_INTERNAL &&
 	    cinode->reparse_tag != fattr->cf_cifstag)
 		return false;
-	return (cinode->cifsAttrs & ATTR_REPARSE) &&
+	return (cinode->cifsAttrs & ATTR_REPARSE_POINT) &&
 		timespec64_equal(&ctime, &fattr->cf_ctime);
 }
 
@@ -107,7 +107,7 @@ static inline bool cifs_open_data_reparse(struct cifs_open_info_data *data)
 
 		attrs = le32_to_cpu(fi->DosAttributes);
 		if (data->reparse_point) {
-			attrs |= ATTR_REPARSE;
+			attrs |= ATTR_REPARSE_POINT;
 			fi->DosAttributes = cpu_to_le32(attrs);
 		}
 
@@ -116,12 +116,12 @@ static inline bool cifs_open_data_reparse(struct cifs_open_info_data *data)
 
 		attrs = le32_to_cpu(fi->Attributes);
 		if (data->reparse_point) {
-			attrs |= ATTR_REPARSE;
+			attrs |= ATTR_REPARSE_POINT;
 			fi->Attributes = cpu_to_le32(attrs);
 		}
 	}
 
-	ret = attrs & ATTR_REPARSE;
+	ret = attrs & ATTR_REPARSE_POINT;
 
 	return ret;
 }
@@ -129,10 +129,10 @@ static inline bool cifs_open_data_reparse(struct cifs_open_info_data *data)
 bool cifs_reparse_point_to_fattr(struct cifs_sb_info *cifs_sb,
 				 struct cifs_fattr *fattr,
 				 struct cifs_open_info_data *data);
-int smb2_create_reparse_symlink(const unsigned int xid, struct inode *inode,
+int create_reparse_symlink(const unsigned int xid, struct inode *inode,
 				struct dentry *dentry, struct cifs_tcon *tcon,
 				const char *full_path, const char *symname);
-int smb2_mknod_reparse(unsigned int xid, struct inode *inode,
+int mknod_reparse(unsigned int xid, struct inode *inode,
 		       struct dentry *dentry, struct cifs_tcon *tcon,
 		       const char *full_path, umode_t mode, dev_t dev);
 struct reparse_data_buffer *smb2_get_reparse_point_buffer(const struct kvec *rsp_iov, u32 *len);

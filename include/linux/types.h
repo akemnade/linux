@@ -50,6 +50,7 @@ typedef __kernel_old_gid_t	old_gid_t;
 
 #if defined(__GNUC__)
 typedef __kernel_loff_t		loff_t;
+typedef __kernel_uoff_t		uoff_t;
 #endif
 
 /*
@@ -135,6 +136,10 @@ typedef s64	ktime_t;
  */
 typedef u64 sector_t;
 typedef u64 blkcnt_t;
+
+/* generic data direction definitions */
+#define READ			0
+#define WRITE			1
 
 /*
  * The type of an index into the pagecache.

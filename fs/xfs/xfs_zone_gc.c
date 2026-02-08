@@ -114,8 +114,9 @@ struct xfs_gc_bio {
 	/* Open Zone being written to */
 	struct xfs_open_zone		*oz;
 
+	struct xfs_rtgroup		*victim_rtg;
+
 	/* Bio used for reads and writes, including the bvec used by it */
-	struct bio_vec			bv;
 	struct bio			bio;	/* must be last */
 };
 
@@ -173,14 +174,13 @@ xfs_zoned_need_gc(
 	s64			available, free, threshold;
 	s32			remainder;
 
-	if (!xfs_group_marked(mp, XG_TYPE_RTG, XFS_RTG_RECLAIMABLE))
+	if (!xfs_zoned_have_reclaimable(mp->m_zone_info))
 		return false;
 
 	available = xfs_estimate_freecounter(mp, XC_FREE_RTAVAILABLE);
 
 	if (available <
-	    mp->m_groups[XG_TYPE_RTG].blocks *
-	    (mp->m_max_open_zones - XFS_OPEN_GC_ZONES))
+	    xfs_rtgs_to_rfsbs(mp, mp->m_max_open_zones - XFS_OPEN_GC_ZONES))
 		return true;
 
 	free = xfs_estimate_freecounter(mp, XC_FREE_RTEXTENTS);
@@ -264,6 +264,7 @@ xfs_zone_gc_iter_init(
 	iter->rec_count = 0;
 	iter->rec_idx = 0;
 	iter->victim_rtg = victim_rtg;
+	atomic_inc(&victim_rtg->rtg_gccount);
 }
 
 /*
@@ -289,8 +290,6 @@ xfs_zone_gc_query_cb(
 	}
 	return 0;
 }
-
-#define cmp_int(l, r)		((l > r) - (l < r))
 
 static int
 xfs_zone_gc_rmap_rec_cmp(
@@ -330,10 +329,7 @@ xfs_zone_gc_query(
 	iter->rec_idx = 0;
 	iter->rec_count = 0;
 
-	error = xfs_trans_alloc_empty(mp, &tp);
-	if (error)
-		return error;
-
+	tp = xfs_trans_alloc_empty(mp);
 	xfs_rtgroup_lock(rtg, XFS_RTGLOCK_RMAP);
 	cur = xfs_rtrmapbt_init_cursor(tp, rtg);
 	error = xfs_rmap_query_range(cur, &ri_low, &ri_high,
@@ -367,6 +363,7 @@ xfs_zone_gc_query(
 
 	return 0;
 done:
+	atomic_dec(&iter->victim_rtg->rtg_gccount);
 	xfs_rtgroup_rele(iter->victim_rtg);
 	iter->victim_rtg = NULL;
 	return 0;
@@ -456,6 +453,20 @@ xfs_zone_gc_pick_victim_from(
 		if (!rtg)
 			continue;
 
+		/*
+		 * If the zone is already undergoing GC, don't pick it again.
+		 *
+		 * This prevents us from picking one of the zones for which we
+		 * already submitted GC I/O, but for which the remapping hasn't
+		 * concluded yet.  This won't cause data corruption, but
+		 * increases write amplification and slows down GC, so this is
+		 * a bad thing.
+		 */
+		if (atomic_read(&rtg->rtg_gccount)) {
+			xfs_rtgroup_rele(rtg);
+			continue;
+		}
+
 		/* skip zones that are just waiting for a reset */
 		if (rtg_rmap(rtg)->i_used_blocks == 0 ||
 		    rtg_rmap(rtg)->i_used_blocks >= victim_used) {
@@ -496,21 +507,6 @@ xfs_zone_gc_select_victim(
 	struct xfs_rtgroup	*victim_rtg = NULL;
 	unsigned int		bucket;
 
-	if (xfs_is_shutdown(mp))
-		return false;
-
-	if (iter->victim_rtg)
-		return true;
-
-	/*
-	 * Don't start new work if we are asked to stop or park.
-	 */
-	if (kthread_should_stop() || kthread_should_park())
-		return false;
-
-	if (!xfs_zoned_need_gc(mp))
-		return false;
-
 	spin_lock(&zi->zi_used_buckets_lock);
 	for (bucket = 0; bucket < XFS_ZONE_USED_BUCKETS; bucket++) {
 		victim_rtg = xfs_zone_gc_pick_victim_from(mp, bucket);
@@ -535,8 +531,7 @@ xfs_zone_gc_steal_open(
 
 	spin_lock(&zi->zi_open_zones_lock);
 	list_for_each_entry(oz, &zi->zi_open_zones, oz_entry) {
-		if (!found ||
-		    oz->oz_write_pointer < found->oz_write_pointer)
+		if (!found || oz->oz_allocated < found->oz_allocated)
 			found = oz;
 	}
 
@@ -586,7 +581,7 @@ xfs_zone_gc_ensure_target(
 {
 	struct xfs_open_zone	*oz = mp->m_zone_info->zi_open_gc_zone;
 
-	if (!oz || oz->oz_write_pointer == rtg_blocks(oz->oz_rtg))
+	if (!oz || oz->oz_allocated == rtg_blocks(oz->oz_rtg))
 		return xfs_zone_gc_select_target(mp);
 	return oz;
 }
@@ -607,7 +602,7 @@ xfs_zone_gc_space_available(
 	oz = xfs_zone_gc_ensure_target(data->mp);
 	if (!oz)
 		return false;
-	return oz->oz_write_pointer < rtg_blocks(oz->oz_rtg) &&
+	return oz->oz_allocated < rtg_blocks(oz->oz_rtg) &&
 		xfs_zone_gc_scratch_available(data);
 }
 
@@ -649,7 +644,7 @@ xfs_zone_gc_alloc_blocks(
 	 */
 	spin_lock(&mp->m_sb_lock);
 	*count_fsb = min(*count_fsb,
-			rtg_blocks(oz->oz_rtg) - oz->oz_write_pointer);
+			rtg_blocks(oz->oz_rtg) - oz->oz_allocated);
 	*count_fsb = min3(*count_fsb,
 			mp->m_free[XC_FREE_RTEXTENTS].res_avail,
 			mp->m_free[XC_FREE_RTAVAILABLE].res_avail);
@@ -663,8 +658,8 @@ xfs_zone_gc_alloc_blocks(
 	*daddr = xfs_gbno_to_daddr(&oz->oz_rtg->rtg_group, 0);
 	*is_seq = bdev_zone_is_seq(mp->m_rtdev_targp->bt_bdev, *daddr);
 	if (!*is_seq)
-		*daddr += XFS_FSB_TO_BB(mp, oz->oz_write_pointer);
-	oz->oz_write_pointer += *count_fsb;
+		*daddr += XFS_FSB_TO_BB(mp, oz->oz_allocated);
+	oz->oz_allocated += *count_fsb;
 	atomic_inc(&oz->oz_ref);
 	return oz;
 }
@@ -709,6 +704,9 @@ xfs_zone_gc_start_chunk(
 	chunk->scratch = &data->scratch[data->scratch_idx];
 	chunk->data = data;
 	chunk->oz = oz;
+	chunk->victim_rtg = iter->victim_rtg;
+	atomic_inc(&chunk->victim_rtg->rtg_group.xg_active_ref);
+	atomic_inc(&chunk->victim_rtg->rtg_gccount);
 
 	bio->bi_iter.bi_sector = xfs_rtb_to_daddr(mp, chunk->old_startblock);
 	bio->bi_end_io = xfs_zone_gc_end_io;
@@ -731,6 +729,8 @@ static void
 xfs_zone_gc_free_chunk(
 	struct xfs_gc_bio	*chunk)
 {
+	atomic_dec(&chunk->victim_rtg->rtg_gccount);
+	xfs_rtgroup_rele(chunk->victim_rtg);
 	list_del(&chunk->entry);
 	xfs_open_zone_put(chunk->oz);
 	xfs_irele(chunk->ip);
@@ -790,6 +790,10 @@ xfs_zone_gc_split_write(
 	split_chunk->new_daddr = chunk->new_daddr;
 	split_chunk->oz = chunk->oz;
 	atomic_inc(&chunk->oz->oz_ref);
+
+	split_chunk->victim_rtg = chunk->victim_rtg;
+	atomic_inc(&chunk->victim_rtg->rtg_group.xg_active_ref);
+	atomic_inc(&chunk->victim_rtg->rtg_gccount);
 
 	chunk->offset += split_len;
 	chunk->len -= split_len;
@@ -981,6 +985,27 @@ xfs_zone_gc_reset_zones(
 	} while (next);
 }
 
+static bool
+xfs_zone_gc_should_start_new_work(
+	struct xfs_zone_gc_data	*data)
+{
+	if (xfs_is_shutdown(data->mp))
+		return false;
+	if (!xfs_zone_gc_space_available(data))
+		return false;
+
+	if (!data->iter.victim_rtg) {
+		if (kthread_should_stop() || kthread_should_park())
+			return false;
+		if (!xfs_zoned_need_gc(data->mp))
+			return false;
+		if (!xfs_zone_gc_select_victim(data))
+			return false;
+	}
+
+	return true;
+}
+
 /*
  * Handle the work to read and write data for GC and to reset the zones,
  * including handling all completions.
@@ -988,7 +1013,7 @@ xfs_zone_gc_reset_zones(
  * Note that the order of the chunks is preserved so that we don't undo the
  * optimal order established by xfs_zone_gc_query().
  */
-static bool
+static void
 xfs_zone_gc_handle_work(
 	struct xfs_zone_gc_data	*data)
 {
@@ -1002,30 +1027,22 @@ xfs_zone_gc_handle_work(
 	zi->zi_reset_list = NULL;
 	spin_unlock(&zi->zi_reset_list_lock);
 
-	if (!xfs_zone_gc_select_victim(data) ||
-	    !xfs_zone_gc_space_available(data)) {
-		if (list_empty(&data->reading) &&
-		    list_empty(&data->writing) &&
-		    list_empty(&data->resetting) &&
-		    !reset_list)
-			return false;
-	}
-
-	__set_current_state(TASK_RUNNING);
-	try_to_freeze();
-
-	if (reset_list)
+	if (reset_list) {
+		set_current_state(TASK_RUNNING);
 		xfs_zone_gc_reset_zones(data, reset_list);
+	}
 
 	list_for_each_entry_safe(chunk, next, &data->resetting, entry) {
 		if (READ_ONCE(chunk->state) != XFS_GC_BIO_DONE)
 			break;
+		set_current_state(TASK_RUNNING);
 		xfs_zone_gc_finish_reset(chunk);
 	}
 
 	list_for_each_entry_safe(chunk, next, &data->writing, entry) {
 		if (READ_ONCE(chunk->state) != XFS_GC_BIO_DONE)
 			break;
+		set_current_state(TASK_RUNNING);
 		xfs_zone_gc_finish_chunk(chunk);
 	}
 
@@ -1033,15 +1050,18 @@ xfs_zone_gc_handle_work(
 	list_for_each_entry_safe(chunk, next, &data->reading, entry) {
 		if (READ_ONCE(chunk->state) != XFS_GC_BIO_DONE)
 			break;
+		set_current_state(TASK_RUNNING);
 		xfs_zone_gc_write_chunk(chunk);
 	}
 	blk_finish_plug(&plug);
 
-	blk_start_plug(&plug);
-	while (xfs_zone_gc_start_chunk(data))
-		;
-	blk_finish_plug(&plug);
-	return true;
+	if (xfs_zone_gc_should_start_new_work(data)) {
+		set_current_state(TASK_RUNNING);
+		blk_start_plug(&plug);
+		while (xfs_zone_gc_start_chunk(data))
+			;
+		blk_finish_plug(&plug);
+	}
 }
 
 /*
@@ -1065,8 +1085,18 @@ xfs_zoned_gcd(
 	for (;;) {
 		set_current_state(TASK_INTERRUPTIBLE | TASK_FREEZABLE);
 		xfs_set_zonegc_running(mp);
-		if (xfs_zone_gc_handle_work(data))
+
+		xfs_zone_gc_handle_work(data);
+
+		/*
+		 * Only sleep if nothing set the state to running.  Else check for
+		 * work again as someone might have queued up more work and woken
+		 * us in the meantime.
+		 */
+		if (get_current_state() == TASK_RUNNING) {
+			try_to_freeze();
 			continue;
+		}
 
 		if (list_empty(&data->reading) &&
 		    list_empty(&data->writing) &&
@@ -1152,16 +1182,16 @@ xfs_zone_gc_mount(
 		goto out_put_gc_zone;
 	}
 
-	mp->m_zone_info->zi_gc_thread = kthread_create(xfs_zoned_gcd, data,
+	zi->zi_gc_thread = kthread_create(xfs_zoned_gcd, data,
 			"xfs-zone-gc/%s", mp->m_super->s_id);
-	if (IS_ERR(mp->m_zone_info->zi_gc_thread)) {
+	if (IS_ERR(zi->zi_gc_thread)) {
 		xfs_warn(mp, "unable to create zone gc thread");
-		error = PTR_ERR(mp->m_zone_info->zi_gc_thread);
+		error = PTR_ERR(zi->zi_gc_thread);
 		goto out_free_gc_data;
 	}
 
 	/* xfs_zone_gc_start will unpark for rw mounts */
-	kthread_park(mp->m_zone_info->zi_gc_thread);
+	kthread_park(zi->zi_gc_thread);
 	return 0;
 
 out_free_gc_data:

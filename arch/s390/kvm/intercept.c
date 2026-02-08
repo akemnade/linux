@@ -21,7 +21,6 @@
 #include "gaccess.h"
 #include "trace.h"
 #include "trace-s390.h"
-#include "gmap.h"
 
 u8 kvm_s390_get_ilen(struct kvm_vcpu *vcpu)
 {
@@ -472,6 +471,9 @@ static int handle_operexc(struct kvm_vcpu *vcpu)
 	if (vcpu->arch.sie_block->ipa == 0xb256)
 		return handle_sthyi(vcpu);
 
+	if (vcpu->kvm->arch.user_operexec)
+		return -EOPNOTSUPP;
+
 	if (vcpu->arch.sie_block->ipa == 0 && vcpu->kvm->arch.user_instr0)
 		return -EOPNOTSUPP;
 	rc = read_guest_lc(vcpu, __LC_PGM_NEW_PSW, &newpsw, sizeof(psw_t));
@@ -545,7 +547,7 @@ static int handle_pv_uvc(struct kvm_vcpu *vcpu)
 			  guest_uvcb->header.cmd);
 		return 0;
 	}
-	rc = gmap_make_secure(vcpu->arch.gmap, uvcb.gaddr, &uvcb);
+	rc = kvm_s390_pv_make_secure(vcpu->kvm, uvcb.gaddr, &uvcb);
 	/*
 	 * If the unpin did not succeed, the guest will exit again for the UVC
 	 * and we will retry the unpin.
@@ -653,10 +655,8 @@ int kvm_handle_sie_intercept(struct kvm_vcpu *vcpu)
 		break;
 	case ICPT_PV_PREF:
 		rc = 0;
-		gmap_convert_to_secure(vcpu->arch.gmap,
-				       kvm_s390_get_prefix(vcpu));
-		gmap_convert_to_secure(vcpu->arch.gmap,
-				       kvm_s390_get_prefix(vcpu) + PAGE_SIZE);
+		kvm_s390_pv_convert_to_secure(vcpu->kvm, kvm_s390_get_prefix(vcpu));
+		kvm_s390_pv_convert_to_secure(vcpu->kvm, kvm_s390_get_prefix(vcpu) + PAGE_SIZE);
 		break;
 	default:
 		return -EOPNOTSUPP;

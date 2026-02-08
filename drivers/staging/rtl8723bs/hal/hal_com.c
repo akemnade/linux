@@ -569,19 +569,12 @@ void rtw_hal_update_sta_rate_mask(struct adapter *padapter, struct sta_info *pst
 	psta->init_rate = get_highest_rate_idx(tx_ra_bitmap)&0x3f;
 }
 
-void hw_var_port_switch(struct adapter *adapter)
-{
-}
-
 void SetHwReg(struct adapter *adapter, u8 variable, u8 *val)
 {
 	struct hal_com_data *hal_data = GET_HAL_DATA(adapter);
 	struct dm_odm_t *odm = &(hal_data->odmpriv);
 
 	switch (variable) {
-	case HW_VAR_PORT_SWITCH:
-		hw_var_port_switch(adapter);
-		break;
 	case HW_VAR_INIT_RTS_RATE:
 		rtw_warn_on(1);
 		break;
@@ -668,71 +661,6 @@ void GetHwReg(struct adapter *adapter, u8 variable, u8 *val)
 			   FUNC_ADPT_ARG(adapter), variable);
 		break;
 	}
-}
-
-
-
-
-u8 SetHalDefVar(
-	struct adapter *adapter, enum hal_def_variable variable, void *value
-)
-{
-	struct hal_com_data *hal_data = GET_HAL_DATA(adapter);
-	struct dm_odm_t *odm = &(hal_data->odmpriv);
-	u8 bResult = _SUCCESS;
-
-	switch (variable) {
-	case HW_DEF_ODM_DBG_FLAG:
-		ODM_CmnInfoUpdate(odm, ODM_CMNINFO_DBG_COMP, *((u64 *)value));
-		break;
-	case HW_DEF_ODM_DBG_LEVEL:
-		ODM_CmnInfoUpdate(odm, ODM_CMNINFO_DBG_LEVEL, *((u32 *)value));
-		break;
-	case HAL_DEF_DBG_DM_FUNC:
-	{
-		u8 dm_func = *((u8 *)value);
-		struct dm_priv *dm = &hal_data->dmpriv;
-
-		if (dm_func == 0) { /* disable all dynamic func */
-			odm->SupportAbility = DYNAMIC_FUNC_DISABLE;
-		} else if (dm_func == 1) {/* disable DIG */
-			odm->SupportAbility  &= (~DYNAMIC_BB_DIG);
-		} else if (dm_func == 2) {/* disable High power */
-			odm->SupportAbility  &= (~DYNAMIC_BB_DYNAMIC_TXPWR);
-		} else if (dm_func == 3) {/* disable tx power tracking */
-			odm->SupportAbility  &= (~DYNAMIC_RF_CALIBRATION);
-		} else if (dm_func == 4) {/* disable BT coexistence */
-			dm->DMFlag &= (~DYNAMIC_FUNC_BT);
-		} else if (dm_func == 5) {/* disable antenna diversity */
-			odm->SupportAbility  &= (~DYNAMIC_BB_ANT_DIV);
-		} else if (dm_func == 6) {/* turn on all dynamic func */
-			if (!(odm->SupportAbility  & DYNAMIC_BB_DIG)) {
-				struct dig_t	*pDigTable = &odm->DM_DigTable;
-				pDigTable->CurIGValue = rtw_read8(adapter, 0xc50);
-			}
-			dm->DMFlag |= DYNAMIC_FUNC_BT;
-			odm->SupportAbility = DYNAMIC_ALL_FUNC_ENABLE;
-		}
-	}
-		break;
-	case HAL_DEF_DBG_DUMP_RXPKT:
-		hal_data->bDumpRxPkt = *((u8 *)value);
-		break;
-	case HAL_DEF_DBG_DUMP_TXPKT:
-		hal_data->bDumpTxPkt = *((u8 *)value);
-		break;
-	case HAL_DEF_ANT_DETECT:
-		hal_data->AntDetection = *((u8 *)value);
-		break;
-	default:
-		netdev_dbg(adapter->pnetdev,
-			   "%s: [WARNING] HAL_DEF_VARIABLE(%d) not defined!\n",
-			   __func__, variable);
-		bResult = _FAIL;
-		break;
-	}
-
-	return bResult;
 }
 
 u8 GetHalDefVar(
@@ -890,15 +818,14 @@ static u32 Array_kfreemap[] = {
 void rtw_bb_rf_gain_offset(struct adapter *padapter)
 {
 	u8 value = padapter->eeprompriv.EEPROMRFGainOffset;
-	u32 res, i = 0;
 	u32 *Array = Array_kfreemap;
 	u32 v1 = 0, v2 = 0, target = 0;
+	u32 i = 0;
 
 	if (value & BIT4) {
 		if (padapter->eeprompriv.EEPROMRFGainVal != 0xff) {
-			res = rtw_hal_read_rfreg(padapter, RF_PATH_A, 0x7f, 0xffffffff);
-			res &= 0xfff87fff;
-			/* res &= 0xfff87fff; */
+			rtw_hal_read_rfreg(padapter, RF_PATH_A, 0x7f, 0xffffffff);
+
 			for (i = 0; i < ARRAY_SIZE(Array_kfreemap); i += 2) {
 				v1 = Array[i];
 				v2 = Array[i+1];
@@ -909,9 +836,7 @@ void rtw_bb_rf_gain_offset(struct adapter *padapter)
 			}
 			PHY_SetRFReg(padapter, RF_PATH_A, REG_RF_BB_GAIN_OFFSET, BIT18|BIT17|BIT16|BIT15, target);
 
-			/* res |= (padapter->eeprompriv.EEPROMRFGainVal & 0x0f)<< 15; */
-			/* rtw_hal_write_rfreg(padapter, RF_PATH_A, REG_RF_BB_GAIN_OFFSET, RF_GAIN_OFFSET_MASK, res); */
-			res = rtw_hal_read_rfreg(padapter, RF_PATH_A, 0x7f, 0xffffffff);
+			rtw_hal_read_rfreg(padapter, RF_PATH_A, 0x7f, 0xffffffff);
 		}
 	}
 }

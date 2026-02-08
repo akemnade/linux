@@ -505,9 +505,7 @@ xqcheck_collect_counts(
 	 * transactions do not take sb_internal.
 	 */
 	xchk_trans_cancel(sc);
-	error = xchk_trans_alloc_empty(sc);
-	if (error)
-		return error;
+	xchk_trans_alloc_empty(sc);
 
 	while ((error = xchk_iscan_iter(&xqc->iscan, &ip)) == 1) {
 		error = xqcheck_collect_inode(xqc, ip);
@@ -565,6 +563,7 @@ xqcheck_compare_dquot(
 		return -ECANCELED;
 	}
 
+	mutex_lock(&dq->q_qlock);
 	mutex_lock(&xqc->lock);
 	error = xfarray_load_sparse(counts, dq->q_id, &xcdq);
 	if (error)
@@ -591,7 +590,9 @@ xqcheck_compare_dquot(
 		xchk_set_incomplete(xqc->sc);
 		error = -ECANCELED;
 	}
+out_unlock:
 	mutex_unlock(&xqc->lock);
+	mutex_unlock(&dq->q_qlock);
 	if (error)
 		return error;
 
@@ -599,10 +600,6 @@ xqcheck_compare_dquot(
 		return -ECANCELED;
 
 	return 0;
-
-out_unlock:
-	mutex_unlock(&xqc->lock);
-	return error;
 }
 
 /*
@@ -638,7 +635,7 @@ xqcheck_walk_observations(
 			return error;
 
 		error = xqcheck_compare_dquot(xqc, dqtype, dq);
-		xfs_qm_dqput(dq);
+		xfs_qm_dqrele(dq);
 		if (error)
 			return error;
 
@@ -676,7 +673,7 @@ xqcheck_compare_dqtype(
 	xchk_dqiter_init(&cursor, sc, dqtype);
 	while ((error = xchk_dquot_iter(&cursor, &dq)) == 1) {
 		error = xqcheck_compare_dquot(xqc, dqtype, dq);
-		xfs_qm_dqput(dq);
+		xfs_qm_dqrele(dq);
 		if (error)
 			break;
 	}

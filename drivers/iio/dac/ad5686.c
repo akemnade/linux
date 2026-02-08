@@ -185,7 +185,7 @@ static const struct iio_chan_spec_ext_info ad5686_ext_info[] = {
 	},
 	IIO_ENUM("powerdown_mode", IIO_SEPARATE, &ad5686_powerdown_mode_enum),
 	IIO_ENUM_AVAILABLE("powerdown_mode", IIO_SHARED_BY_TYPE, &ad5686_powerdown_mode_enum),
-	{ },
+	{ }
 };
 
 #define AD5868_CHANNEL(chan, addr, bits, _shift) {		\
@@ -430,6 +430,12 @@ static const struct ad5686_chip_info ad5686_chip_info_tbl[] = {
 	},
 	[ID_AD5694R] = {
 		.channels = ad5684_channels,
+		.int_vref_mv = 2500,
+		.num_channels = 4,
+		.regmap_type = AD5686_REGMAP,
+	},
+	[ID_AD5695R] = {
+		.channels = ad5685r_channels,
 		.int_vref_mv = 2500,
 		.num_channels = 4,
 		.regmap_type = AD5686_REGMAP,

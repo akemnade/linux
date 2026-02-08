@@ -242,7 +242,7 @@ Description:
 		decoding a Host Physical Address range. Note that this number
 		may be elevated without any regionX objects active or even
 		enumerated, as this may be due to decoders established by
-		platform firwmare or a previous kernel (kexec).
+		platform firmware or a previous kernel (kexec).
 
 
 What:		/sys/bus/cxl/devices/decoderX.Y
@@ -496,8 +496,17 @@ Description:
 		changed, only freed by writing 0. The kernel makes no guarantees
 		that data is maintained over an address space freeing event, and
 		there is no guarantee that a free followed by an allocate
-		results in the same address being allocated.
+		results in the same address being allocated. If extended linear
+		cache is present, the size indicates extended linear cache size
+		plus the CXL region size.
 
+What:		/sys/bus/cxl/devices/regionZ/extended_linear_cache_size
+Date:		October, 2025
+KernelVersion:	v6.19
+Contact:	linux-cxl@vger.kernel.org
+Description:
+		(RO) The size of extended linear cache, if there is an extended
+		linear cache. Otherwise the attribute will not be visible.
 
 What:		/sys/bus/cxl/devices/regionZ/mode
 Date:		January, 2023
@@ -572,7 +581,7 @@ Description:
 
 
 What:		/sys/bus/cxl/devices/regionZ/accessY/read_bandwidth
-		/sys/bus/cxl/devices/regionZ/accessY/write_banwidth
+		/sys/bus/cxl/devices/regionZ/accessY/write_bandwidth
 Date:		Jan, 2024
 KernelVersion:	v6.9
 Contact:	linux-cxl@vger.kernel.org

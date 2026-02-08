@@ -22,7 +22,7 @@
 #include <linux/pci.h>
 #include <linux/pm_runtime.h>
 
-#include <asm/amd_node.h>
+#include <asm/amd/node.h>
 
 #include "amd.h"
 #include "../mach-config.h"
@@ -147,7 +147,7 @@ static int rembrandt_audio_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
 	struct acp_chip_info *chip;
-	u32 ret;
+	int ret;
 
 	chip = dev_get_platdata(&pdev->dev);
 	if (!chip || !chip->base) {

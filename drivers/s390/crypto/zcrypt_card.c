@@ -11,6 +11,7 @@
  *  MSGTYPE restruct:		  Holger Dengler <hd@linux.vnet.ibm.com>
  */
 
+#include <linux/export.h>
 #include <linux/module.h>
 #include <linux/init.h>
 #include <linux/interrupt.h>
@@ -18,7 +19,6 @@
 #include <linux/fs.h>
 #include <linux/proc_fs.h>
 #include <linux/seq_file.h>
-#include <linux/compat.h>
 #include <linux/slab.h>
 #include <linux/atomic.h>
 #include <linux/uaccess.h>

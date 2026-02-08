@@ -1154,11 +1154,11 @@ static u32 i2c_pxa_functionality(struct i2c_adapter *adap)
 }
 
 static const struct i2c_algorithm i2c_pxa_algorithm = {
-	.master_xfer	= i2c_pxa_xfer,
-	.functionality	= i2c_pxa_functionality,
+	.xfer = i2c_pxa_xfer,
+	.functionality = i2c_pxa_functionality,
 #ifdef CONFIG_I2C_PXA_SLAVE
-	.reg_slave	= i2c_pxa_slave_reg,
-	.unreg_slave	= i2c_pxa_slave_unreg,
+	.reg_slave = i2c_pxa_slave_reg,
+	.unreg_slave = i2c_pxa_slave_unreg,
 #endif
 };
 
@@ -1244,11 +1244,11 @@ static int i2c_pxa_pio_xfer(struct i2c_adapter *adap,
 }
 
 static const struct i2c_algorithm i2c_pxa_pio_algorithm = {
-	.master_xfer	= i2c_pxa_pio_xfer,
-	.functionality	= i2c_pxa_functionality,
+	.xfer = i2c_pxa_pio_xfer,
+	.functionality = i2c_pxa_functionality,
 #ifdef CONFIG_I2C_PXA_SLAVE
-	.reg_slave	= i2c_pxa_slave_reg,
-	.unreg_slave	= i2c_pxa_slave_unreg,
+	.reg_slave = i2c_pxa_slave_reg,
+	.unreg_slave = i2c_pxa_slave_unreg,
 #endif
 };
 
@@ -1266,7 +1266,7 @@ static int i2c_pxa_probe_dt(struct platform_device *pdev, struct pxa_i2c *i2c,
 	i2c->use_pio = of_property_read_bool(np, "mrvl,i2c-polling");
 	i2c->fast_mode = of_property_read_bool(np, "mrvl,i2c-fast-mode");
 
-	*i2c_types = (enum pxa_i2c_types)device_get_match_data(&pdev->dev);
+	*i2c_types = (kernel_ulong_t)device_get_match_data(&pdev->dev);
 
 	return 0;
 }

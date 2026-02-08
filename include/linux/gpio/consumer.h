@@ -167,9 +167,13 @@ int gpiod_cansleep(const struct gpio_desc *desc);
 int gpiod_to_irq(const struct gpio_desc *desc);
 int gpiod_set_consumer_name(struct gpio_desc *desc, const char *name);
 
+bool gpiod_is_shared(const struct gpio_desc *desc);
+
 /* Convert between the old gpio_ and new gpiod_ interfaces */
 struct gpio_desc *gpio_to_desc(unsigned gpio);
 int desc_to_gpio(const struct gpio_desc *desc);
+
+int gpiod_hwgpio(const struct gpio_desc *desc);
 
 struct gpio_desc *fwnode_gpiod_get_index(struct fwnode_handle *fwnode,
 					 const char *con_id, int index,
@@ -180,6 +184,9 @@ struct gpio_desc *devm_fwnode_gpiod_get_index(struct device *dev,
 					      const char *con_id, int index,
 					      enum gpiod_flags flags,
 					      const char *label);
+
+bool gpiod_is_equal(const struct gpio_desc *desc,
+		    const struct gpio_desc *other);
 
 #else /* CONFIG_GPIOLIB */
 
@@ -517,6 +524,13 @@ static inline int gpiod_set_consumer_name(struct gpio_desc *desc,
 	return -EINVAL;
 }
 
+static inline bool gpiod_is_shared(const struct gpio_desc *desc)
+{
+	/* GPIO can never have been requested */
+	WARN_ON(desc);
+	return false;
+}
+
 static inline struct gpio_desc *gpio_to_desc(unsigned gpio)
 {
 	return NULL;
@@ -546,6 +560,13 @@ struct gpio_desc *devm_fwnode_gpiod_get_index(struct device *dev,
 					      const char *label)
 {
 	return ERR_PTR(-ENOSYS);
+}
+
+static inline bool
+gpiod_is_equal(const struct gpio_desc *desc, const struct gpio_desc *other)
+{
+	WARN_ON(desc || other);
+	return false;
 }
 
 #endif /* CONFIG_GPIOLIB */
@@ -588,7 +609,7 @@ struct gpio_desc *devm_fwnode_gpiod_get(struct device *dev,
 
 struct acpi_gpio_params {
 	unsigned int crs_entry_index;
-	unsigned int line_index;
+	unsigned short line_index;
 	bool active_low;
 };
 

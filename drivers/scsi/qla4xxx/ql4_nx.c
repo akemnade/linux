@@ -973,11 +973,6 @@ qla4_82xx_pinit_from_rom(struct scsi_qla_host *ha, int verbose)
 	unsigned long off;
 	unsigned offset, n;
 
-	struct crb_addr_pair {
-		long addr;
-		long data;
-	};
-
 	/* Halt all the indiviual PEGs and other blocks of the ISP */
 	qla4_82xx_rom_lock(ha);
 
@@ -1557,7 +1552,7 @@ static int qla4_82xx_cmdpeg_ready(struct scsi_qla_host *ha, int pegtune_val)
 			    (val == PHAN_INITIALIZE_ACK))
 				return 0;
 			set_current_state(TASK_UNINTERRUPTIBLE);
-			schedule_timeout(500);
+			schedule_timeout(msecs_to_jiffies(500));
 
 		} while (--retries);
 

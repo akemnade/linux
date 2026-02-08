@@ -9,6 +9,7 @@
 #include <linux/const.h>
 
 #include <asm/asm.h>
+#include <asm/msr.h>
 #include <asm/trapnr.h>
 
 /*
@@ -78,7 +79,7 @@ static __always_inline void fred_entry_from_kvm(unsigned int type, unsigned int 
 		.type   = type,
 		.vector = vector,
 		.nmi    = type == EVENT_TYPE_NMI,
-		.lm     = 1,
+		.l      = 1,
 	};
 
 	asm_fred_entry_from_kvm(ss);

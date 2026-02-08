@@ -2,6 +2,7 @@
 #ifndef _LINUX_RESET_H_
 #define _LINUX_RESET_H_
 
+#include <linux/bits.h>
 #include <linux/err.h>
 #include <linux/errno.h>
 #include <linux/types.h>
@@ -1002,6 +1003,12 @@ static inline struct reset_control *
 devm_reset_control_array_get_exclusive(struct device *dev)
 {
 	return devm_reset_control_array_get(dev, RESET_CONTROL_EXCLUSIVE);
+}
+
+static inline struct reset_control *
+devm_reset_control_array_get_exclusive_released(struct device *dev)
+{
+	return devm_reset_control_array_get(dev, RESET_CONTROL_EXCLUSIVE_RELEASED);
 }
 
 static inline struct reset_control *

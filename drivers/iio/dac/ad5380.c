@@ -246,7 +246,7 @@ static const struct iio_chan_spec_ext_info ad5380_ext_info[] = {
 	IIO_ENUM("powerdown_mode", IIO_SHARED_BY_TYPE,
 		 &ad5380_powerdown_mode_enum),
 	IIO_ENUM_AVAILABLE("powerdown_mode", IIO_SHARED_BY_TYPE, &ad5380_powerdown_mode_enum),
-	{ },
+	{ }
 };
 
 #define AD5380_CHANNEL(_bits) {					\
@@ -371,10 +371,8 @@ static int ad5380_probe(struct device *dev, struct regmap *regmap,
 	int ret;
 
 	indio_dev = devm_iio_device_alloc(dev, sizeof(*st));
-	if (indio_dev == NULL) {
-		dev_err(dev, "Failed to allocate iio device\n");
+	if (indio_dev == NULL)
 		return -ENOMEM;
-	}
 
 	st = iio_priv(indio_dev);
 
@@ -426,7 +424,7 @@ static const struct regmap_config ad5380_regmap_config = {
 	.val_bits = 14,
 
 	.max_register = AD5380_REG_DATA(40),
-	.cache_type = REGCACHE_RBTREE,
+	.cache_type = REGCACHE_MAPLE,
 
 	.volatile_reg = ad5380_reg_false,
 	.readable_reg = ad5380_reg_false,

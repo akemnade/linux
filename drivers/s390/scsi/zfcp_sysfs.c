@@ -7,8 +7,7 @@
  * Copyright IBM Corp. 2008, 2020
  */
 
-#define KMSG_COMPONENT "zfcp"
-#define pr_fmt(fmt) KMSG_COMPONENT ": " fmt
+#define pr_fmt(fmt) "zfcp: " fmt
 
 #include <linux/slab.h>
 #include "zfcp_diag.h"
@@ -448,6 +447,8 @@ static ssize_t zfcp_sysfs_unit_add_store(struct device *dev,
 
 	if (kstrtoull(buf, 0, (unsigned long long *) &fcp_lun))
 		return -EINVAL;
+
+	flush_work(&port->rport_work);
 
 	retval = zfcp_unit_add(port, fcp_lun);
 	if (retval)

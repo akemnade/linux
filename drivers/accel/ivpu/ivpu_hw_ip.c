@@ -683,11 +683,19 @@ static void pwr_island_delay_set(struct ivpu_device *vdev)
 		return;
 
 	switch (ivpu_device_id(vdev)) {
+	case PCI_DEVICE_ID_WCL:
 	case PCI_DEVICE_ID_PTL_P:
 		post = high ? 18 : 0;
 		post1 = 0;
 		post2 = 0;
 		status = high ? 46 : 3;
+		break;
+
+	case PCI_DEVICE_ID_NVL:
+		post = high ? 198 : 17;
+		post1 = 0;
+		post2 = high ? 198 : 17;
+		status = 0;
 		break;
 
 	default:
@@ -888,6 +896,9 @@ static int soc_cpu_drive_40xx(struct ivpu_device *vdev, bool enable)
 
 static int soc_cpu_enable(struct ivpu_device *vdev)
 {
+	if (ivpu_hw_ip_gen(vdev) >= IVPU_HW_IP_60XX)
+		return 0;
+
 	return soc_cpu_drive_40xx(vdev, true);
 }
 

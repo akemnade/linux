@@ -21,7 +21,7 @@
 
 struct eisa_device_info {
 	struct eisa_device_id id;
-	char name[50];
+	char name[EISA_DEVICE_INFO_NAME_SIZE];
 };
 
 #ifdef CONFIG_EISA_NAMES
@@ -135,7 +135,7 @@ static int eisa_bus_uevent(const struct device *dev, struct kobj_uevent_env *env
 	return 0;
 }
 
-struct bus_type eisa_bus_type = {
+const struct bus_type eisa_bus_type = {
 	.name  = "eisa",
 	.match = eisa_bus_match,
 	.uevent = eisa_bus_uevent,

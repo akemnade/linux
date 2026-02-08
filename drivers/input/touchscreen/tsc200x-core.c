@@ -10,6 +10,7 @@
  * based on TSC2301 driver by Klaus K. Pedersen <klaus.k.pedersen@nokia.com>
  */
 
+#include <linux/export.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/input.h>
@@ -194,7 +195,7 @@ out:
 
 static void tsc200x_penup_timer(struct timer_list *t)
 {
-	struct tsc200x *ts = from_timer(ts, t, penup_timer);
+	struct tsc200x *ts = timer_container_of(ts, t, penup_timer);
 
 	guard(spinlock_irqsave)(&ts->lock);
 	tsc200x_update_pen_state(ts, 0, 0, 0);

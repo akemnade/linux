@@ -62,13 +62,14 @@ const int decoded_link_width[8] = {0, 1, 2, 4, 8, 12, 16, 32};
 
 MODULE_FIRMWARE("amdgpu/smu_14_0_2.bin");
 MODULE_FIRMWARE("amdgpu/smu_14_0_3.bin");
+MODULE_FIRMWARE("amdgpu/smu_14_0_3_kicker.bin");
 
 #define ENABLE_IMU_ARG_GFXOFF_ENABLE		1
 
 int smu_v14_0_init_microcode(struct smu_context *smu)
 {
 	struct amdgpu_device *adev = smu->adev;
-	char ucode_prefix[15];
+	char ucode_prefix[30];
 	int err = 0;
 	const struct smc_firmware_header_v1_0 *hdr;
 	const struct common_firmware_header *header;
@@ -79,8 +80,12 @@ int smu_v14_0_init_microcode(struct smu_context *smu)
 		return 0;
 
 	amdgpu_ucode_ip_version_decode(adev, MP1_HWIP, ucode_prefix, sizeof(ucode_prefix));
-	err = amdgpu_ucode_request(adev, &adev->pm.fw, AMDGPU_UCODE_REQUIRED,
-				   "amdgpu/%s.bin", ucode_prefix);
+	if (amdgpu_is_kicker_fw(adev))
+		err = amdgpu_ucode_request(adev, &adev->pm.fw, AMDGPU_UCODE_REQUIRED,
+					   "amdgpu/%s_kicker.bin", ucode_prefix);
+	else
+		err = amdgpu_ucode_request(adev, &adev->pm.fw, AMDGPU_UCODE_REQUIRED,
+					   "amdgpu/%s.bin", ucode_prefix);
 	if (err)
 		goto out;
 
@@ -1173,6 +1178,7 @@ int smu_v14_0_set_soft_freq_limited_range(struct smu_context *smu,
 		return clk_id;
 
 	if (max > 0) {
+		max = SMU_V14_SOFT_FREQ_ROUND(max);
 		if (automatic)
 			param = (uint32_t)((clk_id << 16) | 0xffff);
 		else
@@ -1934,6 +1940,11 @@ int smu_v14_0_od_edit_dpm_table(struct smu_context *smu,
 			dev_err(smu->adev->dev, "Set soft max sclk failed!");
 			return ret;
 		}
+		if (smu->gfx_actual_hard_min_freq != smu->gfx_default_hard_min_freq ||
+		    smu->gfx_actual_soft_max_freq != smu->gfx_default_soft_max_freq)
+			smu->user_dpm_profile.user_od = true;
+		else
+			smu->user_dpm_profile.user_od = false;
 		break;
 	default:
 		return -ENOSYS;

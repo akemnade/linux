@@ -151,7 +151,12 @@ check_per_socket()
 check_metric_only()
 {
 	echo -n "Checking $1 output: metric only "
-	perf stat --metric-only $2 -e instructions,cycles true
+	if [ "$(uname -m)" = "s390x" ] && ! grep '^facilities' /proc/cpuinfo  | grep -qw 67
+	then
+		echo "[Skip] CPU-measurement counter facility not installed"
+		return
+	fi
+	perf stat --metric-only $2 -M page_faults_per_second true
 	commachecker --metric-only
 	echo "[Success]"
 }

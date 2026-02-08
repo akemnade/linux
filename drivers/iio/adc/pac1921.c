@@ -672,13 +672,13 @@ static int pac1921_read_label(struct iio_dev *indio_dev,
 {
 	switch (chan->channel) {
 	case PAC1921_CHAN_VBUS:
-		return sprintf(label, "vbus\n");
+		return sysfs_emit(label, "vbus\n");
 	case PAC1921_CHAN_VSENSE:
-		return sprintf(label, "vsense\n");
+		return sysfs_emit(label, "vsense\n");
 	case PAC1921_CHAN_CURRENT:
-		return sprintf(label, "current\n");
+		return sysfs_emit(label, "current\n");
 	case PAC1921_CHAN_POWER:
-		return sprintf(label, "power\n");
+		return sysfs_emit(label, "power\n");
 	default:
 		return -EINVAL;
 	}
@@ -900,7 +900,7 @@ static ssize_t pac1921_read_scale_avail(struct iio_dev *indio_dev,
 
 static const struct iio_chan_spec_ext_info pac1921_ext_info_voltage[] = {
 	PAC1921_EXT_INFO_SCALE_AVAIL,
-	{}
+	{ }
 };
 
 static const struct iio_chan_spec_ext_info pac1921_ext_info_current[] = {
@@ -911,7 +911,7 @@ static const struct iio_chan_spec_ext_info pac1921_ext_info_current[] = {
 		.write = pac1921_write_shunt_resistor,
 		.shared = IIO_SEPARATE,
 	},
-	{}
+	{ }
 };
 
 static const struct iio_event_spec pac1921_overflow_event[] = {
@@ -1044,7 +1044,8 @@ static irqreturn_t pac1921_trigger_handler(int irq, void *p)
 		priv->scan.chan[ch++] = val;
 	}
 
-	iio_push_to_buffers_with_timestamp(idev, &priv->scan, pf->timestamp);
+	iio_push_to_buffers_with_ts(idev, &priv->scan, sizeof(priv->scan),
+				    pf->timestamp);
 
 done:
 	iio_trigger_notify_done(idev->trig);
@@ -1278,8 +1279,7 @@ static int pac1921_probe(struct i2c_client *client)
 	ret = devm_add_action_or_reset(dev, pac1921_regulator_disable,
 				       priv->vdd);
 	if (ret)
-		return dev_err_probe(dev, ret,
-			"Cannot add action for vdd regulator disposal\n");
+		return ret;
 
 	msleep(PAC1921_POWERUP_TIME_MS);
 

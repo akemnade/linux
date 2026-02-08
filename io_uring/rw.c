@@ -15,6 +15,7 @@
 
 #include <uapi/linux/io_uring.h>
 
+#include "filetable.h"
 #include "io_uring.h"
 #include "opdef.h"
 #include "kbuf.h"
@@ -107,34 +108,35 @@ static int io_import_vec(int ddir, struct io_kiocb *req,
 }
 
 static int __io_import_rw_buffer(int ddir, struct io_kiocb *req,
-			     struct io_async_rw *io,
-			     unsigned int issue_flags)
+				 struct io_async_rw *io, struct io_br_sel *sel,
+				 unsigned int issue_flags)
 {
 	const struct io_issue_def *def = &io_issue_defs[req->opcode];
 	struct io_rw *rw = io_kiocb_to_cmd(req, struct io_rw);
-	void __user *buf = u64_to_user_ptr(rw->addr);
 	size_t sqe_len = rw->len;
 
+	sel->addr = u64_to_user_ptr(rw->addr);
 	if (def->vectored && !(req->flags & REQ_F_BUFFER_SELECT))
-		return io_import_vec(ddir, req, io, buf, sqe_len);
+		return io_import_vec(ddir, req, io, sel->addr, sqe_len);
 
 	if (io_do_buffer_select(req)) {
-		buf = io_buffer_select(req, &sqe_len, issue_flags);
-		if (!buf)
+		*sel = io_buffer_select(req, &sqe_len, io->buf_group, issue_flags);
+		if (!sel->addr)
 			return -ENOBUFS;
-		rw->addr = (unsigned long) buf;
+		rw->addr = (unsigned long) sel->addr;
 		rw->len = sqe_len;
 	}
-	return import_ubuf(ddir, buf, sqe_len, &io->iter);
+	return import_ubuf(ddir, sel->addr, sqe_len, &io->iter);
 }
 
 static inline int io_import_rw_buffer(int rw, struct io_kiocb *req,
 				      struct io_async_rw *io,
+				      struct io_br_sel *sel,
 				      unsigned int issue_flags)
 {
 	int ret;
 
-	ret = __io_import_rw_buffer(rw, req, io, issue_flags);
+	ret = __io_import_rw_buffer(rw, req, io, sel, issue_flags);
 	if (unlikely(ret < 0))
 		return ret;
 
@@ -142,21 +144,22 @@ static inline int io_import_rw_buffer(int rw, struct io_kiocb *req,
 	return 0;
 }
 
-static void io_rw_recycle(struct io_kiocb *req, unsigned int issue_flags)
+static bool io_rw_recycle(struct io_kiocb *req, unsigned int issue_flags)
 {
 	struct io_async_rw *rw = req->async_data;
 
 	if (unlikely(issue_flags & IO_URING_F_UNLOCKED))
-		return;
+		return false;
 
 	io_alloc_cache_vec_kasan(&rw->vec);
 	if (rw->vec.nr > IO_VEC_CACHE_SOFT_CAP)
 		io_vec_free(&rw->vec);
 
 	if (io_alloc_cache_put(&req->ctx->rw_cache, rw)) {
-		req->async_data = NULL;
-		req->flags &= ~REQ_F_ASYNC_DATA;
+		io_req_async_data_clear(req, 0);
+		return true;
 	}
+	return false;
 }
 
 static void io_req_rw_cleanup(struct io_kiocb *req, unsigned int issue_flags)
@@ -186,11 +189,15 @@ static void io_req_rw_cleanup(struct io_kiocb *req, unsigned int issue_flags)
 	 * This is really a bug in the core code that does this, any issue
 	 * path should assume that a successful (or -EIOCBQUEUED) return can
 	 * mean that the underlying data can be gone at any time. But that
-	 * should be fixed seperately, and then this check could be killed.
+	 * should be fixed separately, and then this check could be killed.
 	 */
 	if (!(req->flags & (REQ_F_REISSUE | REQ_F_REFCOUNT))) {
 		req->flags &= ~REQ_F_NEED_CLEANUP;
-		io_rw_recycle(req, issue_flags);
+		if (!io_rw_recycle(req, issue_flags)) {
+			struct io_async_rw *rw = req->async_data;
+
+			io_vec_free(&rw->vec);
+		}
 	}
 }
 
@@ -253,16 +260,19 @@ static int __io_prep_rw(struct io_kiocb *req, const struct io_uring_sqe *sqe,
 			int ddir)
 {
 	struct io_rw *rw = io_kiocb_to_cmd(req, struct io_rw);
+	struct io_async_rw *io;
 	unsigned ioprio;
 	u64 attr_type_mask;
 	int ret;
 
 	if (io_rw_alloc_async(req))
 		return -ENOMEM;
+	io = req->async_data;
 
 	rw->kiocb.ki_pos = READ_ONCE(sqe->off);
 	/* used for fixed read/write too - just read unconditionally */
 	req->buf_index = READ_ONCE(sqe->buf_index);
+	io->buf_group = req->buf_index;
 
 	ioprio = READ_ONCE(sqe->ioprio);
 	if (ioprio) {
@@ -274,8 +284,8 @@ static int __io_prep_rw(struct io_kiocb *req, const struct io_uring_sqe *sqe,
 	} else {
 		rw->kiocb.ki_ioprio = get_current_ioprio();
 	}
-	rw->kiocb.dio_complete = NULL;
 	rw->kiocb.ki_flags = 0;
+	rw->kiocb.ki_write_stream = READ_ONCE(sqe->write_stream);
 
 	if (req->ctx->flags & IORING_SETUP_IOPOLL)
 		rw->kiocb.ki_complete = io_complete_rw_iopoll;
@@ -284,7 +294,7 @@ static int __io_prep_rw(struct io_kiocb *req, const struct io_uring_sqe *sqe,
 
 	rw->addr = READ_ONCE(sqe->addr);
 	rw->len = READ_ONCE(sqe->len);
-	rw->flags = READ_ONCE(sqe->rw_flags);
+	rw->flags = (__force rwf_t) READ_ONCE(sqe->rw_flags);
 
 	attr_type_mask = READ_ONCE(sqe->attr_type_mask);
 	if (attr_type_mask) {
@@ -302,10 +312,12 @@ static int __io_prep_rw(struct io_kiocb *req, const struct io_uring_sqe *sqe,
 
 static int io_rw_do_import(struct io_kiocb *req, int ddir)
 {
+	struct io_br_sel sel = { };
+
 	if (io_do_buffer_select(req))
 		return 0;
 
-	return io_import_rw_buffer(ddir, req, req->async_data, 0);
+	return io_import_rw_buffer(ddir, req, req->async_data, &sel, 0);
 }
 
 static int io_prep_rw(struct io_kiocb *req, const struct io_uring_sqe *sqe,
@@ -343,7 +355,7 @@ static int io_prep_rwv(struct io_kiocb *req, const struct io_uring_sqe *sqe,
 
 	/*
 	 * Have to do this validation here, as this is in io_read() rw->len
-	 * might have chanaged due to buffer selection
+	 * might have changed due to buffer selection
 	 */
 	return io_iov_buffer_select_prep(req);
 }
@@ -457,7 +469,10 @@ int io_read_mshot_prep(struct io_kiocb *req, const struct io_uring_sqe *sqe)
 
 void io_readv_writev_cleanup(struct io_kiocb *req)
 {
+	struct io_async_rw *rw = req->async_data;
+
 	lockdep_assert_held(&req->ctx->uring_lock);
+	io_vec_free(&rw->vec);
 	io_rw_recycle(req, 0);
 }
 
@@ -536,7 +551,7 @@ static void __io_complete_rw_common(struct io_kiocb *req, long res)
 {
 	if (res == req->cqe.res)
 		return;
-	if (res == -EAGAIN && io_rw_should_reissue(req)) {
+	if ((res == -EOPNOTSUPP || res == -EAGAIN) && io_rw_should_reissue(req)) {
 		req->flags |= REQ_F_REISSUE | REQ_F_BL_NO_RECYCLE;
 	} else {
 		req_set_fail(req);
@@ -558,24 +573,17 @@ static inline int io_fixup_rw_res(struct io_kiocb *req, long res)
 	return res;
 }
 
-void io_req_rw_complete(struct io_kiocb *req, io_tw_token_t tw)
+void io_req_rw_complete(struct io_tw_req tw_req, io_tw_token_t tw)
 {
-	struct io_rw *rw = io_kiocb_to_cmd(req, struct io_rw);
-	struct kiocb *kiocb = &rw->kiocb;
-
-	if ((kiocb->ki_flags & IOCB_DIO_CALLER_COMP) && kiocb->dio_complete) {
-		long res = kiocb->dio_complete(rw->kiocb.private);
-
-		io_req_set_res(req, io_fixup_rw_res(req, res), 0);
-	}
+	struct io_kiocb *req = tw_req.req;
 
 	io_req_io_end(req);
 
 	if (req->flags & (REQ_F_BUFFER_SELECTED|REQ_F_BUFFER_RING))
-		req->cqe.flags |= io_put_kbuf(req, req->cqe.res, 0);
+		req->cqe.flags |= io_put_kbuf(req, req->cqe.res, NULL);
 
 	io_req_rw_cleanup(req, 0);
-	io_req_task_complete(req, tw);
+	io_req_task_complete(tw_req, tw);
 }
 
 static void io_complete_rw(struct kiocb *kiocb, long res)
@@ -583,10 +591,8 @@ static void io_complete_rw(struct kiocb *kiocb, long res)
 	struct io_rw *rw = container_of(kiocb, struct io_rw, kiocb);
 	struct io_kiocb *req = cmd_to_io_kiocb(rw);
 
-	if (!kiocb->dio_complete || !(kiocb->ki_flags & IOCB_DIO_CALLER_COMP)) {
-		__io_complete_rw_common(req, res);
-		io_req_set_res(req, io_fixup_rw_res(req, res), 0);
-	}
+	__io_complete_rw_common(req, res);
+	io_req_set_res(req, io_fixup_rw_res(req, res), 0);
 	req->io_task_work.func = io_req_rw_complete;
 	__io_req_task_work_add(req, IOU_F_TWQ_LAZY_WAKE);
 }
@@ -641,7 +647,7 @@ static inline void io_rw_done(struct io_kiocb *req, ssize_t ret)
 }
 
 static int kiocb_done(struct io_kiocb *req, ssize_t ret,
-		       unsigned int issue_flags)
+		      struct io_br_sel *sel, unsigned int issue_flags)
 {
 	struct io_rw *rw = io_kiocb_to_cmd(req, struct io_rw);
 	unsigned final_ret = io_fixup_rw_res(req, ret);
@@ -649,15 +655,19 @@ static int kiocb_done(struct io_kiocb *req, ssize_t ret,
 	if (ret >= 0 && req->flags & REQ_F_CUR_POS)
 		req->file->f_pos = rw->kiocb.ki_pos;
 	if (ret >= 0 && !(req->ctx->flags & IORING_SETUP_IOPOLL)) {
+		u32 cflags = 0;
+
 		__io_complete_rw_common(req, ret);
 		/*
 		 * Safe to call io_end from here as we're inline
 		 * from the submission path.
 		 */
 		io_req_io_end(req);
-		io_req_set_res(req, final_ret, io_put_kbuf(req, ret, issue_flags));
+		if (sel)
+			cflags = io_put_kbuf(req, ret, sel->buf_list);
+		io_req_set_res(req, final_ret, cflags);
 		io_req_rw_cleanup(req, issue_flags);
-		return IOU_OK;
+		return IOU_COMPLETE;
 	} else {
 		io_rw_done(req, ret);
 	}
@@ -852,7 +862,6 @@ static int io_rw_init_file(struct io_kiocb *req, fmode_t mode, int rw_type)
 	ret = kiocb_set_rw_flags(kiocb, rw->flags, rw_type);
 	if (unlikely(ret))
 		return ret;
-	kiocb->ki_flags |= IOCB_ALLOC_CACHE;
 
 	/*
 	 * If the file is marked O_NONBLOCK, still allow retry for it if it
@@ -882,6 +891,9 @@ static int io_rw_init_file(struct io_kiocb *req, fmode_t mode, int rw_type)
 	if (req->flags & REQ_F_HAS_METADATA) {
 		struct io_async_rw *io = req->async_data;
 
+		if (!(file->f_mode & FMODE_HAS_METADATA))
+			return -EINVAL;
+
 		/*
 		 * We have a union of meta fields with wpq used for buffered-io
 		 * in io_async_rw, so fail it here.
@@ -895,7 +907,8 @@ static int io_rw_init_file(struct io_kiocb *req, fmode_t mode, int rw_type)
 	return 0;
 }
 
-static int __io_read(struct io_kiocb *req, unsigned int issue_flags)
+static int __io_read(struct io_kiocb *req, struct io_br_sel *sel,
+		     unsigned int issue_flags)
 {
 	bool force_nonblock = issue_flags & IO_URING_F_NONBLOCK;
 	struct io_rw *rw = io_kiocb_to_cmd(req, struct io_rw);
@@ -909,7 +922,7 @@ static int __io_read(struct io_kiocb *req, unsigned int issue_flags)
 		if (unlikely(ret))
 			return ret;
 	} else if (io_do_buffer_select(req)) {
-		ret = io_import_rw_buffer(ITER_DEST, req, io, issue_flags);
+		ret = io_import_rw_buffer(ITER_DEST, req, io, sel, issue_flags);
 		if (unlikely(ret < 0))
 			return ret;
 	}
@@ -1005,24 +1018,28 @@ static int __io_read(struct io_kiocb *req, unsigned int issue_flags)
 		iov_iter_restore(&io->iter, &io->iter_state);
 	} while (ret > 0);
 done:
-	/* it's faster to check here then delegate to kfree */
+	/* it's faster to check here than delegate to kfree */
 	return ret;
 }
 
 int io_read(struct io_kiocb *req, unsigned int issue_flags)
 {
+	struct io_br_sel sel = { };
 	int ret;
 
-	ret = __io_read(req, issue_flags);
+	ret = __io_read(req, &sel, issue_flags);
 	if (ret >= 0)
-		return kiocb_done(req, ret, issue_flags);
+		return kiocb_done(req, ret, &sel, issue_flags);
 
+	if (req->flags & REQ_F_BUFFERS_COMMIT)
+		io_kbuf_recycle(req, sel.buf_list, issue_flags);
 	return ret;
 }
 
 int io_read_mshot(struct io_kiocb *req, unsigned int issue_flags)
 {
 	struct io_rw *rw = io_kiocb_to_cmd(req, struct io_rw);
+	struct io_br_sel sel = { };
 	unsigned int cflags = 0;
 	int ret;
 
@@ -1034,7 +1051,7 @@ int io_read_mshot(struct io_kiocb *req, unsigned int issue_flags)
 
 	/* make it sync, multishot doesn't support async execution */
 	rw->kiocb.ki_complete = NULL;
-	ret = __io_read(req, issue_flags);
+	ret = __io_read(req, &sel, issue_flags);
 
 	/*
 	 * If we get -EAGAIN, recycle our buffer and just let normal poll
@@ -1045,15 +1062,15 @@ int io_read_mshot(struct io_kiocb *req, unsigned int issue_flags)
 		 * Reset rw->len to 0 again to avoid clamping future mshot
 		 * reads, in case the buffer size varies.
 		 */
-		if (io_kbuf_recycle(req, issue_flags))
+		if (io_kbuf_recycle(req, sel.buf_list, issue_flags))
 			rw->len = 0;
 		return IOU_RETRY;
 	} else if (ret <= 0) {
-		io_kbuf_recycle(req, issue_flags);
+		io_kbuf_recycle(req, sel.buf_list, issue_flags);
 		if (ret < 0)
 			req_set_fail(req);
 	} else if (!(req->flags & REQ_F_APOLL_MULTISHOT)) {
-		cflags = io_put_kbuf(req, ret, issue_flags);
+		cflags = io_put_kbuf(req, ret, sel.buf_list);
 	} else {
 		/*
 		 * Any successful return value will keep the multishot read
@@ -1061,7 +1078,7 @@ int io_read_mshot(struct io_kiocb *req, unsigned int issue_flags)
 		 * we fail to post a CQE, or multishot is no longer set, then
 		 * jump to the termination path. This request is then done.
 		 */
-		cflags = io_put_kbuf(req, ret, issue_flags);
+		cflags = io_put_kbuf(req, ret, sel.buf_list);
 		rw->len = 0; /* similarly to above, reset len to 0 */
 
 		if (io_req_post_cqe(req, ret, cflags | IORING_CQE_F_MORE)) {
@@ -1190,7 +1207,7 @@ int io_write(struct io_kiocb *req, unsigned int issue_flags)
 			return -EAGAIN;
 		}
 done:
-		return kiocb_done(req, ret2, issue_flags);
+		return kiocb_done(req, ret2, NULL, issue_flags);
 	} else {
 ret_eagain:
 		iov_iter_restore(&io->iter, &io->iter_state);
@@ -1358,7 +1375,7 @@ int io_do_iopoll(struct io_ring_ctx *ctx, bool force_nonspin)
 		if (!smp_load_acquire(&req->iopoll_completed))
 			break;
 		nr_events++;
-		req->cqe.flags = io_put_kbuf(req, req->cqe.res, 0);
+		req->cqe.flags = io_put_kbuf(req, req->cqe.res, NULL);
 		if (req->opcode != IORING_OP_URING_CMD)
 			io_req_rw_cleanup(req, 0);
 	}

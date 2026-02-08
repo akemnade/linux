@@ -287,7 +287,7 @@ void ax25_destroy_socket(ax25_cb *);
  */
 static void ax25_destroy_timer(struct timer_list *t)
 {
-	ax25_cb *ax25 = from_timer(ax25, t, dtimer);
+	ax25_cb *ax25 = timer_container_of(ax25, t, dtimer);
 	struct sock *sk;
 
 	sk=ax25->sk;
@@ -1094,7 +1094,7 @@ static int ax25_release(struct socket *sock)
  *	that we've implemented support for SO_BINDTODEVICE. It is however small
  *	and trivially backward compatible.
  */
-static int ax25_bind(struct socket *sock, struct sockaddr *uaddr, int addr_len)
+static int ax25_bind(struct socket *sock, struct sockaddr_unsized *uaddr, int addr_len)
 {
 	struct sock *sk = sock->sk;
 	struct full_sockaddr_ax25 *addr = (struct full_sockaddr_ax25 *)uaddr;
@@ -1175,7 +1175,7 @@ out:
  *	FIXME: nonblock behaviour looks like it may have a bug.
  */
 static int __must_check ax25_connect(struct socket *sock,
-	struct sockaddr *uaddr, int addr_len, int flags)
+	struct sockaddr_unsized *uaddr, int addr_len, int flags)
 {
 	struct sock *sk = sock->sk;
 	ax25_cb *ax25 = sk_to_ax25(sk), *ax25t;

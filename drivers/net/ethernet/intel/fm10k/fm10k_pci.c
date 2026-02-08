@@ -199,8 +199,8 @@ static void fm10k_start_service_event(struct fm10k_intfc *interface)
  **/
 static void fm10k_service_timer(struct timer_list *t)
 {
-	struct fm10k_intfc *interface = from_timer(interface, t,
-						   service_timer);
+	struct fm10k_intfc *interface = timer_container_of(interface, t,
+							   service_timer);
 
 	/* Reset the timer */
 	mod_timer(&interface->service_timer, (HZ * 2) + jiffies);
@@ -2423,12 +2423,6 @@ static pci_ers_result_t fm10k_io_slot_reset(struct pci_dev *pdev)
 	} else {
 		pci_set_master(pdev);
 		pci_restore_state(pdev);
-
-		/* After second error pci->state_saved is false, this
-		 * resets it so EEH doesn't break.
-		 */
-		pci_save_state(pdev);
-
 		pci_wake_from_d3(pdev, false);
 
 		result = PCI_ERS_RESULT_RECOVERED;

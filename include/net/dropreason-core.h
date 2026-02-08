@@ -40,10 +40,12 @@
 	FN(TCP_OFOMERGE)		\
 	FN(TCP_RFC7323_PAWS)		\
 	FN(TCP_RFC7323_PAWS_ACK)	\
+	FN(TCP_RFC7323_TW_PAWS)		\
 	FN(TCP_RFC7323_TSECR)		\
 	FN(TCP_LISTEN_OVERFLOW)		\
 	FN(TCP_OLD_SEQUENCE)		\
 	FN(TCP_INVALID_SEQUENCE)	\
+	FN(TCP_INVALID_END_SEQUENCE)	\
 	FN(TCP_INVALID_ACK_SEQUENCE)	\
 	FN(TCP_RESET)			\
 	FN(TCP_INVALID_SYN)		\
@@ -61,9 +63,11 @@
 	FN(NEIGH_FAILED)		\
 	FN(NEIGH_QUEUEFULL)		\
 	FN(NEIGH_DEAD)			\
+	FN(NEIGH_HH_FILLFAIL)		\
 	FN(TC_EGRESS)			\
 	FN(SECURITY_HOOK)		\
 	FN(QDISC_DROP)			\
+	FN(QDISC_BURST_DROP)		\
 	FN(QDISC_OVERLIMIT)		\
 	FN(QDISC_CONGESTED)		\
 	FN(CAKE_FLOOD)			\
@@ -119,6 +123,13 @@
 	FN(ARP_PVLAN_DISABLE)		\
 	FN(MAC_IEEE_MAC_CONTROL)	\
 	FN(BRIDGE_INGRESS_STP_STATE)	\
+	FN(CAN_RX_INVALID_FRAME)	\
+	FN(CANFD_RX_INVALID_FRAME)	\
+	FN(CANXL_RX_INVALID_FRAME)	\
+	FN(PFMEMALLOC)	\
+	FN(DUALPI2_STEP_DROP)		\
+	FN(PSP_INPUT)			\
+	FN(PSP_OUTPUT)			\
 	FNe(MAX)
 
 /**
@@ -284,6 +295,12 @@ enum skb_drop_reason {
 	 */
 	SKB_DROP_REASON_TCP_RFC7323_PAWS_ACK,
 	/**
+	 * @SKB_DROP_REASON_TCP_RFC7323_TW_PAWS: PAWS check, socket is in
+	 * TIME_WAIT state.
+	 * Corresponds to LINUX_MIB_PAWS_TW_REJECTED.
+	 */
+	SKB_DROP_REASON_TCP_RFC7323_TW_PAWS,
+	/**
 	 * @SKB_DROP_REASON_TCP_RFC7323_TSECR: PAWS check, invalid TSEcr.
 	 * Corresponds to LINUX_MIB_TSECRREJECTED.
 	 */
@@ -292,8 +309,14 @@ enum skb_drop_reason {
 	SKB_DROP_REASON_TCP_LISTEN_OVERFLOW,
 	/** @SKB_DROP_REASON_TCP_OLD_SEQUENCE: Old SEQ field (duplicate packet) */
 	SKB_DROP_REASON_TCP_OLD_SEQUENCE,
-	/** @SKB_DROP_REASON_TCP_INVALID_SEQUENCE: Not acceptable SEQ field */
+	/** @SKB_DROP_REASON_TCP_INVALID_SEQUENCE: Not acceptable SEQ field. */
 	SKB_DROP_REASON_TCP_INVALID_SEQUENCE,
+	/**
+	 * @SKB_DROP_REASON_TCP_INVALID_END_SEQUENCE:
+	 * Not acceptable END_SEQ field.
+	 * Corresponds to LINUX_MIB_BEYOND_WINDOW.
+	 */
+	SKB_DROP_REASON_TCP_INVALID_END_SEQUENCE,
 	/**
 	 * @SKB_DROP_REASON_TCP_INVALID_ACK_SEQUENCE: Not acceptable ACK SEQ
 	 * field because ack sequence is not in the window between snd_una
@@ -341,6 +364,8 @@ enum skb_drop_reason {
 	SKB_DROP_REASON_NEIGH_QUEUEFULL,
 	/** @SKB_DROP_REASON_NEIGH_DEAD: neigh entry is dead */
 	SKB_DROP_REASON_NEIGH_DEAD,
+	/** @SKB_DROP_REASON_NEIGH_HH_FILLFAIL: failed to fill the device hard header */
+	SKB_DROP_REASON_NEIGH_HH_FILLFAIL,
 	/** @SKB_DROP_REASON_TC_EGRESS: dropped in TC egress HOOK */
 	SKB_DROP_REASON_TC_EGRESS,
 	/** @SKB_DROP_REASON_SECURITY_HOOK: dropped due to security HOOK */
@@ -350,6 +375,11 @@ enum skb_drop_reason {
 	 * failed to enqueue to current qdisc)
 	 */
 	SKB_DROP_REASON_QDISC_DROP,
+	/**
+	 * @SKB_DROP_REASON_QDISC_BURST_DROP: dropped when net.core.qdisc_max_burst
+	 * limit is hit.
+	 */
+	SKB_DROP_REASON_QDISC_BURST_DROP,
 	/**
 	 * @SKB_DROP_REASON_QDISC_OVERLIMIT: dropped by qdisc when a qdisc
 	 * instance exceeds its total buffer size limit.
@@ -563,6 +593,35 @@ enum skb_drop_reason {
 	 * ingress bridge port does not allow frames to be forwarded.
 	 */
 	SKB_DROP_REASON_BRIDGE_INGRESS_STP_STATE,
+	/**
+	 * @SKB_DROP_REASON_CAN_RX_INVALID_FRAME: received
+	 * non conform CAN frame (or device is unable to receive CAN frames)
+	 */
+	SKB_DROP_REASON_CAN_RX_INVALID_FRAME,
+	/**
+	 * @SKB_DROP_REASON_CANFD_RX_INVALID_FRAME: received
+	 * non conform CAN-FD frame (or device is unable to receive CAN frames)
+	 */
+	SKB_DROP_REASON_CANFD_RX_INVALID_FRAME,
+	/**
+	 * @SKB_DROP_REASON_CANXL_RX_INVALID_FRAME: received
+	 * non conform CAN-XL frame (or device is unable to receive CAN frames)
+	 */
+	SKB_DROP_REASON_CANXL_RX_INVALID_FRAME,
+	/**
+	 * @SKB_DROP_REASON_PFMEMALLOC: packet allocated from memory reserve
+	 * reached a path or socket not eligible for use of memory reserves
+	 */
+	SKB_DROP_REASON_PFMEMALLOC,
+	/**
+	 * @SKB_DROP_REASON_DUALPI2_STEP_DROP: dropped by the step drop
+	 * threshold of DualPI2 qdisc.
+	 */
+	SKB_DROP_REASON_DUALPI2_STEP_DROP,
+	/** @SKB_DROP_REASON_PSP_INPUT: PSP input checks failed */
+	SKB_DROP_REASON_PSP_INPUT,
+	/** @SKB_DROP_REASON_PSP_OUTPUT: PSP output checks failed */
+	SKB_DROP_REASON_PSP_OUTPUT,
 	/**
 	 * @SKB_DROP_REASON_MAX: the maximum of core drop reasons, which
 	 * shouldn't be used as a real 'reason' - only for tracing code gen

@@ -29,6 +29,7 @@ static const u32 rtw89_mac_mem_base_addrs_be[RTW89_MAC_MEM_NUM] = {
 	[RTW89_MAC_MEM_CPU_LOCAL]	= CPU_LOCAL_BASE_ADDR_BE,
 	[RTW89_MAC_MEM_BSSID_CAM]	= BSSID_CAM_BASE_ADDR_BE,
 	[RTW89_MAC_MEM_WD_PAGE]		= WD_PAGE_BASE_ADDR_BE,
+	[RTW89_MAC_MEM_MLD_TBL]		= MLD_TBL_BASE_ADDR_BE,
 };
 
 static const struct rtw89_port_reg rtw89_port_base_be = {
@@ -55,6 +56,7 @@ static const struct rtw89_port_reg rtw89_port_base_be = {
 	.ptcl_dbg = R_BE_PTCL_DBG,
 	.ptcl_dbg_info = R_BE_PTCL_DBG_INFO,
 	.bcn_drop_all = R_BE_BCN_DROP_ALL0,
+	.bcn_psr_rpt = R_BE_BCN_PSR_RPT_P0,
 	.hiq_win = {R_BE_P0MB_HGQ_WINDOW_CFG_0, R_BE_PORT_HGQ_WINDOW_CFG,
 		    R_BE_PORT_HGQ_WINDOW_CFG + 1, R_BE_PORT_HGQ_WINDOW_CFG + 2,
 		    R_BE_PORT_HGQ_WINDOW_CFG + 3},
@@ -456,6 +458,7 @@ static void set_cpu_en(struct rtw89_dev *rtwdev, bool include_bb)
 
 static int wcpu_on(struct rtw89_dev *rtwdev, u8 boot_reason, bool dlfw)
 {
+	const struct rtw89_chip_info *chip = rtwdev->chip;
 	u32 val32;
 	int ret;
 
@@ -477,6 +480,7 @@ static int wcpu_on(struct rtw89_dev *rtwdev, u8 boot_reason, bool dlfw)
 
 	rtw89_write32(rtwdev, R_BE_UDM1, 0);
 	rtw89_write32(rtwdev, R_BE_UDM2, 0);
+	rtw89_write32(rtwdev, R_BE_BOOT_DBG, 0x0);
 	rtw89_write32(rtwdev, R_BE_HALT_H2C, 0);
 	rtw89_write32(rtwdev, R_BE_HALT_C2H, 0);
 	rtw89_write32(rtwdev, R_BE_HALT_H2C_CTRL, 0);
@@ -491,6 +495,11 @@ static int wcpu_on(struct rtw89_dev *rtwdev, u8 boot_reason, bool dlfw)
 			  B_BE_WDT_WAKE_PCIE_EN | B_BE_WDT_WAKE_USB_EN);
 	rtw89_write32_clr(rtwdev, R_BE_WCPU_FW_CTRL,
 			  B_BE_WDT_PLT_RST_EN | B_BE_WCPU_ROM_CUT_GET);
+	rtw89_write32(rtwdev, R_BE_SECURE_BOOT_MALLOC_INFO, 0);
+	rtw89_write32_clr(rtwdev, R_BE_GPIO_MUXCFG, B_BE_BOOT_MODE);
+
+	if (chip->chip_id != RTL8922A)
+		rtw89_write32_set(rtwdev, R_BE_WCPU_FW_CTRL, B_BE_HOST_EXIST);
 
 	rtw89_write16_mask(rtwdev, R_BE_BOOT_REASON, B_BE_BOOT_REASON_MASK, boot_reason);
 	rtw89_write32_clr(rtwdev, R_BE_PLATFORM_ENABLE, B_BE_WCPU_EN);
@@ -2018,7 +2027,7 @@ int rtw89_mac_cfg_ppdu_status_be(struct rtw89_dev *rtwdev, u8 mac_idx, bool enab
 	}
 
 	rtw89_write32_mask(rtwdev, R_BE_HW_PPDU_STATUS, B_BE_FWD_PPDU_STAT_MASK, 3);
-	rtw89_write32(rtwdev, reg, B_BE_PPDU_STAT_RPT_EN | B_BE_PPDU_MAC_INFO |
+	rtw89_write32(rtwdev, reg, B_BE_PPDU_STAT_RPT_EN |
 				   B_BE_APP_RX_CNT_RPT | B_BE_APP_PLCP_HDR_RPT |
 				   B_BE_PPDU_STAT_RPT_CRC32 | B_BE_PPDU_STAT_RPT_DMA);
 
@@ -2566,6 +2575,7 @@ const struct rtw89_mac_gen_def rtw89_mac_gen_be = {
 	.filter_model_addr = R_BE_FILTER_MODEL_ADDR,
 	.indir_access_addr = R_BE_INDIR_ACCESS_ENTRY,
 	.mem_base_addrs = rtw89_mac_mem_base_addrs_be,
+	.mem_page_size = MAC_MEM_DUMP_PAGE_SIZE_BE,
 	.rx_fltr = R_BE_RX_FLTR_OPT,
 	.port_base = &rtw89_port_base_be,
 	.agg_len_ht = R_BE_AGG_LEN_HT_0,
@@ -2636,6 +2646,8 @@ const struct rtw89_mac_gen_def rtw89_mac_gen_be = {
 
 	.is_txq_empty = mac_is_txq_empty_be,
 
+	.prep_chan_list = rtw89_hw_scan_prep_chan_list_be,
+	.free_chan_list = rtw89_hw_scan_free_chan_list_be,
 	.add_chan_list = rtw89_hw_scan_add_chan_list_be,
 	.add_chan_list_pno = rtw89_pno_scan_add_chan_list_be,
 	.scan_offload = rtw89_fw_h2c_scan_offload_be,

@@ -21,7 +21,6 @@
 #include <linux/reboot.h>
 #include <linux/slab.h>
 #include <linux/memblock.h>
-#include <linux/compat.h>
 
 #include <asm/machine.h>
 #include <asm/ccwdev.h>
@@ -102,6 +101,7 @@ struct tty3270 {
 
 	/* Input stuff. */
 	char *prompt;			/* Output string for input area. */
+	size_t prompt_sz;		/* Size of output string. */
 	char *input;			/* Input string for read request. */
 	struct raw3270_request *read;	/* Single read request. */
 	struct raw3270_request *kreset;	/* Single keyboard reset request. */
@@ -206,7 +206,7 @@ static int tty3270_input_size(int cols)
 
 static void tty3270_update_prompt(struct tty3270 *tp, char *input)
 {
-	strcpy(tp->prompt, input);
+	strscpy(tp->prompt, input, tp->prompt_sz);
 	tp->update_flags |= TTY_UPDATE_INPUT;
 	tty3270_set_timer(tp, 1);
 }
@@ -524,7 +524,7 @@ static void tty3270_update_lines_all(struct tty3270 *tp, struct raw3270_request 
  */
 static void tty3270_update(struct timer_list *t)
 {
-	struct tty3270 *tp = from_timer(tp, t, timer);
+	struct tty3270 *tp = timer_container_of(tp, t, timer);
 	struct raw3270_request *wrq;
 	u8 cmd = TC_WRITE;
 	int rc, len;
@@ -969,8 +969,7 @@ static void tty3270_resize(struct raw3270_view *view,
 	char **old_rcl_lines, **new_rcl_lines;
 	char *old_prompt, *new_prompt;
 	char *old_input, *new_input;
-	struct tty_struct *tty;
-	struct winsize ws;
+	size_t prompt_sz;
 	int new_allocated, old_allocated = tp->allocated_lines;
 
 	if (old_model == new_model &&
@@ -982,10 +981,11 @@ static void tty3270_resize(struct raw3270_view *view,
 		return;
 	}
 
-	new_input = kzalloc(tty3270_input_size(new_cols), GFP_KERNEL | GFP_DMA);
+	prompt_sz = tty3270_input_size(new_cols);
+	new_input = kzalloc(prompt_sz, GFP_KERNEL | GFP_DMA);
 	if (!new_input)
 		return;
-	new_prompt = kzalloc(tty3270_input_size(new_cols), GFP_KERNEL);
+	new_prompt = kzalloc(prompt_sz, GFP_KERNEL);
 	if (!new_prompt)
 		goto out_input;
 	screen = tty3270_alloc_screen(tp, new_rows, new_cols, &new_allocated);
@@ -1010,6 +1010,7 @@ static void tty3270_resize(struct raw3270_view *view,
 	old_rcl_lines = tp->rcl_lines;
 	tp->input = new_input;
 	tp->prompt = new_prompt;
+	tp->prompt_sz = prompt_sz;
 	tp->rcl_lines = new_rcl_lines;
 	tp->rcl_read_index = 0;
 	tp->rcl_write_index = 0;
@@ -1019,14 +1020,14 @@ static void tty3270_resize(struct raw3270_view *view,
 	kfree(old_prompt);
 	tty3270_free_recall(old_rcl_lines);
 	tty3270_set_timer(tp, 1);
-	/* Informat tty layer about new size */
-	tty = tty_port_tty_get(&tp->port);
-	if (!tty)
-		return;
-	ws.ws_row = tty3270_tty_rows(tp);
-	ws.ws_col = tp->view.cols;
-	tty_do_resize(tty, &ws);
-	tty_kref_put(tty);
+	/* Inform the tty layer about new size */
+	scoped_guard(tty_port_tty, &tp->port) {
+		struct winsize ws = {
+			.ws_row = tty3270_tty_rows(tp),
+			.ws_col = tp->view.cols,
+		};
+		tty_do_resize(scoped_tty(), &ws);
+	}
 	return;
 out_screen:
 	tty3270_free_screen(screen, new_rows);
@@ -1096,6 +1097,7 @@ static int
 tty3270_create_view(int index, struct tty3270 **newtp)
 {
 	struct tty3270 *tp;
+	size_t prompt_sz;
 	int rc;
 
 	if (tty3270_max_index < index + 1)
@@ -1125,17 +1127,19 @@ tty3270_create_view(int index, struct tty3270 **newtp)
 		goto out_free_screen;
 	}
 
-	tp->input = kzalloc(tty3270_input_size(tp->view.cols), GFP_KERNEL | GFP_DMA);
+	prompt_sz = tty3270_input_size(tp->view.cols);
+	tp->input = kzalloc(prompt_sz, GFP_KERNEL | GFP_DMA);
 	if (!tp->input) {
 		rc = -ENOMEM;
 		goto out_free_converted_line;
 	}
 
-	tp->prompt = kzalloc(tty3270_input_size(tp->view.cols), GFP_KERNEL);
+	tp->prompt = kzalloc(prompt_sz, GFP_KERNEL);
 	if (!tp->prompt) {
 		rc = -ENOMEM;
 		goto out_free_input;
 	}
+	tp->prompt_sz = prompt_sz;
 
 	tp->rcl_lines = tty3270_alloc_recall(tp->view.cols);
 	if (!tp->rcl_lines) {
@@ -1657,7 +1661,7 @@ static void tty3270_escape_sequence(struct tty3270 *tp, u8 ch)
 		else if (tp->esc_par[0] == 6) {	/* Cursor report. */
 			char buf[40];
 
-			sprintf(buf, "\033[%d;%dR", tp->cy + 1, tp->cx + 1);
+			scnprintf(buf, sizeof(buf), "\033[%d;%dR", tp->cy + 1, tp->cx + 1);
 			kbd_puts_queue(&tp->port, buf);
 		}
 		return;
@@ -1942,21 +1946,6 @@ static int tty3270_ioctl(struct tty_struct *tty, unsigned int cmd,
 	return kbd_ioctl(tp->kbd, cmd, arg);
 }
 
-#ifdef CONFIG_COMPAT
-static long tty3270_compat_ioctl(struct tty_struct *tty,
-				 unsigned int cmd, unsigned long arg)
-{
-	struct tty3270 *tp;
-
-	tp = tty->driver_data;
-	if (!tp)
-		return -ENODEV;
-	if (tty_io_error(tty))
-		return -EIO;
-	return kbd_ioctl(tp->kbd, cmd, (unsigned long)compat_ptr(arg));
-}
-#endif
-
 static const struct tty_operations tty3270_ops = {
 	.install = tty3270_install,
 	.cleanup = tty3270_cleanup,
@@ -1971,9 +1960,6 @@ static const struct tty_operations tty3270_ops = {
 	.hangup = tty3270_hangup,
 	.wait_until_sent = tty3270_wait_until_sent,
 	.ioctl = tty3270_ioctl,
-#ifdef CONFIG_COMPAT
-	.compat_ioctl = tty3270_compat_ioctl,
-#endif
 	.set_termios = tty3270_set_termios
 };
 

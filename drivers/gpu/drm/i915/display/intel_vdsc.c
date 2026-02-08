@@ -9,11 +9,12 @@
 
 #include <drm/display/drm_dsc_helper.h>
 #include <drm/drm_fixed.h>
+#include <drm/drm_print.h>
 
-#include "i915_utils.h"
 #include "intel_crtc.h"
 #include "intel_de.h"
 #include "intel_display_types.h"
+#include "intel_display_utils.h"
 #include "intel_dp.h"
 #include "intel_dsi.h"
 #include "intel_qp_tables.h"
@@ -259,6 +260,15 @@ static int intel_dsc_slice_dimensions_valid(struct intel_crtc_state *pipe_config
 	return 0;
 }
 
+static bool is_dsi_dsc_1_1(struct intel_crtc_state *crtc_state)
+{
+	struct drm_dsc_config *vdsc_cfg = &crtc_state->dsc.config;
+
+	return vdsc_cfg->dsc_version_major == 1 &&
+		vdsc_cfg->dsc_version_minor == 1 &&
+		intel_crtc_has_type(crtc_state, INTEL_OUTPUT_DSI);
+}
+
 int intel_dsc_compute_params(struct intel_crtc_state *pipe_config)
 {
 	struct intel_display *display = to_intel_display(pipe_config);
@@ -317,8 +327,19 @@ int intel_dsc_compute_params(struct intel_crtc_state *pipe_config)
 	 * From XE_LPD onwards we supports compression bpps in steps of 1
 	 * upto uncompressed bpp-1, hence add calculations for all the rc
 	 * parameters
+	 *
+	 * We don't want to calculate all rc parameters when the panel
+	 * is MIPI DSI and it's using DSC 1.1. The reason being that some
+	 * DSI panels vendors have hardcoded PPS params in the VBT causing
+	 * the parameters sent from the source which are derived through
+	 * interpolation to differ from the params the panel expects.
+	 * This causes a noise in the display.
+	 * Furthermore for DSI panels we are currently using  bits_per_pixel
+	 * (compressed bpp) hardcoded from VBT, (unlike other encoders where we
+	 * find the optimum compressed bpp) so dont need to rely on interpolation,
+	 * as we can get the required rc parameters from the tables.
 	 */
-	if (DISPLAY_VER(display) >= 13) {
+	if (DISPLAY_VER(display) >= 13 && !is_dsi_dsc_1_1(pipe_config)) {
 		calculate_rc_params(vdsc_cfg);
 	} else {
 		if ((compressed_bpp == 8 ||
@@ -349,6 +370,22 @@ int intel_dsc_compute_params(struct intel_crtc_state *pipe_config)
 		(vdsc_cfg->rc_model_size - vdsc_cfg->initial_offset);
 
 	return 0;
+}
+
+void intel_dsc_enable_on_crtc(struct intel_crtc_state *crtc_state)
+{
+	crtc_state->dsc.compression_enabled_on_link = true;
+	crtc_state->dsc.compression_enable = true;
+}
+
+bool intel_dsc_enabled_on_link(const struct intel_crtc_state *crtc_state)
+{
+	struct intel_display *display = to_intel_display(crtc_state);
+
+	drm_WARN_ON(display->drm, crtc_state->dsc.compression_enable &&
+		    !crtc_state->dsc.compression_enabled_on_link);
+
+	return crtc_state->dsc.compression_enabled_on_link;
 }
 
 enum intel_display_power_domain
@@ -1055,4 +1092,12 @@ int intel_vdsc_min_cdclk(const struct intel_crtc_state *crtc_state)
 	}
 
 	return min_cdclk;
+}
+
+unsigned int intel_vdsc_prefill_lines(const struct intel_crtc_state *crtc_state)
+{
+	if (!crtc_state->dsc.compression_enable)
+		return 0;
+
+	return 0x18000; /* 1.5 */
 }

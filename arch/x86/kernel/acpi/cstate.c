@@ -14,7 +14,7 @@
 
 #include <acpi/processor.h>
 #include <asm/cpu_device_id.h>
-#include <asm/cpuid.h>
+#include <asm/cpuid/api.h>
 #include <asm/mwait.h>
 #include <asm/special_insns.h>
 #include <asm/smp.h>
@@ -89,7 +89,7 @@ void acpi_processor_power_init_bm_check(struct acpi_processor_flags *flags,
 		 */
 		flags->bm_control = 0;
 	}
-	if (c->x86_vendor == X86_VENDOR_AMD && c->x86 >= 0x17) {
+	if (cpu_feature_enabled(X86_FEATURE_ZEN)) {
 		/*
 		 * For all AMD Zen or newer CPUs that support C3, caches
 		 * should not be flushed by software while entering C3

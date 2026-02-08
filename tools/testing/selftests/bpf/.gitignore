@@ -21,9 +21,9 @@ test_lirc_mode2_user
 flow_dissector_load
 test_tcpnotify_user
 test_libbpf
-test_sysctl
 xdping
 test_cpp
+test_progs_verification_cert
 *.d
 *.subskel.h
 *.skel.h
@@ -33,7 +33,6 @@ test_cpp
 /cpuv4
 /host-tools
 /tools
-/runqslower
 /bench
 /veristat
 /sign-file
@@ -45,3 +44,4 @@ xdp_redirect_multi
 xdp_synproxy
 xdp_hw_metadata
 xdp_features
+verification_cert.h

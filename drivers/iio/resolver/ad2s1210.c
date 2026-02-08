@@ -1132,23 +1132,23 @@ static int ad2s1210_read_label(struct iio_dev *indio_dev,
 {
 	if (chan->type == IIO_ANGL) {
 		if (chan->channel == 0)
-			return sprintf(label, "position\n");
+			return sysfs_emit(label, "position\n");
 		if (chan->channel == 1)
-			return sprintf(label, "tracking error\n");
+			return sysfs_emit(label, "tracking error\n");
 	}
 	if (chan->type == IIO_ANGL_VEL)
-		return sprintf(label, "velocity\n");
+		return sysfs_emit(label, "velocity\n");
 	if (chan->type == IIO_PHASE)
-		return sprintf(label, "synthetic reference\n");
+		return sysfs_emit(label, "synthetic reference\n");
 	if (chan->type == IIO_ALTVOLTAGE) {
 		if (chan->output)
-			return sprintf(label, "excitation\n");
+			return sysfs_emit(label, "excitation\n");
 		if (chan->channel == 0)
-			return sprintf(label, "monitor signal\n");
+			return sysfs_emit(label, "monitor signal\n");
 		if (chan->channel == 1)
-			return sprintf(label, "cosine\n");
+			return sysfs_emit(label, "cosine\n");
 		if (chan->channel == 2)
-			return sprintf(label, "sine\n");
+			return sysfs_emit(label, "sine\n");
 	}
 
 	return -EINVAL;
@@ -1239,24 +1239,24 @@ static int ad2s1210_read_event_label(struct iio_dev *indio_dev,
 				     char *label)
 {
 	if (chan->type == IIO_ANGL)
-		return sprintf(label, "LOT\n");
+		return sysfs_emit(label, "LOT\n");
 	if (chan->type == IIO_ANGL_VEL)
-		return sprintf(label, "max tracking rate\n");
+		return sysfs_emit(label, "max tracking rate\n");
 	if (chan->type == IIO_PHASE)
-		return sprintf(label, "phase lock\n");
+		return sysfs_emit(label, "phase lock\n");
 	if (chan->type == IIO_ALTVOLTAGE) {
 		if (chan->channel == 0) {
 			if (type == IIO_EV_TYPE_THRESH &&
 			    dir == IIO_EV_DIR_FALLING)
-				return sprintf(label, "LOS\n");
+				return sysfs_emit(label, "LOS\n");
 			if (type == IIO_EV_TYPE_THRESH &&
 			    dir == IIO_EV_DIR_RISING)
-				return sprintf(label, "DOS overrange\n");
+				return sysfs_emit(label, "DOS overrange\n");
 			if (type == IIO_EV_TYPE_MAG)
-				return sprintf(label, "DOS mismatch\n");
+				return sysfs_emit(label, "DOS mismatch\n");
 		}
 		if (chan->channel == 1 || chan->channel == 2)
-			return sprintf(label, "clipped\n");
+			return sysfs_emit(label, "clipped\n");
 	}
 
 	return -EINVAL;
@@ -1340,7 +1340,8 @@ static irqreturn_t ad2s1210_trigger_handler(int irq, void *p)
 	}
 
 	ad2s1210_push_events(indio_dev, st->sample.fault, pf->timestamp);
-	iio_push_to_buffers_with_timestamp(indio_dev, &st->scan, pf->timestamp);
+	iio_push_to_buffers_with_ts(indio_dev, &st->scan, sizeof(st->scan),
+				    pf->timestamp);
 
 error_ret:
 	iio_trigger_notify_done(indio_dev->trig);
@@ -1597,7 +1598,7 @@ MODULE_DEVICE_TABLE(of, ad2s1210_of_match);
 
 static const struct spi_device_id ad2s1210_id[] = {
 	{ "ad2s1210" },
-	{}
+	{ }
 };
 MODULE_DEVICE_TABLE(spi, ad2s1210_id);
 

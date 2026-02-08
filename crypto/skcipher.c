@@ -543,6 +543,8 @@ static int crypto_skcipher_init_tfm(struct crypto_tfm *tfm)
 		return crypto_init_lskcipher_ops_sg(tfm);
 	}
 
+	crypto_skcipher_set_reqsize(skcipher, crypto_tfm_alg_reqsize(tfm));
+
 	if (alg->exit)
 		skcipher->base.exit = crypto_skcipher_exit_tfm;
 
@@ -620,6 +622,7 @@ static const struct crypto_type crypto_skcipher_type = {
 	.maskset = CRYPTO_ALG_TYPE_SKCIPHER_MASK,
 	.type = CRYPTO_ALG_TYPE_SKCIPHER,
 	.tfmsize = offsetof(struct crypto_skcipher, base),
+	.algsize = offsetof(struct skcipher_alg, base),
 };
 
 int crypto_grab_skcipher(struct crypto_skcipher_spawn *spawn,

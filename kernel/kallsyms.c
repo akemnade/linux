@@ -103,8 +103,11 @@ static char kallsyms_get_symbol_type(unsigned int off)
 {
 	/*
 	 * Get just the first code, look it up in the token table,
-	 * and return the first char from this token.
+	 * and return the first char from this token. If MSB of length
+	 * is 1, it is a "big" symbol, so needs an additional byte.
 	 */
+	if (kallsyms_names[off] & 0x80)
+		off++;
 	return kallsyms_token_table[kallsyms_token_index[kallsyms_names[off + 1]]];
 }
 
@@ -829,8 +832,7 @@ static struct bpf_iter_reg ksym_iter_reg_info = {
 	.seq_info		= &ksym_iter_seq_info,
 };
 
-BTF_ID_LIST(btf_ksym_iter_id)
-BTF_ID(struct, kallsym_iter)
+BTF_ID_LIST_SINGLE(btf_ksym_iter_id, struct, kallsym_iter)
 
 static int __init bpf_ksym_iter_register(void)
 {

@@ -9,10 +9,6 @@
 #include <linux/module.h>
 #include <linux/slab.h>
 
-struct lzorle_ctx {
-	void *lzorle_comp_mem;
-};
-
 static void *lzorle_alloc_ctx(void)
 {
 	void *ctx;
@@ -74,8 +70,10 @@ static int lzorle_sdecompress(struct crypto_scomp *tfm, const u8 *src,
 }
 
 static struct scomp_alg scomp = {
-	.alloc_ctx		= lzorle_alloc_ctx,
-	.free_ctx		= lzorle_free_ctx,
+	.streams		= {
+		.alloc_ctx	= lzorle_alloc_ctx,
+		.free_ctx	= lzorle_free_ctx,
+	},
 	.compress		= lzorle_scompress,
 	.decompress		= lzorle_sdecompress,
 	.base			= {
@@ -95,7 +93,7 @@ static void __exit lzorle_mod_fini(void)
 	crypto_unregister_scomp(&scomp);
 }
 
-subsys_initcall(lzorle_mod_init);
+module_init(lzorle_mod_init);
 module_exit(lzorle_mod_fini);
 
 MODULE_LICENSE("GPL");

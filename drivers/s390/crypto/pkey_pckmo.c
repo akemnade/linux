@@ -5,8 +5,7 @@
  *  Copyright IBM Corp. 2024
  */
 
-#define KMSG_COMPONENT "pkey"
-#define pr_fmt(fmt) KMSG_COMPONENT ": " fmt
+#define pr_fmt(fmt) "pkey: " fmt
 
 #include <linux/init.h>
 #include <linux/module.h>
@@ -406,7 +405,8 @@ out:
 static int pkey_pckmo_key2protkey(const struct pkey_apqn *_apqns,
 				  size_t _nr_apqns,
 				  const u8 *key, u32 keylen,
-				  u8 *protkey, u32 *protkeylen, u32 *keyinfo)
+				  u8 *protkey, u32 *protkeylen, u32 *keyinfo,
+				  u32 _xflags __always_unused)
 {
 	return pckmo_key2protkey(key, keylen,
 				 protkey, protkeylen, keyinfo);
@@ -415,7 +415,8 @@ static int pkey_pckmo_key2protkey(const struct pkey_apqn *_apqns,
 static int pkey_pckmo_gen_key(const struct pkey_apqn *_apqns, size_t _nr_apqns,
 			      u32 keytype, u32 keysubtype,
 			      u32 _keybitsize, u32 _flags,
-			      u8 *keybuf, u32 *keybuflen, u32 *keyinfo)
+			      u8 *keybuf, u32 *keybuflen, u32 *keyinfo,
+			      u32 _xflags __always_unused)
 {
 	return pckmo_gen_protkey(keytype, keysubtype,
 				 keybuf, keybuflen, keyinfo);
@@ -423,7 +424,8 @@ static int pkey_pckmo_gen_key(const struct pkey_apqn *_apqns, size_t _nr_apqns,
 
 static int pkey_pckmo_verifykey(const u8 *key, u32 keylen,
 				u16 *_card, u16 *_dom,
-				u32 *_keytype, u32 *_keybitsize, u32 *_flags)
+				u32 *_keytype, u32 *_keybitsize,
+				u32 *_flags, u32 _xflags __always_unused)
 {
 	return pckmo_verify_key(key, keylen);
 }

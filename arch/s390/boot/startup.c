@@ -6,6 +6,7 @@
 #include <asm/boot_data.h>
 #include <asm/extmem.h>
 #include <asm/sections.h>
+#include <asm/diag288.h>
 #include <asm/maccess.h>
 #include <asm/machine.h>
 #include <asm/sysinfo.h>
@@ -19,6 +20,9 @@
 #include <asm/uv.h>
 #include <asm/abs_lowcore.h>
 #include <asm/physmem_info.h>
+#include <asm/stacktrace.h>
+#include <asm/asm-offsets.h>
+#include <asm/arch-stackprotector.h>
 #include "decompressor.h"
 #include "boot.h"
 #include "uv.h"
@@ -43,13 +47,6 @@ u64 __bootdata_preserved(clock_comparator_max) = -1UL;
 u64 __bootdata_preserved(stfle_fac_list[16]);
 struct oldmem_data __bootdata_preserved(oldmem_data);
 
-void error(char *x)
-{
-	boot_emerg("%s\n", x);
-	boot_emerg(" -- System halted\n");
-	disabled_wait();
-}
-
 static char sysinfo_page[PAGE_SIZE] __aligned(PAGE_SIZE);
 
 static void detect_machine_type(void)
@@ -69,6 +66,20 @@ static void detect_machine_type(void)
 		set_machine_feature(MFEATURE_KVM);
 	else if (!memcmp(vmms->vm[0].cpi, "\xa9\x61\xe5\xd4", 4))
 		set_machine_feature(MFEATURE_VM);
+}
+
+static void detect_diag288(void)
+{
+	/* "BEGIN" in EBCDIC character set */
+	static const char cmd[] = "\xc2\xc5\xc7\xc9\xd5";
+	unsigned long action, len;
+
+	action = machine_is_vm() ? (unsigned long)cmd : LPARWDT_RESTART;
+	len = machine_is_vm() ? sizeof(cmd) : 0;
+	if (__diag288(WDT_FUNC_INIT, MIN_INTERVAL, action, len))
+		return;
+	__diag288(WDT_FUNC_CANCEL, 0, 0, 0);
+	set_machine_feature(MFEATURE_DIAG288);
 }
 
 static void detect_diag9c(void)
@@ -205,10 +216,10 @@ static void rescue_initrd(unsigned long min, unsigned long max)
 static void copy_bootdata(void)
 {
 	if (__boot_data_end - __boot_data_start != vmlinux.bootdata_size)
-		error(".boot.data section size mismatch");
+		boot_panic(".boot.data section size mismatch\n");
 	memcpy((void *)vmlinux.bootdata_off, __boot_data_start, vmlinux.bootdata_size);
 	if (__boot_data_preserved_end - __boot_data_preserved_start != vmlinux.bootdata_preserved_size)
-		error(".boot.preserved.data section size mismatch");
+		boot_panic(".boot.preserved.data section size mismatch\n");
 	memcpy((void *)vmlinux.bootdata_preserved_off, __boot_data_preserved_start, vmlinux.bootdata_preserved_size);
 }
 
@@ -222,7 +233,7 @@ static void kaslr_adjust_relocs(unsigned long min_addr, unsigned long max_addr,
 	for (reloc = (int *)__vmlinux_relocs_64_start; reloc < (int *)__vmlinux_relocs_64_end; reloc++) {
 		loc = (long)*reloc + phys_offset;
 		if (loc < min_addr || loc > max_addr)
-			error("64-bit relocation outside of kernel!\n");
+			boot_panic("64-bit relocation outside of kernel!\n");
 		*(u64 *)loc += offset;
 	}
 }
@@ -369,7 +380,7 @@ static unsigned long setup_kernel_memory_layout(unsigned long kernel_size)
 		kernel_start = round_down(kernel_end - kernel_size, THREAD_SIZE);
 		boot_debug("Randomization range: 0x%016lx-0x%016lx\n", vmax - kaslr_len, vmax);
 		boot_debug("kernel image:        0x%016lx-0x%016lx (kaslr)\n", kernel_start,
-			   kernel_size + kernel_size);
+			   kernel_start + kernel_size);
 	} else if (vmax < __NO_KASLR_END_KERNEL || vsize > __NO_KASLR_END_KERNEL) {
 		kernel_start = round_down(vmax - kernel_size, THREAD_SIZE);
 		boot_debug("kernel image:        0x%016lx-0x%016lx (constrained)\n", kernel_start,
@@ -469,6 +480,10 @@ static void kaslr_adjust_vmlinux_info(long offset)
 	vmlinux.invalid_pg_dir_off += offset;
 	vmlinux.alt_instructions += offset;
 	vmlinux.alt_instructions_end += offset;
+#ifdef CONFIG_STACKPROTECTOR
+	vmlinux.stack_prot_start += offset;
+	vmlinux.stack_prot_end += offset;
+#endif
 #ifdef CONFIG_KASAN
 	vmlinux.kasan_early_shadow_page_off += offset;
 	vmlinux.kasan_early_shadow_pte_off += offset;
@@ -519,6 +534,8 @@ void startup_kernel(void)
 	detect_facilities();
 	detect_diag9c();
 	detect_machine_type();
+	/* detect_diag288() needs machine type */
+	detect_diag288();
 	cmma_init();
 	sanitize_prot_virt_host();
 	max_physmem_end = detect_max_physmem_end();
@@ -612,6 +629,7 @@ void startup_kernel(void)
 	__apply_alternatives((struct alt_instr *)_vmlinux_info.alt_instructions,
 			     (struct alt_instr *)_vmlinux_info.alt_instructions_end,
 			     ALT_CTX_EARLY);
+	stack_protector_apply_early(text_lma);
 
 	/*
 	 * Save KASLR offset for early dumps, before vmcore_info is set.
@@ -625,5 +643,5 @@ void startup_kernel(void)
 	psw.addr = __kaslr_offset + vmlinux.entry;
 	psw.mask = PSW_KERNEL_BITS;
 	boot_debug("Starting kernel at:  0x%016lx\n", psw.addr);
-	__load_psw(psw);
+	jump_to_kernel(&psw);
 }

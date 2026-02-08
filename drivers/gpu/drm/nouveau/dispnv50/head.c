@@ -43,6 +43,9 @@ nv50_head_flush_clr(struct nv50_head *head,
 	union nv50_head_atom_mask clr = {
 		.mask = asyh->clr.mask & ~(flush ? 0 : asyh->set.mask),
 	};
+
+	lockdep_assert_held(&head->disp->mutex);
+
 	if (clr.crc)  nv50_crc_atomic_clr(head);
 	if (clr.olut) head->func->olut_clr(head);
 	if (clr.core) head->func->core_clr(head);
@@ -65,6 +68,8 @@ nv50_head_flush_set_wndw(struct nv50_head *head, struct nv50_head_atom *asyh)
 void
 nv50_head_flush_set(struct nv50_head *head, struct nv50_head_atom *asyh)
 {
+	lockdep_assert_held(&head->disp->mutex);
+
 	if (asyh->set.view   ) head->func->view    (head, asyh);
 	if (asyh->set.mode   ) head->func->mode    (head, asyh);
 	if (asyh->set.core   ) head->func->core_set(head, asyh);
@@ -577,6 +582,7 @@ nv50_head_create(struct drm_device *dev, int index)
 		return ERR_PTR(-ENOMEM);
 
 	head->func = disp->core->func->head;
+	head->disp = disp;
 	head->base.index = index;
 
 	if (disp->disp->object.oclass < GF110_DISP)

@@ -11,6 +11,16 @@
 #include <linux/types.h>
 
 struct acpm_handle;
+struct device_node;
+
+struct acpm_dvfs_ops {
+	int (*set_rate)(const struct acpm_handle *handle,
+			unsigned int acpm_chan_id, unsigned int clk_id,
+			unsigned long rate);
+	unsigned long (*get_rate)(const struct acpm_handle *handle,
+				  unsigned int acpm_chan_id,
+				  unsigned int clk_id);
+};
 
 struct acpm_pmic_ops {
 	int (*read_reg)(const struct acpm_handle *handle,
@@ -31,6 +41,7 @@ struct acpm_pmic_ops {
 };
 
 struct acpm_ops {
+	struct acpm_dvfs_ops dvfs_ops;
 	struct acpm_pmic_ops pmic_ops;
 };
 
@@ -44,6 +55,16 @@ struct acpm_handle {
 
 struct device;
 
-const struct acpm_handle *devm_acpm_get_by_phandle(struct device *dev,
-						   const char *property);
+#if IS_ENABLED(CONFIG_EXYNOS_ACPM_PROTOCOL)
+const struct acpm_handle *devm_acpm_get_by_node(struct device *dev,
+						struct device_node *np);
+#else
+
+static inline const struct acpm_handle *devm_acpm_get_by_node(struct device *dev,
+							      struct device_node *np)
+{
+	return NULL;
+}
+#endif
+
 #endif /* __EXYNOS_ACPM_PROTOCOL_H */

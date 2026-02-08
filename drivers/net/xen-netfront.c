@@ -245,7 +245,8 @@ static bool xennet_can_sg(struct net_device *dev)
 
 static void rx_refill_timeout(struct timer_list *t)
 {
-	struct netfront_queue *queue = from_timer(queue, t, rx_refill_timer);
+	struct netfront_queue *queue = timer_container_of(queue, t,
+							  rx_refill_timer);
 	napi_schedule(&queue->napi);
 }
 
@@ -637,8 +638,6 @@ static int xennet_xdp_xmit_one(struct net_device *dev,
 	tx_stats->packets++;
 	u64_stats_update_end(&tx_stats->syncp);
 
-	xennet_tx_buf_gc(queue);
-
 	return 0;
 }
 
@@ -847,9 +846,6 @@ static netdev_tx_t xennet_start_xmit(struct sk_buff *skb, struct net_device *dev
 	tx_stats->bytes += skb->len;
 	tx_stats->packets++;
 	u64_stats_update_end(&tx_stats->syncp);
-
-	/* Note: It is not safe to access skb after xennet_tx_buf_gc()! */
-	xennet_tx_buf_gc(queue);
 
 	if (!netfront_tx_slot_available(queue))
 		netif_tx_stop_queue(netdev_get_tx_queue(dev, queue->id));
@@ -2700,8 +2696,9 @@ static int __init netif_init(void)
 
 	pr_info("Initialising Xen virtual ethernet driver\n");
 
-	/* Allow as many queues as there are CPUs inut max. 8 if user has not
-	 * specified a value.
+	/* Allow the number of queues to match the number of CPUs, but not exceed
+	 * the maximum limit. If the user has not specified a value, the default
+	 * maximum limit is 8.
 	 */
 	if (xennet_max_queues == 0)
 		xennet_max_queues = min_t(unsigned int, MAX_QUEUES_DEFAULT,

@@ -11,10 +11,17 @@
 		rtc0 = "/i2c@7000d000/pmic@3c";
 		rtc1 = "/rtc@7000e000";
 		serial0 = &uarta;
+		serial3 = &uartd;
 	};
 
 	chosen {
 		stdout-path = "serial0:115200n8";
+	};
+
+	reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
 	};
 
 	memory@80000000 {
@@ -24,6 +31,7 @@
 
 	gpu@57000000 {
 		vdd-supply = <&vdd_gpu>;
+		status = "okay";
 	};
 
 	/* debug port */

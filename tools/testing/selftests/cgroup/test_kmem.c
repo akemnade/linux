@@ -14,7 +14,7 @@
 #include <sys/sysinfo.h>
 #include <pthread.h>
 
-#include "../kselftest.h"
+#include "kselftest.h"
 #include "cgroup_util.h"
 
 
@@ -308,6 +308,7 @@ static int test_kmem_dead_cgroups(const char *root)
 	char *parent;
 	long dead;
 	int i;
+	int max_time = 20;
 
 	parent = cg_name(root, "kmem_dead_cgroups_test");
 	if (!parent)
@@ -322,7 +323,7 @@ static int test_kmem_dead_cgroups(const char *root)
 	if (cg_run_in_subcgroups(parent, alloc_dcache, (void *)100, 30))
 		goto cleanup;
 
-	for (i = 0; i < 5; i++) {
+	for (i = 0; i < max_time; i++) {
 		dead = cg_read_key_long(parent, "cgroup.stat",
 					"nr_dying_descendants ");
 		if (dead == 0) {
@@ -334,6 +335,8 @@ static int test_kmem_dead_cgroups(const char *root)
 		 * let's wait a bit and repeat.
 		 */
 		sleep(1);
+		if (i > 5)
+			printf("Waiting time longer than 5s; wait: %ds (dead: %ld)\n", i, dead);
 	}
 
 cleanup:
@@ -418,8 +421,10 @@ struct kmem_test {
 int main(int argc, char **argv)
 {
 	char root[PATH_MAX];
-	int i, ret = EXIT_SUCCESS;
+	int i;
 
+	ksft_print_header();
+	ksft_set_plan(ARRAY_SIZE(tests));
 	if (cg_find_unified_root(root, sizeof(root), NULL))
 		ksft_exit_skip("cgroup v2 isn't mounted\n");
 
@@ -443,11 +448,10 @@ int main(int argc, char **argv)
 			ksft_test_result_skip("%s\n", tests[i].name);
 			break;
 		default:
-			ret = EXIT_FAILURE;
 			ksft_test_result_fail("%s\n", tests[i].name);
 			break;
 		}
 	}
 
-	return ret;
+	ksft_finished();
 }

@@ -10,6 +10,8 @@
 #include <errno.h>
 #include <signal.h>
 #include <fcntl.h>
+#include <limits.h>
+#include <linux/futex.h>
 #include <sys/mman.h>
 #include <sys/ptrace.h>
 #include <sys/prctl.h>
@@ -18,17 +20,29 @@
 #include <init.h>
 #include <longjmp.h>
 #include <os.h>
+#include <skas/skas.h>
 
 void os_alarm_process(int pid)
 {
+	if (pid <= 0)
+		return;
+
 	kill(pid, SIGALRM);
 }
 
 void os_kill_process(int pid, int reap_child)
 {
+	if (pid <= 0)
+		return;
+
+	/* Block signals until child is reaped */
+	block_signals();
+
 	kill(pid, SIGKILL);
 	if (reap_child)
 		CATCH_EINTR(waitpid(pid, NULL, __WALL));
+
+	unblock_signals();
 }
 
 /* Kill off a ptraced child by all means available.  kill it normally first,
@@ -38,11 +52,27 @@ void os_kill_process(int pid, int reap_child)
 
 void os_kill_ptraced_process(int pid, int reap_child)
 {
+	if (pid <= 0)
+		return;
+
+	/* Block signals until child is reaped */
+	block_signals();
+
 	kill(pid, SIGKILL);
 	ptrace(PTRACE_KILL, pid);
 	ptrace(PTRACE_CONT, pid);
 	if (reap_child)
 		CATCH_EINTR(waitpid(pid, NULL, __WALL));
+
+	unblock_signals();
+}
+
+pid_t os_reap_child(void)
+{
+	int status;
+
+	/* Try to reap a child */
+	return waitpid(-1, &status, WNOHANG);
 }
 
 /* Don't use the glibc version, which caches the result in TLS. It misses some
@@ -151,10 +181,31 @@ void init_new_thread_signals(void)
 	set_handler(SIGBUS);
 	signal(SIGHUP, SIG_IGN);
 	set_handler(SIGIO);
+	/* We (currently) only use the child reaper IRQ in seccomp mode */
+	if (using_seccomp)
+		set_handler(SIGCHLD);
 	signal(SIGWINCH, SIG_IGN);
 }
 
 void os_set_pdeathsig(void)
 {
 	prctl(PR_SET_PDEATHSIG, SIGKILL);
+}
+
+int os_futex_wait(void *uaddr, unsigned int val)
+{
+	int r;
+
+	CATCH_EINTR(r = syscall(__NR_futex, uaddr, FUTEX_WAIT, val,
+				NULL, NULL, 0));
+	return r < 0 ? -errno : r;
+}
+
+int os_futex_wake(void *uaddr)
+{
+	int r;
+
+	CATCH_EINTR(r = syscall(__NR_futex, uaddr, FUTEX_WAKE, INT_MAX,
+				NULL, NULL, 0));
+	return r < 0 ? -errno : r;
 }

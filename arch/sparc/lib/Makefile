@@ -2,7 +2,7 @@
 # Makefile for Sparc library files..
 #
 
-asflags-y := -ansi -DST_DIV0=0x02
+asflags-y := -DST_DIV0=0x02
 
 lib-$(CONFIG_SPARC32) += ashrdi3.o
 lib-$(CONFIG_SPARC32) += memcpy.o memset.o
@@ -53,5 +53,3 @@ lib-$(CONFIG_SPARC64) += mcount.o ipcsum.o xor.o hweight.o ffs.o
 obj-$(CONFIG_SPARC64) += iomap.o
 obj-$(CONFIG_SPARC32) += atomic32.o
 obj-$(CONFIG_SPARC64) += PeeCeeI.o
-obj-$(CONFIG_CRC32_ARCH) += crc32-sparc.o
-crc32-sparc-y := crc32_glue.o crc32c_asm.o

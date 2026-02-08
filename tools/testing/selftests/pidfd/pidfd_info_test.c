@@ -21,7 +21,7 @@
 #include <sys/stat.h>
 
 #include "pidfd.h"
-#include "../kselftest_harness.h"
+#include "kselftest_harness.h"
 
 FIXTURE(pidfd_info)
 {
@@ -299,6 +299,7 @@ TEST_F(pidfd_info, thread_group)
 	/* Opening a thread as a thread-group leader must fail. */
 	pidfd_thread = sys_pidfd_open(pid_thread, 0);
 	ASSERT_LT(pidfd_thread, 0);
+	ASSERT_EQ(errno, ENOENT);
 
 	/* Opening a thread as a PIDFD_THREAD must succeed. */
 	pidfd_thread = sys_pidfd_open(pid_thread, PIDFD_THREAD);
@@ -362,9 +363,9 @@ TEST_F(pidfd_info, thread_group)
 	ASSERT_EQ(ioctl(pidfd_leader, PIDFD_GET_INFO, &info), 0);
 	ASSERT_FALSE(!!(info.mask & PIDFD_INFO_CREDS));
 	ASSERT_TRUE(!!(info.mask & PIDFD_INFO_EXIT));
-	/* The thread-group leader exited successfully. Only the specific thread was SIGKILLed. */
-	ASSERT_TRUE(WIFEXITED(info.exit_code));
-	ASSERT_EQ(WEXITSTATUS(info.exit_code), 0);
+	/* Even though the thread-group exited successfully it will still report the group exit code. */
+	ASSERT_TRUE(WIFSIGNALED(info.exit_code));
+	ASSERT_EQ(WTERMSIG(info.exit_code), SIGKILL);
 
 	/*
 	 * Retrieve exit information for the thread-group leader via the
@@ -375,9 +376,9 @@ TEST_F(pidfd_info, thread_group)
 	ASSERT_FALSE(!!(info2.mask & PIDFD_INFO_CREDS));
 	ASSERT_TRUE(!!(info2.mask & PIDFD_INFO_EXIT));
 
-	/* The thread-group leader exited successfully. Only the specific thread was SIGKILLed. */
-	ASSERT_TRUE(WIFEXITED(info2.exit_code));
-	ASSERT_EQ(WEXITSTATUS(info2.exit_code), 0);
+	/* Even though the thread-group exited successfully it will still report the group exit code. */
+	ASSERT_TRUE(WIFSIGNALED(info2.exit_code));
+	ASSERT_EQ(WTERMSIG(info2.exit_code), SIGKILL);
 
 	/* Retrieve exit information for the thread. */
 	info.mask = PIDFD_INFO_CGROUPID | PIDFD_INFO_EXIT;
@@ -687,6 +688,79 @@ TEST_F(pidfd_info, thread_group_exec_thread)
 
 	EXPECT_EQ(close(pidfd_leader), 0);
 	EXPECT_EQ(close(pidfd_thread), 0);
+}
+
+/*
+ * Test: PIDFD_INFO_SUPPORTED_MASK field
+ *
+ * Verify that when PIDFD_INFO_SUPPORTED_MASK is requested, the kernel
+ * returns the supported_mask field indicating which flags the kernel supports.
+ */
+TEST(supported_mask_field)
+{
+	struct pidfd_info info = {
+		.mask = PIDFD_INFO_SUPPORTED_MASK,
+	};
+	int pidfd;
+	pid_t pid;
+
+	pid = create_child(&pidfd, 0);
+	ASSERT_GE(pid, 0);
+
+	if (pid == 0)
+		pause();
+
+	/* Request supported_mask field */
+	ASSERT_EQ(ioctl(pidfd, PIDFD_GET_INFO, &info), 0);
+
+	/* Verify PIDFD_INFO_SUPPORTED_MASK is set in the reply */
+	ASSERT_TRUE(!!(info.mask & PIDFD_INFO_SUPPORTED_MASK));
+
+	/* Verify supported_mask contains expected flags */
+	ASSERT_TRUE(!!(info.supported_mask & PIDFD_INFO_PID));
+	ASSERT_TRUE(!!(info.supported_mask & PIDFD_INFO_CREDS));
+	ASSERT_TRUE(!!(info.supported_mask & PIDFD_INFO_CGROUPID));
+	ASSERT_TRUE(!!(info.supported_mask & PIDFD_INFO_EXIT));
+	ASSERT_TRUE(!!(info.supported_mask & PIDFD_INFO_COREDUMP));
+	ASSERT_TRUE(!!(info.supported_mask & PIDFD_INFO_SUPPORTED_MASK));
+	ASSERT_TRUE(!!(info.supported_mask & PIDFD_INFO_COREDUMP_SIGNAL));
+
+	/* Clean up */
+	sys_pidfd_send_signal(pidfd, SIGKILL, NULL, 0);
+	sys_waitid(P_PIDFD, pidfd, NULL, WEXITED);
+	close(pidfd);
+}
+
+/*
+ * Test: PIDFD_INFO_SUPPORTED_MASK always available
+ *
+ * Verify that supported_mask is returned even when other fields are requested.
+ */
+TEST(supported_mask_with_other_fields)
+{
+	struct pidfd_info info = {
+		.mask = PIDFD_INFO_CGROUPID | PIDFD_INFO_SUPPORTED_MASK,
+	};
+	int pidfd;
+	pid_t pid;
+
+	pid = create_child(&pidfd, 0);
+	ASSERT_GE(pid, 0);
+
+	if (pid == 0)
+		pause();
+
+	ASSERT_EQ(ioctl(pidfd, PIDFD_GET_INFO, &info), 0);
+
+	/* Both fields should be present */
+	ASSERT_TRUE(!!(info.mask & PIDFD_INFO_CGROUPID));
+	ASSERT_TRUE(!!(info.mask & PIDFD_INFO_SUPPORTED_MASK));
+	ASSERT_NE(info.supported_mask, 0);
+
+	/* Clean up */
+	sys_pidfd_send_signal(pidfd, SIGKILL, NULL, 0);
+	sys_waitid(P_PIDFD, pidfd, NULL, WEXITED);
+	close(pidfd);
 }
 
 TEST_HARNESS_MAIN

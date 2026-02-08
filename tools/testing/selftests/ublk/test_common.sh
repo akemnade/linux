@@ -23,6 +23,11 @@ _get_disk_dev_t() {
 	echo $(( (major & 0xfff) << 20 | (minor & 0xfffff) ))
 }
 
+_get_disk_size()
+{
+	lsblk -b -o SIZE -n "$1"
+}
+
 _run_fio_verify_io() {
 	fio --name=verify --rw=randwrite --direct=1 --ioengine=libaio \
 		--bs=8k --iodepth=32 --verify=crc32c --do_verify=1 \
@@ -173,8 +178,9 @@ _have_feature()
 _create_ublk_dev() {
 	local dev_id;
 	local cmd=$1
+	local settle=$2
 
-	shift 1
+	shift 2
 
 	if [ ! -c /dev/ublk-control ]; then
 		return ${UBLK_SKIP_CODE}
@@ -189,7 +195,10 @@ _create_ublk_dev() {
 		echo "fail to add ublk dev $*"
 		return 255
 	fi
-	udevadm settle
+
+	if [ "$settle" = "yes" ]; then
+		udevadm settle
+	fi
 
 	if [[ "$dev_id" =~ ^[0-9]+$ ]]; then
 		echo "${dev_id}"
@@ -199,17 +208,41 @@ _create_ublk_dev() {
 }
 
 _add_ublk_dev() {
-	_create_ublk_dev "add" "$@"
+	_create_ublk_dev "add" "yes" "$@"
+}
+
+_add_ublk_dev_no_settle() {
+	_create_ublk_dev "add" "no" "$@"
 }
 
 _recover_ublk_dev() {
 	local dev_id
 	local state
 
-	dev_id=$(_create_ublk_dev "recover" "$@")
+	dev_id=$(_create_ublk_dev "recover" "yes" "$@")
 	for ((j=0;j<20;j++)); do
 		state=$(_get_ublk_dev_state "${dev_id}")
 		[ "$state" == "LIVE" ] && break
+		sleep 1
+	done
+	echo "$state"
+}
+
+# quiesce device and return ublk device state
+__ublk_quiesce_dev()
+{
+	local dev_id=$1
+	local exp_state=$2
+	local state
+
+	if ! ${UBLK_PROG} quiesce -n "${dev_id}"; then
+		state=$(_get_ublk_dev_state "${dev_id}")
+		return "$state"
+	fi
+
+	for ((j=0;j<50;j++)); do
+		state=$(_get_ublk_dev_state "${dev_id}")
+		[ "$state" == "$exp_state" ] && break
 		sleep 1
 	done
 	echo "$state"
@@ -251,8 +284,13 @@ __run_io_and_remove()
 	local kill_server=$3
 
 	fio --name=job1 --filename=/dev/ublkb"${dev_id}" --ioengine=libaio \
-		--rw=readwrite --iodepth=256 --size="${size}" --numjobs=4 \
+		--rw=randrw --norandommap --iodepth=256 --size="${size}" --numjobs="$(nproc)" \
 		--runtime=20 --time_based > /dev/null 2>&1 &
+	fio --name=batchjob --filename=/dev/ublkb"${dev_id}" --ioengine=io_uring \
+		--rw=randrw --norandommap --iodepth=256 --size="${size}" \
+		--numjobs="$(nproc)" --runtime=20 --time_based \
+		--iodepth_batch_submit=32 --iodepth_batch_complete_min=32 \
+		--force_async=7 > /dev/null 2>&1 &
 	sleep 2
 	if [ "${kill_server}" = "yes" ]; then
 		local state
@@ -303,20 +341,27 @@ run_io_and_kill_daemon()
 
 run_io_and_recover()
 {
+	local size=$1
+	local action=$2
 	local state
 	local dev_id
 
+	shift 2
 	dev_id=$(_add_ublk_dev "$@")
 	_check_add_dev "$TID" $?
 
 	fio --name=job1 --filename=/dev/ublkb"${dev_id}" --ioengine=libaio \
-		--rw=readwrite --iodepth=256 --size="${size}" --numjobs=4 \
+		--rw=randread --iodepth=256 --size="${size}" --numjobs=4 \
 		--runtime=20 --time_based > /dev/null 2>&1 &
 	sleep 4
 
-	state=$(__ublk_kill_daemon "${dev_id}" "QUIESCED")
+	if [ "$action" == "kill_daemon" ]; then
+		state=$(__ublk_kill_daemon "${dev_id}" "QUIESCED")
+	elif [ "$action" == "quiesce_dev" ]; then
+		state=$(__ublk_quiesce_dev "${dev_id}" "QUIESCED")
+	fi
 	if [ "$state" != "QUIESCED" ]; then
-		echo "device isn't quiesced($state) after killing daemon"
+		echo "device isn't quiesced($state) after $action"
 		return 255
 	fi
 

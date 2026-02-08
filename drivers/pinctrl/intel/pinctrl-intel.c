@@ -9,6 +9,7 @@
 
 #include <linux/acpi.h>
 #include <linux/cleanup.h>
+#include <linux/export.h>
 #include <linux/gpio/driver.h>
 #include <linux/interrupt.h>
 #include <linux/log2.h>
@@ -1033,8 +1034,8 @@ static int intel_gpio_get(struct gpio_chip *chip, unsigned int offset)
 	return !!(padcfg0 & PADCFG0_GPIORXSTATE);
 }
 
-static void intel_gpio_set(struct gpio_chip *chip, unsigned int offset,
-			   int value)
+static int intel_gpio_set(struct gpio_chip *chip, unsigned int offset,
+			  int value)
 {
 	struct intel_pinctrl *pctrl = gpiochip_get_data(chip);
 	void __iomem *reg;
@@ -1043,11 +1044,11 @@ static void intel_gpio_set(struct gpio_chip *chip, unsigned int offset,
 
 	pin = intel_gpio_to_pin(pctrl, offset, NULL, NULL);
 	if (pin < 0)
-		return;
+		return -EINVAL;
 
 	reg = intel_get_padcfg(pctrl, pin, PADCFG0);
 	if (!reg)
-		return;
+		return -EINVAL;
 
 	guard(raw_spinlock_irqsave)(&pctrl->lock);
 
@@ -1057,6 +1058,8 @@ static void intel_gpio_set(struct gpio_chip *chip, unsigned int offset,
 	else
 		padcfg0 &= ~PADCFG0_GPIOTXSTATE;
 	writel(padcfg0, reg);
+
+	return 0;
 }
 
 static int intel_gpio_get_direction(struct gpio_chip *chip, unsigned int offset)
@@ -1094,7 +1097,12 @@ static int intel_gpio_direction_input(struct gpio_chip *chip, unsigned int offse
 static int intel_gpio_direction_output(struct gpio_chip *chip, unsigned int offset,
 				       int value)
 {
-	intel_gpio_set(chip, offset, value);
+	int ret;
+
+	ret = intel_gpio_set(chip, offset, value);
+	if (ret)
+		return ret;
+
 	return pinctrl_gpio_direction_output(chip, offset);
 }
 
@@ -1337,7 +1345,16 @@ static int intel_gpio_irq_init_hw(struct gpio_chip *gc)
 	return 0;
 }
 
-static int intel_gpio_add_pin_ranges(struct gpio_chip *gc)
+/**
+ * intel_gpio_add_pin_ranges - add GPIO pin ranges for all groups in all communities
+ * @gc: GPIO chip structure
+ *
+ * This function iterates over all communities and all groups and adds the respective
+ * GPIO pin ranges, so the GPIO library will correctly map a GPIO offset to a pin number.
+ *
+ * Return: 0, or negative error code if range can't be added.
+ */
+int intel_gpio_add_pin_ranges(struct gpio_chip *gc)
 {
 	struct intel_pinctrl *pctrl = gpiochip_get_data(gc);
 	const struct intel_community *community;
@@ -1348,14 +1365,13 @@ static int intel_gpio_add_pin_ranges(struct gpio_chip *gc)
 		ret = gpiochip_add_pin_range(&pctrl->chip, dev_name(pctrl->dev),
 					     grp->gpio_base, grp->base,
 					     grp->size);
-		if (ret) {
-			dev_err(pctrl->dev, "failed to add GPIO pin range\n");
-			return ret;
-		}
+		if (ret)
+			return dev_err_probe(pctrl->dev, ret, "failed to add GPIO pin range\n");
 	}
 
 	return 0;
 }
+EXPORT_SYMBOL_NS_GPL(intel_gpio_add_pin_ranges, "PINCTRL_INTEL");
 
 static unsigned int intel_gpio_ngpio(const struct intel_pinctrl *pctrl)
 {
@@ -1393,10 +1409,8 @@ static int intel_gpio_probe(struct intel_pinctrl *pctrl, int irq)
 	ret = devm_request_irq(pctrl->dev, irq, intel_gpio_irq,
 			       IRQF_SHARED | IRQF_NO_THREAD,
 			       dev_name(pctrl->dev), pctrl);
-	if (ret) {
-		dev_err(pctrl->dev, "failed to request interrupt\n");
-		return ret;
-	}
+	if (ret)
+		return dev_err_probe(pctrl->dev, ret, "failed to request interrupt\n");
 
 	/* Setup IRQ chip */
 	girq = &pctrl->chip.irq;
@@ -1409,10 +1423,8 @@ static int intel_gpio_probe(struct intel_pinctrl *pctrl, int irq)
 	girq->init_hw = intel_gpio_irq_init_hw;
 
 	ret = devm_gpiochip_add_data(pctrl->dev, &pctrl->chip, pctrl);
-	if (ret) {
-		dev_err(pctrl->dev, "failed to register gpiochip\n");
-		return ret;
-	}
+	if (ret)
+		return dev_err_probe(pctrl->dev, ret, "failed to register gpiochip\n");
 
 	return 0;
 }
@@ -1660,10 +1672,8 @@ int intel_pinctrl_probe(struct platform_device *pdev,
 	pctrl->pctldesc.npins = pctrl->soc->npins;
 
 	pctrl->pctldev = devm_pinctrl_register(dev, &pctrl->pctldesc, pctrl);
-	if (IS_ERR(pctrl->pctldev)) {
-		dev_err(dev, "failed to register pinctrl driver\n");
-		return PTR_ERR(pctrl->pctldev);
-	}
+	if (IS_ERR(pctrl->pctldev))
+		return dev_err_probe(dev, PTR_ERR(pctrl->pctldev), "failed to register pinctrl\n");
 
 	ret = intel_gpio_probe(pctrl, irq);
 	if (ret)

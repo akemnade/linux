@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0
 #include <linux/init.h>
 #include <linux/async.h>
+#include <linux/export.h>
 #include <linux/fs.h>
 #include <linux/slab.h>
 #include <linux/types.h>
@@ -18,6 +19,7 @@
 #include <linux/init_syscalls.h>
 #include <linux/umh.h>
 #include <linux/security.h>
+#include <linux/overflow.h>
 
 #include "do_mounts.h"
 #include "initramfs_internal.h"
@@ -107,7 +109,7 @@ static char __init *find_link(int major, int minor, int ino,
 	q->minor = minor;
 	q->ino = ino;
 	q->mode = mode;
-	strcpy(q->name, name);
+	strscpy(q->name, name);
 	q->next = NULL;
 	*p = q;
 	hardlink_seen = true;
@@ -151,7 +153,7 @@ static void __init dir_add(const char *name, size_t nlen, time64_t mtime)
 {
 	struct dir_entry *de;
 
-	de = kmalloc(sizeof(struct dir_entry) + nlen, GFP_KERNEL);
+	de = kmalloc(struct_size(de, name, nlen), GFP_KERNEL);
 	if (!de)
 		panic_show_mem("can't allocate dir_entry buffer");
 	INIT_LIST_HEAD(&de->list);

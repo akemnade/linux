@@ -1082,7 +1082,7 @@ static int imx283_start_streaming(struct imx283 *imx283,
 	cci_write(imx283->cci, IMX283_REG_SVR, 0x00, &ret);
 
 	dev_dbg(imx283->dev, "Mode: Size %d x %d\n", mode->width, mode->height);
-	dev_dbg(imx283->dev, "Analogue Crop (in the mode) %d,%d %dx%d\n",
+	dev_dbg(imx283->dev, "Analogue Crop (in the mode) (%d,%d)/%ux%u\n",
 		mode->crop.left,
 		mode->crop.top,
 		mode->crop.width,
@@ -1143,7 +1143,6 @@ static int imx283_enable_streams(struct v4l2_subdev *sd,
 	return 0;
 
 err_rpm_put:
-	pm_runtime_mark_last_busy(imx283->dev);
 	pm_runtime_put_autosuspend(imx283->dev);
 
 	return ret;
@@ -1163,7 +1162,6 @@ static int imx283_disable_streams(struct v4l2_subdev *sd,
 	if (ret)
 		dev_err(imx283->dev, "Failed to stop stream\n");
 
-	pm_runtime_mark_last_busy(imx283->dev);
 	pm_runtime_put_autosuspend(imx283->dev);
 
 	return ret;
@@ -1462,11 +1460,10 @@ static int imx283_probe(struct i2c_client *client)
 	}
 
 	/* Get system clock (xclk) */
-	imx283->xclk = devm_clk_get(imx283->dev, NULL);
-	if (IS_ERR(imx283->xclk)) {
+	imx283->xclk = devm_v4l2_sensor_clk_get(imx283->dev, NULL);
+	if (IS_ERR(imx283->xclk))
 		return dev_err_probe(imx283->dev, PTR_ERR(imx283->xclk),
 				     "failed to get xclk\n");
-	}
 
 	xclk_freq = clk_get_rate(imx283->xclk);
 	for (i = 0; i < ARRAY_SIZE(imx283_frequencies); i++) {
@@ -1558,7 +1555,6 @@ static int imx283_probe(struct i2c_client *client)
 	 * Decrease the PM usage count. The device will get suspended after the
 	 * autosuspend delay, turning the power off.
 	 */
-	pm_runtime_mark_last_busy(imx283->dev);
 	pm_runtime_put_autosuspend(imx283->dev);
 
 	return 0;

@@ -57,11 +57,26 @@ static int kernfs_statfs(struct dentry *dentry, struct kstatfs *buf)
 
 const struct super_operations kernfs_sops = {
 	.statfs		= kernfs_statfs,
-	.drop_inode	= generic_delete_inode,
+	.drop_inode	= inode_just_drop,
 	.evict_inode	= kernfs_evict_inode,
 
 	.show_options	= kernfs_sop_show_options,
 	.show_path	= kernfs_sop_show_path,
+
+	/*
+	 * sysfs is built on top of kernfs and sysfs provides the power
+	 * management infrastructure to support suspend/hibernate by
+	 * writing to various files in /sys/power/. As filesystems may
+	 * be automatically frozen during suspend/hibernate implementing
+	 * freeze/thaw support for kernfs generically will cause
+	 * deadlocks as the suspending/hibernation initiating task will
+	 * hold a VFS lock that it will then wait upon to be released.
+	 * If freeze/thaw for kernfs is needed talk to the VFS.
+	 */
+	.freeze_fs	= NULL,
+	.unfreeze_fs	= NULL,
+	.freeze_super	= NULL,
+	.thaw_super	= NULL,
 };
 
 static int kernfs_encode_fh(struct inode *inode, __u32 *fh, int *max_len,
@@ -255,7 +270,7 @@ struct dentry *kernfs_node_dentry(struct kernfs_node *kn,
 			dput(dentry);
 			return ERR_PTR(-ENOMEM);
 		}
-		dtmp = lookup_positive_unlocked(name, dentry, strlen(name));
+		dtmp = lookup_noperm_positive_unlocked(&QSTR(name), dentry);
 		dput(dentry);
 		kfree(name);
 		if (IS_ERR(dtmp))
@@ -283,6 +298,7 @@ static int kernfs_fill_super(struct super_block *sb, struct kernfs_fs_context *k
 	if (info->root->flags & KERNFS_ROOT_SUPPORT_EXPORTOP)
 		sb->s_export_op = &kernfs_export_ops;
 	sb->s_time_gran = 1;
+	sb->s_maxbytes  = MAX_LFS_FILESIZE;
 
 	/* sysfs dentries and inodes don't require IO to create */
 	sb->s_shrink->seeks = 0;
@@ -303,7 +319,7 @@ static int kernfs_fill_super(struct super_block *sb, struct kernfs_fs_context *k
 		return -ENOMEM;
 	}
 	sb->s_root = root;
-	sb->s_d_op = &kernfs_dops;
+	set_default_d_op(sb, &kernfs_dops);
 	return 0;
 }
 

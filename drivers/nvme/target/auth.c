@@ -280,9 +280,12 @@ void nvmet_destroy_auth(struct nvmet_ctrl *ctrl)
 
 bool nvmet_check_auth_status(struct nvmet_req *req)
 {
-	if (req->sq->ctrl->host_key &&
-	    !req->sq->authenticated)
-		return false;
+	if (req->sq->ctrl->host_key) {
+		if (req->sq->qid > 0)
+			return true;
+		if (!req->sq->authenticated)
+			return false;
+	}
 	return true;
 }
 
@@ -290,7 +293,7 @@ int nvmet_auth_host_hash(struct nvmet_req *req, u8 *response,
 			 unsigned int shash_len)
 {
 	struct crypto_shash *shash_tfm;
-	struct shash_desc *shash;
+	SHASH_DESC_ON_STACK(shash, shash_tfm);
 	struct nvmet_ctrl *ctrl = req->sq->ctrl;
 	const char *hash_name;
 	u8 *challenge = req->sq->dhchap_c1;
@@ -342,19 +345,13 @@ int nvmet_auth_host_hash(struct nvmet_req *req, u8 *response,
 						    req->sq->dhchap_c1,
 						    challenge, shash_len);
 		if (ret)
-			goto out_free_challenge;
+			goto out;
 	}
 
 	pr_debug("ctrl %d qid %d host response seq %u transaction %d\n",
 		 ctrl->cntlid, req->sq->qid, req->sq->dhchap_s1,
 		 req->sq->dhchap_tid);
 
-	shash = kzalloc(sizeof(*shash) + crypto_shash_descsize(shash_tfm),
-			GFP_KERNEL);
-	if (!shash) {
-		ret = -ENOMEM;
-		goto out_free_challenge;
-	}
 	shash->tfm = shash_tfm;
 	ret = crypto_shash_init(shash);
 	if (ret)
@@ -370,27 +367,26 @@ int nvmet_auth_host_hash(struct nvmet_req *req, u8 *response,
 	ret = crypto_shash_update(shash, buf, 2);
 	if (ret)
 		goto out;
-	memset(buf, 0, 4);
+	*buf = req->sq->sc_c;
 	ret = crypto_shash_update(shash, buf, 1);
 	if (ret)
 		goto out;
 	ret = crypto_shash_update(shash, "HostHost", 8);
 	if (ret)
 		goto out;
+	memset(buf, 0, 4);
 	ret = crypto_shash_update(shash, ctrl->hostnqn, strlen(ctrl->hostnqn));
 	if (ret)
 		goto out;
 	ret = crypto_shash_update(shash, buf, 1);
 	if (ret)
 		goto out;
-	ret = crypto_shash_update(shash, ctrl->subsysnqn,
-				  strlen(ctrl->subsysnqn));
+	ret = crypto_shash_update(shash, ctrl->subsys->subsysnqn,
+				  strlen(ctrl->subsys->subsysnqn));
 	if (ret)
 		goto out;
 	ret = crypto_shash_final(shash, response);
 out:
-	kfree(shash);
-out_free_challenge:
 	if (challenge != req->sq->dhchap_c1)
 		kfree(challenge);
 out_free_response:
@@ -433,7 +429,7 @@ int nvmet_auth_ctrl_hash(struct nvmet_req *req, u8 *response,
 	}
 
 	transformed_key = nvme_auth_transform_key(ctrl->ctrl_key,
-						ctrl->subsysnqn);
+						ctrl->subsys->subsysnqn);
 	if (IS_ERR(transformed_key)) {
 		ret = PTR_ERR(transformed_key);
 		goto out_free_tfm;
@@ -488,8 +484,8 @@ int nvmet_auth_ctrl_hash(struct nvmet_req *req, u8 *response,
 	ret = crypto_shash_update(shash, "Controller", 10);
 	if (ret)
 		goto out;
-	ret = crypto_shash_update(shash, ctrl->subsysnqn,
-			    strlen(ctrl->subsysnqn));
+	ret = crypto_shash_update(shash, ctrl->subsys->subsysnqn,
+			    strlen(ctrl->subsys->subsysnqn));
 	if (ret)
 		goto out;
 	ret = crypto_shash_update(shash, buf, 1);
@@ -579,7 +575,7 @@ void nvmet_auth_insert_psk(struct nvmet_sq *sq)
 		return;
 	}
 	ret = nvme_auth_generate_digest(sq->ctrl->shash_id, psk, psk_len,
-					sq->ctrl->subsysnqn,
+					sq->ctrl->subsys->subsysnqn,
 					sq->ctrl->hostnqn, &digest);
 	if (ret) {
 		pr_warn("%s: ctrl %d qid %d failed to generate digest, error %d\n",
@@ -594,8 +590,10 @@ void nvmet_auth_insert_psk(struct nvmet_sq *sq)
 		goto out_free_digest;
 	}
 #ifdef CONFIG_NVME_TARGET_TCP_TLS
-	tls_key = nvme_tls_psk_refresh(NULL, sq->ctrl->hostnqn, sq->ctrl->subsysnqn,
-				       sq->ctrl->shash_id, tls_psk, psk_len, digest);
+	tls_key = nvme_tls_psk_refresh(NULL, sq->ctrl->hostnqn,
+				       sq->ctrl->subsys->subsysnqn,
+				       sq->ctrl->shash_id, tls_psk, psk_len,
+				       digest);
 	if (IS_ERR(tls_key)) {
 		pr_warn("%s: ctrl %d qid %d failed to refresh key, error %ld\n",
 			__func__, sq->ctrl->cntlid, sq->qid, PTR_ERR(tls_key));

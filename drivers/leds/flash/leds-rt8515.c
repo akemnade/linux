@@ -165,7 +165,7 @@ static const struct led_flash_ops rt8515_flash_ops = {
 
 static void rt8515_powerdown_timer(struct timer_list *t)
 {
-	struct rt8515 *rt = from_timer(rt, t, powerdown_timer);
+	struct rt8515 *rt = timer_container_of(rt, t, powerdown_timer);
 
 	/* Turn the LED off */
 	rt8515_gpio_led_off(rt);
@@ -304,7 +304,7 @@ static int rt8515_probe(struct platform_device *pdev)
 		return dev_err_probe(dev, PTR_ERR(rt->enable_torch),
 				     "cannot get ENT (enable torch) GPIO\n");
 
-	child = fwnode_get_next_available_child_node(dev->fwnode, NULL);
+	child = device_get_next_child_node(dev, NULL);
 	if (!child) {
 		dev_err(dev,
 			"No fwnode child node found for connected LED.\n");

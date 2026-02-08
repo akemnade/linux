@@ -300,13 +300,30 @@ static ssize_t print_cpus_isolated(struct device *dev,
 }
 static DEVICE_ATTR(isolated, 0444, print_cpus_isolated, NULL);
 
-#ifdef CONFIG_NO_HZ_FULL
-static ssize_t print_cpus_nohz_full(struct device *dev,
-				    struct device_attribute *attr, char *buf)
+static ssize_t housekeeping_show(struct device *dev,
+			     struct device_attribute *attr, char *buf)
 {
-	return sysfs_emit(buf, "%*pbl\n", cpumask_pr_args(tick_nohz_full_mask));
+	const struct cpumask *hk_mask;
+
+	hk_mask = housekeeping_cpumask(HK_TYPE_KERNEL_NOISE);
+
+	if (housekeeping_enabled(HK_TYPE_KERNEL_NOISE))
+		return sysfs_emit(buf, "%*pbl\n", cpumask_pr_args(hk_mask));
+	return sysfs_emit(buf, "\n");
 }
-static DEVICE_ATTR(nohz_full, 0444, print_cpus_nohz_full, NULL);
+static DEVICE_ATTR_RO(housekeeping);
+
+#ifdef CONFIG_NO_HZ_FULL
+static ssize_t nohz_full_show(struct device *dev,
+				    struct device_attribute *attr,
+				    char *buf)
+{
+	if (cpumask_available(tick_nohz_full_mask))
+		return sysfs_emit(buf, "%*pbl\n",
+				  cpumask_pr_args(tick_nohz_full_mask));
+	return sysfs_emit(buf, "\n");
+}
+static DEVICE_ATTR_RO(nohz_full);
 #endif
 
 #ifdef CONFIG_CRASH_HOTPLUG
@@ -325,7 +342,7 @@ static void cpu_device_release(struct device *dev)
 	 * This is an empty function to prevent the driver core from spitting a
 	 * warning at us.  Yes, I know this is directly opposite of what the
 	 * documentation for the driver core and kobjects say, and the author
-	 * of this code has already been publically ridiculed for doing
+	 * of this code has already been publicly ridiculed for doing
 	 * something as foolish as this.  However, at this point in time, it is
 	 * the only way to handle the issue of statically allocated cpu
 	 * devices.  The different architectures will have their cpu device
@@ -505,6 +522,7 @@ static struct attribute *cpu_root_attrs[] = {
 	&dev_attr_offline.attr,
 	&dev_attr_enabled.attr,
 	&dev_attr_isolated.attr,
+	&dev_attr_housekeeping.attr,
 #ifdef CONFIG_NO_HZ_FULL
 	&dev_attr_nohz_full.attr,
 #endif
@@ -600,7 +618,10 @@ CPU_SHOW_VULN_FALLBACK(spec_rstack_overflow);
 CPU_SHOW_VULN_FALLBACK(gds);
 CPU_SHOW_VULN_FALLBACK(reg_file_data_sampling);
 CPU_SHOW_VULN_FALLBACK(ghostwrite);
+CPU_SHOW_VULN_FALLBACK(old_microcode);
 CPU_SHOW_VULN_FALLBACK(indirect_target_selection);
+CPU_SHOW_VULN_FALLBACK(tsa);
+CPU_SHOW_VULN_FALLBACK(vmscape);
 
 static DEVICE_ATTR(meltdown, 0444, cpu_show_meltdown, NULL);
 static DEVICE_ATTR(spectre_v1, 0444, cpu_show_spectre_v1, NULL);
@@ -617,7 +638,10 @@ static DEVICE_ATTR(spec_rstack_overflow, 0444, cpu_show_spec_rstack_overflow, NU
 static DEVICE_ATTR(gather_data_sampling, 0444, cpu_show_gds, NULL);
 static DEVICE_ATTR(reg_file_data_sampling, 0444, cpu_show_reg_file_data_sampling, NULL);
 static DEVICE_ATTR(ghostwrite, 0444, cpu_show_ghostwrite, NULL);
+static DEVICE_ATTR(old_microcode, 0444, cpu_show_old_microcode, NULL);
 static DEVICE_ATTR(indirect_target_selection, 0444, cpu_show_indirect_target_selection, NULL);
+static DEVICE_ATTR(tsa, 0444, cpu_show_tsa, NULL);
+static DEVICE_ATTR(vmscape, 0444, cpu_show_vmscape, NULL);
 
 static struct attribute *cpu_root_vulnerabilities_attrs[] = {
 	&dev_attr_meltdown.attr,
@@ -635,7 +659,10 @@ static struct attribute *cpu_root_vulnerabilities_attrs[] = {
 	&dev_attr_gather_data_sampling.attr,
 	&dev_attr_reg_file_data_sampling.attr,
 	&dev_attr_ghostwrite.attr,
+	&dev_attr_old_microcode.attr,
 	&dev_attr_indirect_target_selection.attr,
+	&dev_attr_tsa.attr,
+	&dev_attr_vmscape.attr,
 	NULL
 };
 

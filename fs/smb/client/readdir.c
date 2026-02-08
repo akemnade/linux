@@ -9,6 +9,7 @@
  *
  */
 #include <linux/fs.h>
+#include <linux/namei.h>
 #include <linux/pagemap.h>
 #include <linux/slab.h>
 #include <linux/stat.h>
@@ -78,7 +79,7 @@ cifs_prime_dcache(struct dentry *parent, struct qstr *name,
 
 	cifs_dbg(FYI, "%s: for %s\n", __func__, name->name);
 
-	dentry = d_hash_and_lookup(parent, name);
+	dentry = try_lookup_noperm(name, parent);
 	if (!dentry) {
 		/*
 		 * If we know that the inode will need to be revalidated
@@ -97,7 +98,7 @@ retry:
 			default:
 				break;
 			}
-		} else if (fattr->cf_cifsattrs & ATTR_REPARSE) {
+		} else if (fattr->cf_cifsattrs & ATTR_REPARSE_POINT) {
 			reparse_need_reval = true;
 		}
 
@@ -137,7 +138,7 @@ retry:
 				 * reparse tag and ctime haven't changed.
 				 */
 				rc = 0;
-				if (fattr->cf_cifsattrs & ATTR_REPARSE) {
+				if (fattr->cf_cifsattrs & ATTR_REPARSE_POINT) {
 					if (likely(reparse_inode_match(inode, fattr))) {
 						fattr->cf_mode = inode->i_mode;
 						fattr->cf_rdev = inode->i_rdev;
@@ -189,7 +190,7 @@ cifs_fill_common_info(struct cifs_fattr *fattr, struct cifs_sb_info *cifs_sb)
 	 * TODO: go through all documented  reparse tags to see if we can
 	 * reasonably map some of them to directories vs. files vs. symlinks
 	 */
-	if ((fattr->cf_cifsattrs & ATTR_REPARSE) &&
+	if ((fattr->cf_cifsattrs & ATTR_REPARSE_POINT) &&
 	    cifs_reparse_point_to_fattr(cifs_sb, fattr, &data))
 		goto out_reparse;
 
@@ -257,13 +258,13 @@ cifs_posix_to_fattr(struct cifs_fattr *fattr, struct smb2_posix_info *info,
 	fattr->cf_nlink = le32_to_cpu(info->HardLinks);
 	fattr->cf_cifsattrs = le32_to_cpu(info->DosAttributes);
 
-	if (fattr->cf_cifsattrs & ATTR_REPARSE)
+	if (fattr->cf_cifsattrs & ATTR_REPARSE_POINT)
 		fattr->cf_cifstag = le32_to_cpu(info->ReparseTag);
 
 	/* The Mode field in the response can now include the file type as well */
 	fattr->cf_mode = wire_mode_to_posix(le32_to_cpu(info->Mode),
 					    fattr->cf_cifsattrs & ATTR_DIRECTORY);
-	fattr->cf_dtype = S_DT(le32_to_cpu(info->Mode));
+	fattr->cf_dtype = S_DT(fattr->cf_mode);
 
 	switch (fattr->cf_mode & S_IFMT) {
 	case S_IFLNK:
@@ -315,7 +316,7 @@ static void cifs_fulldir_info_to_fattr(struct cifs_fattr *fattr,
 	__dir_info_to_fattr(fattr, info);
 
 	/* See MS-FSCC 2.4.14, 2.4.19 */
-	if (fattr->cf_cifsattrs & ATTR_REPARSE)
+	if (fattr->cf_cifsattrs & ATTR_REPARSE_POINT)
 		fattr->cf_cifstag = le32_to_cpu(di->EaSize);
 	cifs_fill_common_info(fattr, cifs_sb);
 }
@@ -547,7 +548,7 @@ static void cifs_fill_dirent_full(struct cifs_dirent *de,
 }
 
 static void cifs_fill_dirent_search(struct cifs_dirent *de,
-		const SEARCH_ID_FULL_DIR_INFO *info)
+		const FILE_ID_FULL_DIR_INFO *info)
 {
 	de->name = &info->FileName[0];
 	de->namelen = le32_to_cpu(info->FileNameLength);
@@ -774,7 +775,7 @@ find_cifs_entry(const unsigned int xid, struct cifs_tcon *tcon, loff_t pos,
 
 		if (cfile->srch_inf.ntwrk_buf_start == NULL) {
 			cifs_dbg(VFS, "ntwrk_buf_start is NULL during readdir\n");
-			return -EIO;
+			return smb_EIO(smb_eio_trace_null_pointers);
 		}
 
 		end_of_smb = cfile->srch_inf.ntwrk_buf_start +
@@ -850,9 +851,9 @@ static bool emit_cached_dirents(struct cached_dirents *cde,
 }
 
 static void update_cached_dirents_count(struct cached_dirents *cde,
-					struct dir_context *ctx)
+					struct file *file)
 {
-	if (cde->ctx != ctx)
+	if (cde->file != file)
 		return;
 	if (cde->is_valid || cde->is_failed)
 		return;
@@ -861,9 +862,9 @@ static void update_cached_dirents_count(struct cached_dirents *cde,
 }
 
 static void finished_cached_dirents_count(struct cached_dirents *cde,
-					struct dir_context *ctx)
+					struct dir_context *ctx, struct file *file)
 {
-	if (cde->ctx != ctx)
+	if (cde->file != file)
 		return;
 	if (cde->is_valid || cde->is_failed)
 		return;
@@ -873,46 +874,52 @@ static void finished_cached_dirents_count(struct cached_dirents *cde,
 	cde->is_valid = 1;
 }
 
-static void add_cached_dirent(struct cached_dirents *cde,
-			      struct dir_context *ctx,
-			      const char *name, int namelen,
-			      struct cifs_fattr *fattr)
+static bool add_cached_dirent(struct cached_dirents *cde,
+			      struct dir_context *ctx, const char *name,
+			      int namelen, struct cifs_fattr *fattr,
+			      struct file *file)
 {
 	struct cached_dirent *de;
 
-	if (cde->ctx != ctx)
-		return;
+	if (cde->file != file)
+		return false;
 	if (cde->is_valid || cde->is_failed)
-		return;
+		return false;
 	if (ctx->pos != cde->pos) {
 		cde->is_failed = 1;
-		return;
+		return false;
 	}
 	de = kzalloc(sizeof(*de), GFP_ATOMIC);
 	if (de == NULL) {
 		cde->is_failed = 1;
-		return;
+		return false;
 	}
 	de->namelen = namelen;
 	de->name = kstrndup(name, namelen, GFP_ATOMIC);
 	if (de->name == NULL) {
 		kfree(de);
 		cde->is_failed = 1;
-		return;
+		return false;
 	}
 	de->pos = ctx->pos;
 
 	memcpy(&de->fattr, fattr, sizeof(struct cifs_fattr));
 
 	list_add_tail(&de->entry, &cde->entries);
+	/* update accounting */
+	cde->entries_count++;
+	cde->bytes_used += sizeof(*de) + (size_t)namelen + 1;
+	return true;
 }
 
 static bool cifs_dir_emit(struct dir_context *ctx,
 			  const char *name, int namelen,
 			  struct cifs_fattr *fattr,
-			  struct cached_fid *cfid)
+			  struct cached_fid *cfid,
+			  struct file *file)
 {
-	bool rc;
+	size_t delta_bytes = 0;
+	bool rc, added = false;
 	ino_t ino = cifs_uniqueid_to_ino_t(fattr->cf_uniqueid);
 
 	rc = dir_emit(ctx, name, namelen, ino, fattr->cf_dtype);
@@ -920,10 +927,20 @@ static bool cifs_dir_emit(struct dir_context *ctx,
 		return rc;
 
 	if (cfid) {
+		/* Cost of this entry */
+		delta_bytes = sizeof(struct cached_dirent) + (size_t)namelen + 1;
+
 		mutex_lock(&cfid->dirents.de_mutex);
-		add_cached_dirent(&cfid->dirents, ctx, name, namelen,
-				  fattr);
+		added = add_cached_dirent(&cfid->dirents, ctx, name, namelen,
+					  fattr, file);
 		mutex_unlock(&cfid->dirents.de_mutex);
+
+		if (added) {
+			/* per-tcon then global for consistency with free path */
+			atomic64_add((long long)delta_bytes, &cfid->cfids->total_dirents_bytes);
+			atomic_long_inc(&cfid->cfids->total_dirents_entries);
+			atomic64_add((long long)delta_bytes, &cifs_dircache_bytes_used);
+		}
 	}
 
 	return rc;
@@ -1022,7 +1039,7 @@ static int cifs_filldir(char *find_entry, struct file *file,
 	cifs_prime_dcache(file_dentry(file), &name, &fattr);
 
 	return !cifs_dir_emit(ctx, name.name, name.len,
-			      &fattr, cfid);
+			      &fattr, cfid, file);
 }
 
 
@@ -1073,8 +1090,8 @@ int cifs_readdir(struct file *file, struct dir_context *ctx)
 	 * we need to initialize scanning and storing the
 	 * directory content.
 	 */
-	if (ctx->pos == 0 && cfid->dirents.ctx == NULL) {
-		cfid->dirents.ctx = ctx;
+	if (ctx->pos == 0 && cfid->dirents.file == NULL) {
+		cfid->dirents.file = file;
 		cfid->dirents.pos = 2;
 	}
 	/*
@@ -1142,7 +1159,7 @@ int cifs_readdir(struct file *file, struct dir_context *ctx)
 	} else {
 		if (cfid) {
 			mutex_lock(&cfid->dirents.de_mutex);
-			finished_cached_dirents_count(&cfid->dirents, ctx);
+			finished_cached_dirents_count(&cfid->dirents, ctx, file);
 			mutex_unlock(&cfid->dirents.de_mutex);
 		}
 		cifs_dbg(FYI, "Could not find entry\n");
@@ -1183,7 +1200,7 @@ int cifs_readdir(struct file *file, struct dir_context *ctx)
 		ctx->pos++;
 		if (cfid) {
 			mutex_lock(&cfid->dirents.de_mutex);
-			update_cached_dirents_count(&cfid->dirents, ctx);
+			update_cached_dirents_count(&cfid->dirents, file);
 			mutex_unlock(&cfid->dirents.de_mutex);
 		}
 

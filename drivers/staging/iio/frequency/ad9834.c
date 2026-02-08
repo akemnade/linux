@@ -21,9 +21,8 @@
 
 #include <linux/iio/iio.h>
 #include <linux/iio/sysfs.h>
-#include "dds.h"
 
-#include "ad9834.h"
+#include "dds.h"
 
 /* Registers */
 
@@ -479,7 +478,7 @@ static const struct spi_device_id ad9834_id[] = {
 	{"ad9834", ID_AD9834},
 	{"ad9837", ID_AD9837},
 	{"ad9838", ID_AD9838},
-	{}
+	{ }
 };
 MODULE_DEVICE_TABLE(spi, ad9834_id);
 
@@ -488,7 +487,7 @@ static const struct of_device_id ad9834_of_match[] = {
 	{.compatible = "adi,ad9834"},
 	{.compatible = "adi,ad9837"},
 	{.compatible = "adi,ad9838"},
-	{}
+	{ }
 };
 
 MODULE_DEVICE_TABLE(of, ad9834_of_match);

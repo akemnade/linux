@@ -806,7 +806,7 @@ static irqreturn_t grcan_interrupt(int irq, void *dev_id)
  */
 static void grcan_running_reset(struct timer_list *t)
 {
-	struct grcan_priv *priv = from_timer(priv, t, rr_timer);
+	struct grcan_priv *priv = timer_container_of(priv, t, rr_timer);
 	struct net_device *dev = priv->dev;
 	struct grcan_registers __iomem *regs = priv->regs;
 	unsigned long flags;
@@ -897,7 +897,7 @@ static inline void grcan_reset_timer(struct timer_list *timer, __u32 bitrate)
 /* Disable channels and schedule a running reset */
 static void grcan_initiate_running_reset(struct timer_list *t)
 {
-	struct grcan_priv *priv = from_timer(priv, t, hang_timer);
+	struct grcan_priv *priv = timer_container_of(priv, t, hang_timer);
 	struct net_device *dev = priv->dev;
 	struct grcan_registers __iomem *regs = priv->regs;
 	unsigned long flags;
@@ -1561,7 +1561,6 @@ static const struct net_device_ops grcan_netdev_ops = {
 	.ndo_open	= grcan_open,
 	.ndo_stop	= grcan_close,
 	.ndo_start_xmit	= grcan_start_xmit,
-	.ndo_change_mtu = can_change_mtu,
 };
 
 static const struct ethtool_ops grcan_ethtool_ops = {

@@ -244,7 +244,7 @@ static int dwc3_imx8mp_probe(struct platform_device *pdev)
 					IRQF_ONESHOT, dev_name(dev), dwc3_imx);
 	if (err) {
 		dev_err(dev, "failed to request IRQ #%d --> %d\n", irq, err);
-		goto depopulate;
+		goto put_dwc3;
 	}
 
 	device_set_wakeup_capable(dev, true);
@@ -252,6 +252,8 @@ static int dwc3_imx8mp_probe(struct platform_device *pdev)
 
 	return 0;
 
+put_dwc3:
+	put_device(&dwc3_imx->dwc3->dev);
 depopulate:
 	of_platform_depopulate(dev);
 remove_swnode:
@@ -265,7 +267,10 @@ disable_rpm:
 
 static void dwc3_imx8mp_remove(struct platform_device *pdev)
 {
+	struct dwc3_imx8mp *dwc3_imx = platform_get_drvdata(pdev);
 	struct device *dev = &pdev->dev;
+
+	put_device(&dwc3_imx->dwc3->dev);
 
 	pm_runtime_get_sync(dev);
 	of_platform_depopulate(dev);
@@ -307,7 +312,6 @@ static int dwc3_imx8mp_resume(struct dwc3_imx8mp *dwc3_imx, pm_message_t msg)
 	if (dwc3_imx->wakeup_pending) {
 		dwc3_imx->wakeup_pending = false;
 		if (dwc->current_dr_role == DWC3_GCTL_PRTCAP_DEVICE) {
-			pm_runtime_mark_last_busy(dwc->dev);
 			pm_runtime_put_autosuspend(dwc->dev);
 		} else {
 			/*
@@ -329,10 +333,15 @@ static int dwc3_imx8mp_pm_suspend(struct device *dev)
 
 	ret = dwc3_imx8mp_suspend(dwc3_imx, PMSG_SUSPEND);
 
-	if (device_may_wakeup(dwc3_imx->dev))
+	if (device_may_wakeup(dwc3_imx->dev)) {
 		enable_irq_wake(dwc3_imx->irq);
-	else
+
+		if (device_is_compatible(dev, "fsl,imx95-dwc3"))
+			device_set_out_band_wakeup(dev);
+
+	} else {
 		clk_disable_unprepare(dwc3_imx->suspend_clk);
+	}
 
 	clk_disable_unprepare(dwc3_imx->hsio_clk);
 	dev_dbg(dev, "dwc3 imx8mp pm suspend.\n");

@@ -34,6 +34,7 @@ static u64 parse_audio_format_i_type(struct snd_usb_audio *chip,
 {
 	int sample_width, sample_bytes;
 	u64 pcm_formats = 0;
+	u64 dsd_formats = 0;
 
 	switch (fp->protocol) {
 	case UAC_VERSION_1:
@@ -85,6 +86,7 @@ static u64 parse_audio_format_i_type(struct snd_usb_audio *chip,
 	}
 
 	fp->fmt_bits = sample_width;
+	fp->fmt_sz = sample_bytes;
 
 	if ((pcm_formats == 0) &&
 	    (format == 0 || format == BIT(UAC_FORMAT_TYPE_I_UNDEFINED))) {
@@ -153,7 +155,9 @@ static u64 parse_audio_format_i_type(struct snd_usb_audio *chip,
 			 fp->iface, fp->altsetting, format);
 	}
 
-	pcm_formats |= snd_usb_interface_dsd_format_quirks(chip, fp, sample_bytes);
+	dsd_formats |= snd_usb_interface_dsd_format_quirks(chip, fp, sample_bytes);
+	if (dsd_formats && !fp->dsd_dop)
+		pcm_formats = dsd_formats;
 
 	return pcm_formats;
 }
@@ -309,16 +313,14 @@ static bool focusrite_valid_sample_rate(struct snd_usb_audio *chip,
 					struct audioformat *fp,
 					unsigned int rate)
 {
-	struct usb_interface *iface;
 	struct usb_host_interface *alts;
 	unsigned char *fmt;
 	unsigned int max_rate;
 
-	iface = usb_ifnum_to_if(chip->dev, fp->iface);
-	if (!iface)
+	alts = snd_usb_get_host_interface(chip, fp->iface, fp->altsetting);
+	if (!alts)
 		return true;
 
-	alts = &iface->altsetting[fp->altset_idx];
 	fmt = snd_usb_find_csint_desc(alts->extra, alts->extralen,
 				      NULL, UAC_FORMAT_TYPE);
 	if (!fmt)
@@ -327,20 +329,24 @@ static bool focusrite_valid_sample_rate(struct snd_usb_audio *chip,
 	if (fmt[0] == 10) { /* bLength */
 		max_rate = combine_quad(&fmt[6]);
 
-		/* Validate max rate */
-		if (max_rate != 48000 &&
-		    max_rate != 96000 &&
-		    max_rate != 192000 &&
-		    max_rate != 384000) {
-
+		switch (max_rate) {
+		case 192000:
+			if (rate == 176400 || rate == 192000)
+				return true;
+			fallthrough;
+		case 96000:
+			if (rate == 88200 || rate == 96000)
+				return true;
+			fallthrough;
+		case 48000:
+			return (rate == 44100 || rate == 48000);
+		default:
 			usb_audio_info(chip,
 				"%u:%d : unexpected max rate: %u\n",
 				fp->iface, fp->altsetting, max_rate);
 
 			return true;
 		}
-
-		return rate <= max_rate;
 	}
 
 	return true;

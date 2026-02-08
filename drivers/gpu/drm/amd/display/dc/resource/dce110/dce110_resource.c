@@ -82,6 +82,7 @@
 #endif
 
 #ifndef mmBIOS_SCRATCH_2
+	#define mmBIOS_SCRATCH_0 0x05C9
 	#define mmBIOS_SCRATCH_2 0x05CB
 	#define mmBIOS_SCRATCH_3 0x05CC
 	#define mmBIOS_SCRATCH_6 0x05CF
@@ -377,6 +378,7 @@ static const struct dce110_clk_src_mask cs_mask = {
 };
 
 static const struct bios_registers bios_regs = {
+	.BIOS_SCRATCH_0 = mmBIOS_SCRATCH_0,
 	.BIOS_SCRATCH_3 = mmBIOS_SCRATCH_3,
 	.BIOS_SCRATCH_6 = mmBIOS_SCRATCH_6
 };
@@ -424,7 +426,9 @@ static const struct dc_plane_cap plane_cap = {
 		64
 };
 
-static const struct dc_debug_options debug_defaults = {
+static const struct dc_debug_options debug_defaults = { 0 };
+
+static const struct dc_check_config config_defaults = {
 		.enable_legacy_fast_update = true,
 };
 
@@ -960,10 +964,10 @@ static enum dc_status build_mapped_resource(
 	return DC_OK;
 }
 
-static bool dce110_validate_bandwidth(
+static enum dc_status dce110_validate_bandwidth(
 	struct dc *dc,
 	struct dc_state *context,
-	bool fast_validate)
+	enum dc_validate_mode validate_mode)
 {
 	bool result = false;
 
@@ -1031,7 +1035,7 @@ static bool dce110_validate_bandwidth(
 			context->bw_ctx.bw.dce.yclk_khz,
 			context->bw_ctx.bw.dce.blackout_recovery_time_us);
 	}
-	return result;
+	return result ? DC_OK : DC_FAIL_BANDWIDTH_VALIDATE;
 }
 
 static enum dc_status dce110_validate_plane(const struct dc_plane_state *plane_state,
@@ -1376,6 +1380,7 @@ static bool dce110_resource_construct(
 	dc->caps.is_apu = true;
 	dc->caps.extended_aux_timeout_support = false;
 	dc->debug = debug_defaults;
+	dc->check_config = config_defaults;
 
 	/*************************************************
 	 *  Create resources                             *

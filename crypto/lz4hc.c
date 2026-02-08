@@ -10,10 +10,6 @@
 #include <linux/vmalloc.h>
 #include <linux/lz4.h>
 
-struct lz4hc_ctx {
-	void *lz4hc_comp_mem;
-};
-
 static void *lz4hc_alloc_ctx(void)
 {
 	void *ctx;
@@ -70,8 +66,10 @@ static int lz4hc_sdecompress(struct crypto_scomp *tfm, const u8 *src,
 }
 
 static struct scomp_alg scomp = {
-	.alloc_ctx		= lz4hc_alloc_ctx,
-	.free_ctx		= lz4hc_free_ctx,
+	.streams		= {
+		.alloc_ctx	= lz4hc_alloc_ctx,
+		.free_ctx	= lz4hc_free_ctx,
+	},
 	.compress		= lz4hc_scompress,
 	.decompress		= lz4hc_sdecompress,
 	.base			= {
@@ -91,7 +89,7 @@ static void __exit lz4hc_mod_fini(void)
 	crypto_unregister_scomp(&scomp);
 }
 
-subsys_initcall(lz4hc_mod_init);
+module_init(lz4hc_mod_init);
 module_exit(lz4hc_mod_fini);
 
 MODULE_LICENSE("GPL");

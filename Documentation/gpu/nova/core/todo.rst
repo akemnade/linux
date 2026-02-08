@@ -14,14 +14,17 @@ Tasks may have the following fields:
 - ``Contact``: The person that can be contacted for further information about
   the task.
 
+A task might have `[ABCD]` code after its name. This code can be used to grep
+into the code for `TODO` entries related to it.
+
 Enablement (Rust)
 =================
 
 Tasks that are not directly related to nova-core, but are preconditions in terms
 of required APIs.
 
-FromPrimitive API
------------------
+FromPrimitive API [FPRI]
+------------------------
 
 Sometimes the need arises to convert a number to a value of an enum or a
 structure.
@@ -41,8 +44,8 @@ automatically generates the corresponding mappings between a value and a number.
 | Complexity: Beginner
 | Link: https://docs.rs/num/latest/num/trait.FromPrimitive.html
 
-Generic register abstraction
-----------------------------
+Generic register abstraction [REGA]
+-----------------------------------
 
 Work out how register constants and structures can be automatically generated
 through generalized macros.
@@ -102,18 +105,34 @@ Usage:
 	let boot0 = Boot0::read(&bar);
 	pr_info!("Revision: {}\n", boot0.revision());
 
+A work-in-progress implementation currently resides in
+`drivers/gpu/nova-core/regs/macros.rs` and is used in nova-core. It would be
+nice to improve it (possibly using proc macros) and move it to the `kernel`
+crate so it can be used by other components as well.
+
+Features desired before this happens:
+
+* Make I/O optional I/O (for field values that are not registers),
+* Support other sizes than `u32`,
+* Allow visibility control for registers and individual fields,
+* Use Rust slice syntax to express fields ranges.
+
 | Complexity: Advanced
+| Contact: Alexandre Courbot
 
-Delay / Sleep abstractions
---------------------------
+Numerical operations [NUMM]
+---------------------------
 
-Rust abstractions for the kernel's delay() and sleep() functions.
+Nova uses integer operations that are not part of the standard library (or not
+implemented in an optimized way for the kernel). These include:
 
-FUJITA Tomonori plans to work on abstractions for read_poll_timeout_atomic()
-(and friends) [1].
+- The "Find Last Set Bit" (`fls` function of the C part of the kernel)
+  operation.
 
-| Complexity: Beginner
-| Link: https://lore.kernel.org/netdev/20250228.080550.354359820929821928.fujita.tomonori@gmail.com/ [1]
+A `num` core kernel module is being designed to provide these operations.
+
+| Complexity: Intermediate
+| Contact: Alexandre Courbot
 
 IRQ abstractions
 ----------------
@@ -153,18 +172,6 @@ mailing list yet.
 | Complexity: Intermediate
 | Contact: Abdiel Janulgue
 
-ELF utils
----------
-
-Rust implementation of ELF header representation to retrieve section header
-tables, names, and data from an ELF-formatted images.
-
-There is preceding work from Abdiel Janulgue, which hasn't made it to the
-mailing list yet.
-
-| Complexity: Beginner
-| Contact: Abdiel Janulgue
-
 PCI MISC APIs
 -------------
 
@@ -173,12 +180,11 @@ capability, MSI API abstractions.
 
 | Complexity: Beginner
 
-Auxiliary bus abstractions
---------------------------
+XArray bindings [XARR]
+----------------------
 
-Rust abstraction for the auxiliary bus APIs.
-
-This is needed to connect nova-core to the nova-drm driver.
+We need bindings for `xa_alloc`/`xa_alloc_cyclic` in order to generate the
+auxiliary device IDs.
 
 | Complexity: Intermediate
 
@@ -190,44 +196,8 @@ Rust abstraction for debugfs APIs.
 | Reference: Export GSP log buffers
 | Complexity: Intermediate
 
-Vec extensions
---------------
-
-Implement ``Vec::truncate`` and ``Vec::resize``.
-
-Currently this is used for some experimental code to parse the vBIOS.
-
-| Reference vBIOS support
-| Complexity: Beginner
-
 GPU (general)
 =============
-
-Parse firmware headers
-----------------------
-
-Parse ELF headers from the firmware files loaded from the filesystem.
-
-| Reference: ELF utils
-| Complexity: Beginner
-| Contact: Abdiel Janulgue
-
-Build radix3 page table
------------------------
-
-Build the radix3 page table to map the firmware.
-
-| Complexity: Intermediate
-| Contact: Abdiel Janulgue
-
-vBIOS support
--------------
-
-Parse the vBIOS and probe the structures required for driver initialization.
-
-| Contact: Dave Airlie
-| Reference: Vec extensions
-| Complexity: Intermediate
 
 Initial Devinit support
 -----------------------
@@ -237,23 +207,6 @@ configuration.
 
 | Contact: Dave Airlie
 | Complexity: Beginner
-
-Boot Falcon controller
-----------------------
-
-Infrastructure to load and execute falcon (sec2) firmware images; handle the
-GSP falcon processor and fwsec loading.
-
-| Complexity: Advanced
-| Contact: Dave Airlie
-
-GPU Timer support
------------------
-
-Support for the GPU's internal timer peripheral.
-
-| Complexity: Beginner
-| Contact: Dave Airlie
 
 MMU / PT management
 -------------------

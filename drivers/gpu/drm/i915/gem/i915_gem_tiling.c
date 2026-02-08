@@ -1,6 +1,5 @@
+// SPDX-License-Identifier: MIT
 /*
- * SPDX-License-Identifier: MIT
- *
  * Copyright © 2008 Intel Corporation
  */
 
@@ -146,8 +145,9 @@ i915_tiling_ok(struct drm_i915_gem_object *obj,
 			return false;
 	}
 
-	if (GRAPHICS_VER(i915) == 2 ||
-	    (tiling == I915_TILING_Y && HAS_128_BYTE_Y_TILING(i915)))
+	if (tiling == I915_TILING_Y && HAS_128_BYTE_Y_TILING(i915))
+		tile_width = 128;
+	else if (GRAPHICS_VER(i915) == 2)
 		tile_width = 128;
 	else
 		tile_width = 512;

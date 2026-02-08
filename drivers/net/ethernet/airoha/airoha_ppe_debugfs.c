@@ -53,14 +53,16 @@ static int airoha_ppe_debugfs_foe_show(struct seq_file *m, void *private,
 		[AIROHA_FOE_STATE_FIN] = "FIN",
 	};
 	struct airoha_ppe *ppe = m->private;
+	u32 ppe_num_entries = airoha_ppe_get_total_num_entries(ppe);
 	int i;
 
-	for (i = 0; i < PPE_NUM_ENTRIES; i++) {
+	for (i = 0; i < ppe_num_entries; i++) {
 		const char *state_str, *type_str = "UNKNOWN";
 		void *src_addr = NULL, *dest_addr = NULL;
 		u16 *src_port = NULL, *dest_port = NULL;
 		struct airoha_foe_mac_info_common *l2;
 		unsigned char h_source[ETH_ALEN] = {};
+		struct airoha_foe_stats64 stats = {};
 		unsigned char h_dest[ETH_ALEN];
 		struct airoha_foe_entry *hwe;
 		u32 type, state, ib2, data;
@@ -144,14 +146,18 @@ static int airoha_ppe_debugfs_foe_show(struct seq_file *m, void *private,
 				cpu_to_be16(hwe->ipv4.l2.src_mac_lo);
 		}
 
+		airoha_ppe_foe_entry_get_stats(ppe, i, &stats);
+
 		*((__be32 *)h_dest) = cpu_to_be32(l2->dest_mac_hi);
 		*((__be16 *)&h_dest[4]) = cpu_to_be16(l2->dest_mac_lo);
 		*((__be32 *)h_source) = cpu_to_be32(l2->src_mac_hi);
 
 		seq_printf(m, " eth=%pM->%pM etype=%04x data=%08x"
-			      " vlan=%d,%d ib1=%08x ib2=%08x\n",
+			      " vlan=%d,%d ib1=%08x ib2=%08x"
+			      " packets=%llu bytes=%llu\n",
 			   h_source, h_dest, l2->etype, data,
-			   l2->vlan1, l2->vlan2, hwe->ib1, ib2);
+			   l2->vlan1, l2->vlan2, hwe->ib1, ib2,
+			   stats.packets, stats.bytes);
 	}
 
 	return 0;

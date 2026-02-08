@@ -3,6 +3,8 @@
  * Copyright © 2015 Intel Corporation
  */
 
+#include <drm/drm_print.h>
+
 #include "i915_drv.h"
 
 #include "intel_engine.h"
@@ -314,7 +316,6 @@ static const struct drm_i915_mocs_entry icl_mocs_table[] = {
 };
 
 static const struct drm_i915_mocs_entry dg1_mocs_table[] = {
-
 	/* UC */
 	MOCS_ENTRY(1, 0, L3_1_UC),
 	/* WB - L3 */

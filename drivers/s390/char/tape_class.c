@@ -8,9 +8,9 @@
  * Based on simple class device code by Greg K-H
  */
 
-#define KMSG_COMPONENT "tape"
-#define pr_fmt(fmt) KMSG_COMPONENT ": " fmt
+#define pr_fmt(fmt) "tape: " fmt
 
+#include <linux/export.h>
 #include <linux/slab.h>
 
 #include "tape_class.h"

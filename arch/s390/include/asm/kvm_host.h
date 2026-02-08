@@ -146,6 +146,7 @@ struct kvm_vcpu_stat {
 	u64 instruction_diagnose_500;
 	u64 instruction_diagnose_other;
 	u64 pfault_sync;
+	u64 signal_exits;
 };
 
 #define PGM_OPERATION			0x01
@@ -356,7 +357,7 @@ struct kvm_s390_float_interrupt {
 	int counters[FIRQ_MAX_COUNT];
 	struct kvm_s390_mchk_info mchk;
 	struct kvm_s390_ext_info srv_signal;
-	int next_rr_cpu;
+	int last_sleep_cpu;
 	struct mutex ais_lock;
 	u8 simm;
 	u8 nimm;
@@ -631,10 +632,8 @@ struct kvm_s390_pv {
 	struct mmu_notifier mmu_notifier;
 };
 
-struct kvm_arch{
-	void *sca;
-	int use_esca;
-	rwlock_t sca_lock;
+struct kvm_arch {
+	struct esca_block *sca;
 	debug_info_t *dbf;
 	struct kvm_s390_float_interrupt float_int;
 	struct kvm_device *flic;
@@ -650,6 +649,7 @@ struct kvm_arch{
 	int user_sigp;
 	int user_stsi;
 	int user_instr0;
+	int user_operexec;
 	struct s390_io_adapter *adapters[MAX_S390_IO_ADAPTERS];
 	wait_queue_head_t ipte_wq;
 	int ipte_lock_count;
@@ -716,8 +716,13 @@ extern char sie_exit;
 bool kvm_s390_pv_is_protected(struct kvm *kvm);
 bool kvm_s390_pv_cpu_is_protected(struct kvm_vcpu *vcpu);
 
+extern int kvm_s390_enter_exit_sie(struct kvm_s390_sie_block *scb,
+				   u64 *gprs, unsigned long gasce);
+
 extern int kvm_s390_gisc_register(struct kvm *kvm, u32 gisc);
 extern int kvm_s390_gisc_unregister(struct kvm *kvm, u32 gisc);
+
+bool kvm_s390_is_gpa_in_memslot(struct kvm *kvm, gpa_t gpa);
 
 static inline void kvm_arch_free_memslot(struct kvm *kvm,
 					 struct kvm_memory_slot *slot) {}

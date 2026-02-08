@@ -224,6 +224,15 @@ static void of_gpio_try_fixup_polarity(const struct device_node *np,
 		 */
 		{ "lantiq,pci-xway",	"gpio-reset",	false },
 #endif
+#if IS_ENABLED(CONFIG_REGULATOR_S5M8767)
+		/*
+		 * According to S5M8767, the DVS and DS pin are
+		 * active-high signals. However, exynos5250-spring.dts use
+		 * active-low setting.
+		 */
+		{ "samsung,s5m8767-pmic", "s5m8767,pmic-buck-dvs-gpios", true },
+		{ "samsung,s5m8767-pmic", "s5m8767,pmic-buck-ds-gpios", true },
+#endif
 #if IS_ENABLED(CONFIG_TOUCHSCREEN_TSC2005)
 		/*
 		 * DTS for Nokia N900 incorrectly specified "active high"
@@ -699,7 +708,7 @@ struct gpio_desc *of_find_gpio(struct device_node *np, const char *con_id,
 			       unsigned int idx, unsigned long *flags)
 {
 	char propname[32]; /* 32 is max size of property name */
-	enum of_gpio_flags of_flags;
+	enum of_gpio_flags of_flags = 0;
 	const of_find_gpio_quirk *q;
 	struct gpio_desc *desc;
 
@@ -869,7 +878,7 @@ static void of_gpiochip_remove_hog(struct gpio_chip *chip,
 {
 	struct gpio_desc *desc;
 
-	for_each_gpio_desc_with_flag(chip, desc, FLAG_IS_HOGGED)
+	for_each_gpio_desc_with_flag(chip, desc, GPIOD_FLAG_IS_HOGGED)
 		if (READ_ONCE(desc->hog) == hog)
 			gpiochip_free_own_desc(desc);
 }
@@ -1021,85 +1030,6 @@ static int of_gpio_threecell_xlate(struct gpio_chip *gc,
 
 	return gpiospec->args[1];
 }
-
-#if IS_ENABLED(CONFIG_OF_GPIO_MM_GPIOCHIP)
-#include <linux/gpio/legacy-of-mm-gpiochip.h>
-/**
- * of_mm_gpiochip_add_data - Add memory mapped GPIO chip (bank)
- * @np:		device node of the GPIO chip
- * @mm_gc:	pointer to the of_mm_gpio_chip allocated structure
- * @data:	driver data to store in the struct gpio_chip
- *
- * To use this function you should allocate and fill mm_gc with:
- *
- * 1) In the gpio_chip structure:
- *    - all the callbacks
- *    - of_gpio_n_cells
- *    - of_xlate callback (optional)
- *
- * 3) In the of_mm_gpio_chip structure:
- *    - save_regs callback (optional)
- *
- * If succeeded, this function will map bank's memory and will
- * do all necessary work for you. Then you'll able to use .regs
- * to manage GPIOs from the callbacks.
- *
- * Returns:
- * 0 on success, or negative errno on failure.
- */
-int of_mm_gpiochip_add_data(struct device_node *np,
-			    struct of_mm_gpio_chip *mm_gc,
-			    void *data)
-{
-	int ret = -ENOMEM;
-	struct gpio_chip *gc = &mm_gc->gc;
-
-	gc->label = kasprintf(GFP_KERNEL, "%pOF", np);
-	if (!gc->label)
-		goto err0;
-
-	mm_gc->regs = of_iomap(np, 0);
-	if (!mm_gc->regs)
-		goto err1;
-
-	gc->base = -1;
-
-	if (mm_gc->save_regs)
-		mm_gc->save_regs(mm_gc);
-
-	fwnode_handle_put(mm_gc->gc.fwnode);
-	mm_gc->gc.fwnode = fwnode_handle_get(of_fwnode_handle(np));
-
-	ret = gpiochip_add_data(gc, data);
-	if (ret)
-		goto err2;
-
-	return 0;
-err2:
-	of_node_put(np);
-	iounmap(mm_gc->regs);
-err1:
-	kfree(gc->label);
-err0:
-	pr_err("%pOF: GPIO chip registration failed with status %d\n", np, ret);
-	return ret;
-}
-EXPORT_SYMBOL_GPL(of_mm_gpiochip_add_data);
-
-/**
- * of_mm_gpiochip_remove - Remove memory mapped GPIO chip (bank)
- * @mm_gc:	pointer to the of_mm_gpio_chip allocated structure
- */
-void of_mm_gpiochip_remove(struct of_mm_gpio_chip *mm_gc)
-{
-	struct gpio_chip *gc = &mm_gc->gc;
-
-	gpiochip_remove(gc);
-	iounmap(mm_gc->regs);
-	kfree(gc->label);
-}
-EXPORT_SYMBOL_GPL(of_mm_gpiochip_remove);
-#endif
 
 #ifdef CONFIG_PINCTRL
 static int of_gpiochip_add_pin_range(struct gpio_chip *chip)
@@ -1277,4 +1207,12 @@ int of_gpiochip_add(struct gpio_chip *chip)
 void of_gpiochip_remove(struct gpio_chip *chip)
 {
 	of_node_put(dev_of_node(&chip->gpiodev->dev));
+}
+
+bool of_gpiochip_instance_match(struct gpio_chip *gc, unsigned int index)
+{
+	if (gc->of_node_instance_match)
+		return gc->of_node_instance_match(gc, index);
+
+	return false;
 }

@@ -213,9 +213,7 @@ int ext4_mpage_readpages(struct inode *inode,
 {
 	struct bio *bio = NULL;
 	sector_t last_block_in_bio = 0;
-
 	const unsigned blkbits = inode->i_blkbits;
-	const unsigned blocks_per_page = PAGE_SIZE >> blkbits;
 	const unsigned blocksize = 1 << blkbits;
 	sector_t next_block;
 	sector_t block_in_file;
@@ -227,27 +225,32 @@ int ext4_mpage_readpages(struct inode *inode,
 	int length;
 	unsigned relative_block = 0;
 	struct ext4_map_blocks map;
-	unsigned int nr_pages = rac ? readahead_count(rac) : 1;
+	unsigned int nr_pages, folio_pages;
 
 	map.m_pblk = 0;
 	map.m_lblk = 0;
 	map.m_len = 0;
 	map.m_flags = 0;
 
-	for (; nr_pages; nr_pages--) {
+	nr_pages = rac ? readahead_count(rac) : folio_nr_pages(folio);
+	for (; nr_pages; nr_pages -= folio_pages) {
 		int fully_mapped = 1;
-		unsigned first_hole = blocks_per_page;
+		unsigned int first_hole;
+		unsigned int blocks_per_folio;
 
 		if (rac)
 			folio = readahead_folio(rac);
+
+		folio_pages = folio_nr_pages(folio);
 		prefetchw(&folio->flags);
 
 		if (folio_buffers(folio))
 			goto confused;
 
-		block_in_file = next_block =
-			(sector_t)folio->index << (PAGE_SHIFT - blkbits);
-		last_block = block_in_file + nr_pages * blocks_per_page;
+		blocks_per_folio = folio_size(folio) >> blkbits;
+		first_hole = blocks_per_folio;
+		block_in_file = next_block = EXT4_PG_TO_LBLK(inode, folio->index);
+		last_block = EXT4_PG_TO_LBLK(inode, folio->index + nr_pages);
 		last_block_in_file = (ext4_readpage_limit(inode) +
 				      blocksize - 1) >> blkbits;
 		if (last_block > last_block_in_file)
@@ -270,7 +273,7 @@ int ext4_mpage_readpages(struct inode *inode,
 					map.m_flags &= ~EXT4_MAP_MAPPED;
 					break;
 				}
-				if (page_block == blocks_per_page)
+				if (page_block == blocks_per_folio)
 					break;
 				page_block++;
 				block_in_file++;
@@ -281,7 +284,7 @@ int ext4_mpage_readpages(struct inode *inode,
 		 * Then do more ext4_map_blocks() calls until we are
 		 * done with this folio.
 		 */
-		while (page_block < blocks_per_page) {
+		while (page_block < blocks_per_folio) {
 			if (block_in_file < last_block) {
 				map.m_lblk = block_in_file;
 				map.m_len = last_block - block_in_file;
@@ -296,13 +299,13 @@ int ext4_mpage_readpages(struct inode *inode,
 			}
 			if ((map.m_flags & EXT4_MAP_MAPPED) == 0) {
 				fully_mapped = 0;
-				if (first_hole == blocks_per_page)
+				if (first_hole == blocks_per_folio)
 					first_hole = page_block;
 				page_block++;
 				block_in_file++;
 				continue;
 			}
-			if (first_hole != blocks_per_page)
+			if (first_hole != blocks_per_folio)
 				goto confused;		/* hole -> non-hole */
 
 			/* Contiguous blocks? */
@@ -315,13 +318,13 @@ int ext4_mpage_readpages(struct inode *inode,
 					/* needed? */
 					map.m_flags &= ~EXT4_MAP_MAPPED;
 					break;
-				} else if (page_block == blocks_per_page)
+				} else if (page_block == blocks_per_folio)
 					break;
 				page_block++;
 				block_in_file++;
 			}
 		}
-		if (first_hole != blocks_per_page) {
+		if (first_hole != blocks_per_folio) {
 			folio_zero_segment(folio, first_hole << blkbits,
 					  folio_size(folio));
 			if (first_hole == 0) {
@@ -367,11 +370,11 @@ int ext4_mpage_readpages(struct inode *inode,
 
 		if (((map.m_flags & EXT4_MAP_BOUNDARY) &&
 		     (relative_block == map.m_len)) ||
-		    (first_hole != blocks_per_page)) {
+		    (first_hole != blocks_per_folio)) {
 			submit_bio(bio);
 			bio = NULL;
 		} else
-			last_block_in_bio = first_block + blocks_per_page - 1;
+			last_block_in_bio = first_block + blocks_per_folio - 1;
 		continue;
 	confused:
 		if (bio) {

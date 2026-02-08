@@ -50,10 +50,11 @@
 #include "dpcd_defs.h"
 #include "dcn20/dcn20_hwseq.h"
 #include "dcn30/dcn30_resource.h"
-#include "link.h"
+#include "link_service.h"
 #include "dc_state_priv.h"
 
-
+#define TO_DCN_DCCG(dccg)\
+	container_of(dccg, struct dcn_dccg, base)
 
 #define DC_LOGGER_INIT(logger)
 
@@ -74,6 +75,7 @@ void dcn30_log_color_state(struct dc *dc,
 {
 	struct dc_context *dc_ctx = dc->ctx;
 	struct resource_pool *pool = dc->res_pool;
+	bool is_gamut_remap_available = false;
 	int i;
 
 	DTN_INFO("DPP:  DGAM ROM  DGAM ROM type  DGAM LUT  SHAPER mode"
@@ -88,16 +90,16 @@ void dcn30_log_color_state(struct dc *dc,
 		struct dcn_dpp_state s = {0};
 
 		dpp->funcs->dpp_read_state(dpp, &s);
-		dpp->funcs->dpp_get_gamut_remap(dpp, &s.gamut_remap);
+
+		if (dpp->funcs->dpp_get_gamut_remap) {
+			dpp->funcs->dpp_get_gamut_remap(dpp, &s.gamut_remap);
+			is_gamut_remap_available = true;
+		}
 
 		if (!s.is_enabled)
 			continue;
 
-		DTN_INFO("[%2d]:  %7x  %13s  %8s  %11s  %10s  %15s  %10s  %9s"
-			 "  %12s  "
-			 "%010lld %010lld %010lld %010lld "
-			 "%010lld %010lld %010lld %010lld "
-			 "%010lld %010lld %010lld %010lld",
+		DTN_INFO("[%2d]:  %7x  %13s  %8s  %11s  %10s  %15s  %10s  %9s",
 			dpp->inst,
 			s.pre_dgam_mode,
 			(s.pre_dgam_select == 0) ? "sRGB" :
@@ -121,7 +123,14 @@ void dcn30_log_color_state(struct dc *dc,
 			(s.lut3d_size == 0) ? "17x17x17" : "9x9x9",
 			(s.rgam_lut_mode == 0) ? "Bypass" :
 			 ((s.rgam_lut_mode == 1) ? "RAM A" :
-						   "RAM B"),
+						   "RAM B"));
+
+		if (is_gamut_remap_available) {
+			DTN_INFO("  %12s  "
+				 "%010lld %010lld %010lld %010lld "
+				 "%010lld %010lld %010lld %010lld "
+				 "%010lld %010lld %010lld %010lld",
+
 			(s.gamut_remap.gamut_adjust_type == 0) ? "Bypass" :
 				((s.gamut_remap.gamut_adjust_type == 1) ? "HW" :
 									  "SW"),
@@ -137,6 +146,8 @@ void dcn30_log_color_state(struct dc *dc,
 			s.gamut_remap.temperature_matrix[9].value,
 			s.gamut_remap.temperature_matrix[10].value,
 			s.gamut_remap.temperature_matrix[11].value);
+		}
+
 		DTN_INFO("\n");
 	}
 	DTN_INFO("\n");
@@ -228,7 +239,7 @@ bool dcn30_set_blend_lut(
 	if (plane_state->blend_tf.type == TF_TYPE_HWPWL)
 		blend_lut = &plane_state->blend_tf.pwl;
 	else if (plane_state->blend_tf.type == TF_TYPE_DISTRIBUTED_POINTS) {
-		result = cm3_helper_translate_curve_to_hw_format(
+		result = cm3_helper_translate_curve_to_hw_format(plane_state->ctx,
 				&plane_state->blend_tf, &dpp_base->regamma_params, false);
 		if (!result)
 			return result;
@@ -323,8 +334,9 @@ bool dcn30_set_input_transfer_func(struct dc *dc,
 	if (plane_state->in_transfer_func.type == TF_TYPE_HWPWL)
 		params = &plane_state->in_transfer_func.pwl;
 	else if (plane_state->in_transfer_func.type == TF_TYPE_DISTRIBUTED_POINTS &&
-		cm3_helper_translate_curve_to_hw_format(&plane_state->in_transfer_func,
-				&dpp_base->degamma_params, false))
+		cm3_helper_translate_curve_to_hw_format(plane_state->ctx,
+							&plane_state->in_transfer_func,
+							&dpp_base->degamma_params, false))
 		params = &dpp_base->degamma_params;
 
 	result = dpp_base->funcs->dpp_program_gamcor_lut(dpp_base, params);
@@ -395,7 +407,7 @@ bool dcn30_set_output_transfer_func(struct dc *dc,
 				params = &stream->out_transfer_func.pwl;
 			else if (pipe_ctx->stream->out_transfer_func.type ==
 					TF_TYPE_DISTRIBUTED_POINTS &&
-					cm3_helper_translate_curve_to_hw_format(
+					cm3_helper_translate_curve_to_hw_format(stream->ctx,
 					&stream->out_transfer_func,
 					&mpc->blender_params, false))
 				params = &mpc->blender_params;
@@ -1216,5 +1228,56 @@ void dcn30_wait_for_all_pending_updates(const struct pipe_ctx *pipe_ctx)
 
 			udelay(1);
 		}
+	}
+}
+
+void dcn30_get_underflow_debug_data(const struct dc *dc,
+	struct timing_generator *tg,
+	struct dc_underflow_debug_data *out_data)
+{
+	struct hubbub *hubbub = dc->res_pool->hubbub;
+
+	if (hubbub) {
+		if (hubbub->funcs->hubbub_read_reg_state) {
+			hubbub->funcs->hubbub_read_reg_state(hubbub, out_data->hubbub_reg_state);
+		}
+	}
+
+	for (int i = 0; i < MAX_PIPES; i++) {
+		struct hubp *hubp = dc->res_pool->hubps[i];
+		struct dpp *dpp = dc->res_pool->dpps[i];
+		struct output_pixel_processor *opp = dc->res_pool->opps[i];
+		struct display_stream_compressor *dsc = dc->res_pool->dscs[i];
+		struct mpc *mpc = dc->res_pool->mpc;
+		struct timing_generator *optc = dc->res_pool->timing_generators[i];
+		struct dccg *dccg = dc->res_pool->dccg;
+
+		if (hubp)
+			if (hubp->funcs->hubp_read_reg_state)
+				hubp->funcs->hubp_read_reg_state(hubp, out_data->hubp_reg_state[i]);
+
+		if (dpp)
+			if (dpp->funcs->dpp_read_reg_state)
+				dpp->funcs->dpp_read_reg_state(dpp, out_data->dpp_reg_state[i]);
+
+		if (opp)
+			if (opp->funcs->opp_read_reg_state)
+				opp->funcs->opp_read_reg_state(opp, out_data->opp_reg_state[i]);
+
+		if (dsc)
+			if (dsc->funcs->dsc_read_reg_state)
+				dsc->funcs->dsc_read_reg_state(dsc, out_data->dsc_reg_state[i]);
+
+		if (mpc)
+			if (mpc->funcs->mpc_read_reg_state)
+				mpc->funcs->mpc_read_reg_state(mpc, i, out_data->mpc_reg_state[i]);
+
+		if (optc)
+			if (optc->funcs->optc_read_reg_state)
+				optc->funcs->optc_read_reg_state(optc, out_data->optc_reg_state[i]);
+
+		if (dccg)
+			if (dccg->funcs->dccg_read_reg_state)
+				dccg->funcs->dccg_read_reg_state(dccg, out_data->dccg_reg_state[i]);
 	}
 }

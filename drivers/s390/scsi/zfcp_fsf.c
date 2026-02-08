@@ -7,8 +7,7 @@
  * Copyright IBM Corp. 2002, 2023
  */
 
-#define KMSG_COMPONENT "zfcp"
-#define pr_fmt(fmt) KMSG_COMPONENT ": " fmt
+#define pr_fmt(fmt) "zfcp: " fmt
 
 #include <linux/blktrace_api.h>
 #include <linux/jiffies.h>
@@ -36,7 +35,7 @@ MODULE_PARM_DESC(ber_stop,
 
 static void zfcp_fsf_request_timeout_handler(struct timer_list *t)
 {
-	struct zfcp_fsf_req *fsf_req = from_timer(fsf_req, t, timer);
+	struct zfcp_fsf_req *fsf_req = timer_container_of(fsf_req, t, timer);
 	struct zfcp_adapter *adapter = fsf_req->adapter;
 
 	zfcp_qdio_siosl(adapter);

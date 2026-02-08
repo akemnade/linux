@@ -14,6 +14,7 @@
 #include <drm/drm_atomic_helper.h>
 #include <drm/drm_edid.h>
 #include <drm/drm_framebuffer.h>
+#include <drm/drm_print.h>
 #include <drm/drm_probe_helper.h>
 #include <drm/drm_simple_kms_helper.h>
 #include <drm/drm_vblank.h>
@@ -159,7 +160,7 @@ static const struct exynos_drm_crtc_ops vidi_crtc_ops = {
 
 static void vidi_fake_vblank_timer(struct timer_list *t)
 {
-	struct vidi_context *ctx = from_timer(ctx, t, timer);
+	struct vidi_context *ctx = timer_container_of(ctx, t, timer);
 
 	if (drm_crtc_handle_vblank(&ctx->crtc->base))
 		mod_timer(&ctx->timer,

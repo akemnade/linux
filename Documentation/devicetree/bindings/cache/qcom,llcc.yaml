@@ -21,6 +21,7 @@ properties:
   compatible:
     enum:
       - qcom,ipq5424-llcc
+      - qcom,kaanapali-llcc
       - qcom,qcs615-llcc
       - qcom,qcs8300-llcc
       - qcom,qdu1000-llcc
@@ -40,6 +41,7 @@ properties:
       - qcom,sm8450-llcc
       - qcom,sm8550-llcc
       - qcom,sm8650-llcc
+      - qcom,sm8750-llcc
       - qcom,x1e80100-llcc
 
   reg:
@@ -271,9 +273,11 @@ allOf:
         compatible:
           contains:
             enum:
+              - qcom,kaanapali-llcc
               - qcom,sm8450-llcc
               - qcom,sm8550-llcc
               - qcom,sm8650-llcc
+              - qcom,sm8750-llcc
     then:
       properties:
         reg:

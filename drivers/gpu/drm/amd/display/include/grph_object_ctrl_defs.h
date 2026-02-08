@@ -169,6 +169,7 @@ struct dc_firmware_info {
 		uint32_t engine_clk_ss_percentage;
 	} feature;
 
+	uint32_t max_pixel_clock; /* in KHz */
 	uint32_t default_display_engine_pll_frequency; /* in KHz */
 	uint32_t external_clock_source_frequency_for_dp; /* in KHz */
 	uint32_t smu_gpu_pll_output_freq; /* in KHz */
@@ -424,7 +425,7 @@ struct integrated_info {
 /*
  * DFS-bypass flag
  */
-/* Copy of SYS_INFO_GPUCAPS__ENABEL_DFS_BYPASS from atombios.h */
+/* Copy of SYS_INFO_GPUCAPS__ENABLE_DFS_BYPASS from atombios.h */
 enum {
 	DFS_BYPASS_ENABLE = 0x10
 };

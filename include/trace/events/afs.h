@@ -69,6 +69,9 @@ enum afs_fs_operation {
 	yfs_FS_RemoveACL		= 64171,
 	yfs_FS_RemoveFile2		= 64173,
 	yfs_FS_StoreOpaqueACL2		= 64174,
+	yfs_FS_Rename_Replace		= 64176,
+	yfs_FS_Rename_NoReplace		= 64177,
+	yfs_FS_Rename_Exchange		= 64187,
 	yfs_FS_InlineBulkStatus		= 64536, /* YFS Fetch multiple file statuses with errors */
 	yfs_FS_FetchData64		= 64537, /* YFS Fetch file data */
 	yfs_FS_StoreData64		= 64538, /* YFS Store file data */
@@ -300,6 +303,9 @@ enum yfs_cm_operation {
 	EM(yfs_FS_RemoveACL,			"YFS.RemoveACL") \
 	EM(yfs_FS_RemoveFile2,			"YFS.RemoveFile2") \
 	EM(yfs_FS_StoreOpaqueACL2,		"YFS.StoreOpaqueACL2") \
+	EM(yfs_FS_Rename_Replace,		"YFS.Rename_Replace") \
+	EM(yfs_FS_Rename_NoReplace,		"YFS.Rename_NoReplace") \
+	EM(yfs_FS_Rename_Exchange,		"YFS.Rename_Exchange") \
 	EM(yfs_FS_InlineBulkStatus,		"YFS.InlineBulkStatus") \
 	EM(yfs_FS_FetchData64,			"YFS.FetchData64") \
 	EM(yfs_FS_StoreData64,			"YFS.StoreData64") \
@@ -663,19 +669,26 @@ TRACE_EVENT(afs_cb_call,
 		    __field(unsigned int,		call)
 		    __field(u32,			op)
 		    __field(u16,			service_id)
+		    __field(u8,				security_ix)
+		    __field(u32,			enctype)
 			     ),
 
 	    TP_fast_assign(
 		    __entry->call	= call->debug_id;
 		    __entry->op		= call->operation_ID;
 		    __entry->service_id	= call->service_id;
+		    __entry->security_ix = call->security_ix;
+		    __entry->enctype	= call->enctype;
 			   ),
 
-	    TP_printk("c=%08x %s",
+	    TP_printk("c=%08x %s sv=%u sx=%u en=%u",
 		      __entry->call,
 		      __entry->service_id == 2501 ?
 		      __print_symbolic(__entry->op, yfs_cm_operations) :
-		      __print_symbolic(__entry->op, afs_cm_operations))
+		      __print_symbolic(__entry->op, afs_cm_operations),
+		      __entry->service_id,
+		      __entry->security_ix,
+		      __entry->enctype)
 	    );
 
 TRACE_EVENT(afs_call,

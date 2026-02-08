@@ -36,8 +36,8 @@
 #include <linux/stddef.h>
 #include <linux/string.h>
 #include <linux/types.h>
-#include <net/net_namespace.h>
 #include <net/netlink.h>
+#include <net/rtnetlink.h>
 #include <uapi/linux/batadv_packet.h>
 #include <uapi/linux/batman_adv.h>
 
@@ -47,7 +47,6 @@
 #include "gateway_client.h"
 #include "hard-interface.h"
 #include "multicast.h"
-#include "network-coding.h"
 #include "send.h"
 #include "translation-table.h"
 
@@ -74,18 +73,6 @@ int batadv_skb_head_push(struct sk_buff *skb, unsigned int len)
 		return result;
 
 	skb_push(skb, len);
-	return 0;
-}
-
-static int batadv_interface_open(struct net_device *dev)
-{
-	netif_start_queue(dev);
-	return 0;
-}
-
-static int batadv_interface_release(struct net_device *dev)
-{
-	netif_stop_queue(dev);
 	return 0;
 }
 
@@ -815,8 +802,6 @@ static int batadv_meshif_init_late(struct net_device *dev)
 
 	bat_priv->primary_if = NULL;
 
-	batadv_nc_init_bat_priv(bat_priv);
-
 	if (!bat_priv->algo_ops) {
 		ret = batadv_algo_select(bat_priv, batadv_routing_algo);
 		if (ret < 0)
@@ -890,8 +875,6 @@ out:
 
 static const struct net_device_ops batadv_netdev_ops = {
 	.ndo_init = batadv_meshif_init_late,
-	.ndo_open = batadv_interface_open,
-	.ndo_stop = batadv_interface_release,
 	.ndo_get_stats = batadv_interface_stats,
 	.ndo_vlan_rx_add_vid = batadv_interface_add_vid,
 	.ndo_vlan_rx_kill_vid = batadv_interface_kill_vid,
@@ -961,17 +944,6 @@ static const struct {
 	{ "dat_put_tx" },
 	{ "dat_put_rx" },
 	{ "dat_cached_reply_tx" },
-#endif
-#ifdef CONFIG_BATMAN_ADV_NC
-	{ "nc_code" },
-	{ "nc_code_bytes" },
-	{ "nc_recode" },
-	{ "nc_recode_bytes" },
-	{ "nc_buffer" },
-	{ "nc_decode" },
-	{ "nc_decode_bytes" },
-	{ "nc_decode_failed" },
-	{ "nc_sniffed" },
 #endif
 };
 
@@ -1116,9 +1088,9 @@ static void batadv_meshif_destroy_netlink(struct net_device *mesh_iface,
 	struct batadv_hard_iface *hard_iface;
 	struct batadv_meshif_vlan *vlan;
 
-	list_for_each_entry(hard_iface, &batadv_hardif_list, list) {
-		if (hard_iface->mesh_iface == mesh_iface)
-			batadv_hardif_disable_interface(hard_iface);
+	while (!list_empty(&mesh_iface->adj_list.lower)) {
+		hard_iface = netdev_adjacent_get_private(mesh_iface->adj_list.lower.next);
+		batadv_hardif_disable_interface(hard_iface);
 	}
 
 	/* destroy the "untagged" VLAN */

@@ -3,6 +3,7 @@
 #include <linux/init.h>
 #include <linux/ctype.h>
 #include <linux/pgtable.h>
+#include <asm/arch-stackprotector.h>
 #include <asm/abs_lowcore.h>
 #include <asm/page-states.h>
 #include <asm/machine.h>
@@ -179,7 +180,7 @@ void setup_boot_command_line(void)
 	if (has_ebcdic_char(parmarea.command_line))
 		EBCASC(parmarea.command_line, COMMAND_LINE_SIZE);
 	/* copy arch command line */
-	strcpy(early_command_line, strim(parmarea.command_line));
+	strscpy(early_command_line, strim(parmarea.command_line));
 
 	/* append IPL PARM data to the boot command line */
 	if (!is_prot_virt_guest() && ipl_block_valid)
@@ -253,7 +254,8 @@ void parse_boot_command_line(void)
 	int rc;
 
 	__kaslr_enabled = IS_ENABLED(CONFIG_RANDOMIZE_BASE);
-	args = strcpy(command_line_buf, early_command_line);
+	strscpy(command_line_buf, early_command_line);
+	args = command_line_buf;
 	while (*args) {
 		args = next_arg(args, &param, &val);
 
@@ -293,6 +295,11 @@ void parse_boot_command_line(void)
 				cmma_flag = 0;
 		}
 
+#ifdef CONFIG_STACKPROTECTOR
+		if (!strcmp(param, "debug_stackprotector"))
+			stack_protector_debug = 1;
+#endif
+
 #if IS_ENABLED(CONFIG_KVM)
 		if (!strcmp(param, "prot_virt")) {
 			rc = kstrtobool(val, &enabled);
@@ -309,7 +316,7 @@ void parse_boot_command_line(void)
 		if (!strcmp(param, "bootdebug")) {
 			bootdebug = true;
 			if (val)
-				strncpy(bootdebug_filter, val, sizeof(bootdebug_filter) - 1);
+				strscpy(bootdebug_filter, val);
 		}
 		if (!strcmp(param, "quiet"))
 			boot_console_loglevel = CONSOLE_LOGLEVEL_QUIET;

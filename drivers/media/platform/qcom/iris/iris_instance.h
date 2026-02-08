@@ -12,6 +12,25 @@
 #include "iris_core.h"
 #include "iris_utils.h"
 
+#define DEFAULT_WIDTH 320
+#define DEFAULT_HEIGHT 240
+
+enum iris_fmt_type_out {
+	IRIS_FMT_H264,
+	IRIS_FMT_HEVC,
+	IRIS_FMT_VP9,
+};
+
+enum iris_fmt_type_cap {
+	IRIS_FMT_NV12,
+	IRIS_FMT_QC08C,
+};
+
+struct iris_fmt {
+	u32 pixfmt;
+	u32 type;
+};
+
 /**
  * struct iris_inst - holds per video instance parameters
  *
@@ -24,9 +43,12 @@
  * @fmt_src: structure of v4l2_format for source
  * @fmt_dst: structure of v4l2_format for destination
  * @ctrl_handler: reference of v4l2 ctrl handler
+ * @domain: domain type: encoder or decoder
  * @crop: structure of crop info
+ * @compose: structure of compose info
  * @completion: structure of signal completions
  * @flush_completion: structure of signal completions for flush cmd
+ * @flush_responses_pending: counter to track number of pending flush responses
  * @fw_caps: array of supported instance firmware capabilities
  * @buffers: array of different iris buffers
  * @fw_min_count: minimnum count of buffers needed by fw
@@ -42,6 +64,11 @@
  * @sequence_out: a sequence counter for output queue
  * @tss: timestamp metadata
  * @metadata_idx: index for metadata buffer
+ * @codec: codec type
+ * @last_buffer_dequeued: a flag to indicate that last buffer is sent by driver
+ * @frame_rate: frame rate of current instance
+ * @operating_rate: operating rate of current instance
+ * @hfi_rc_type: rate control type
  */
 
 struct iris_inst {
@@ -54,9 +81,12 @@ struct iris_inst {
 	struct v4l2_format		*fmt_src;
 	struct v4l2_format		*fmt_dst;
 	struct v4l2_ctrl_handler	ctrl_handler;
+	enum domain_type		domain;
 	struct iris_hfi_rect_desc	crop;
+	struct iris_hfi_rect_desc	compose;
 	struct completion		completion;
 	struct completion		flush_completion;
+	u32				flush_responses_pending;
 	struct platform_inst_fw_cap	fw_caps[INST_FW_CAP_MAX];
 	struct iris_buffers		buffers[BUF_TYPE_MAX];
 	u32				fw_min_count;
@@ -72,6 +102,11 @@ struct iris_inst {
 	u32				sequence_out;
 	struct iris_ts_metadata		tss[VIDEO_MAX_FRAME];
 	u32				metadata_idx;
+	u32				codec;
+	bool				last_buffer_dequeued;
+	u32				frame_rate;
+	u32				operating_rate;
+	u32				hfi_rc_type;
 };
 
 #endif

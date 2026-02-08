@@ -20,7 +20,7 @@ static bool __is_be(struct kvm_vcpu *vcpu)
 	if (vcpu_mode_is_32bit(vcpu))
 		return !!(read_sysreg_el2(SYS_SPSR) & PSR_AA32_E_BIT);
 
-	return !!(read_sysreg(SCTLR_EL1) & SCTLR_ELx_EE);
+	return !!(read_sysreg_el1(SYS_SCTLR) & SCTLR_ELx_EE);
 }
 
 /*
@@ -62,6 +62,10 @@ int __vgic_v2_perform_cpuif_access(struct kvm_vcpu *vcpu)
 		__kvm_skip_instr(vcpu);
 		return -1;
 	}
+
+	/* Handle deactivation as a normal exit */
+	if ((fault_ipa - vgic->vgic_cpu_base) >= GIC_CPU_DEACTIVATE)
+		return 0;
 
 	rd = kvm_vcpu_dabt_get_rd(vcpu);
 	addr  = kvm_vgic_global_state.vcpu_hyp_va;

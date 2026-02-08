@@ -6163,7 +6163,7 @@ bnx2_5708_serdes_timer(struct bnx2 *bp)
 static void
 bnx2_timer(struct timer_list *t)
 {
-	struct bnx2 *bp = from_timer(bp, t, timer);
+	struct bnx2 *bp = timer_container_of(bp, t, timer);
 
 	if (!netif_running(bp->dev))
 		return;
@@ -6444,7 +6444,6 @@ bnx2_reset_task(struct work_struct *work)
 	if (!(pcicmd & PCI_COMMAND_MEMORY)) {
 		/* in case PCI block has reset */
 		pci_restore_state(bp->pdev);
-		pci_save_state(bp->pdev);
 	}
 	rc = bnx2_init_nic(bp, 1);
 	if (rc) {
@@ -8718,7 +8717,6 @@ static pci_ers_result_t bnx2_io_slot_reset(struct pci_dev *pdev)
 	} else {
 		pci_set_master(pdev);
 		pci_restore_state(pdev);
-		pci_save_state(pdev);
 
 		if (netif_running(dev))
 			err = bnx2_init_nic(bp, 1);

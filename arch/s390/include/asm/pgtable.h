@@ -648,18 +648,6 @@ static inline int mm_uses_skeys(struct mm_struct *mm)
 	return 0;
 }
 
-static inline void csp(unsigned int *ptr, unsigned int old, unsigned int new)
-{
-	union register_pair r1 = { .even = old, .odd = new, };
-	unsigned long address = (unsigned long)ptr | 1;
-
-	asm volatile(
-		"	csp	%[r1],%[address]"
-		: [r1] "+&d" (r1.pair), "+m" (*ptr)
-		: [address] "d" (address)
-		: "cc");
-}
-
 /**
  * cspg() - Compare and Swap and Purge (CSPG)
  * @ptr: Pointer to the value to be exchanged
@@ -915,7 +903,7 @@ static inline int pmd_protnone(pmd_t pmd)
 }
 #endif
 
-static inline int pte_swp_exclusive(pte_t pte)
+static inline bool pte_swp_exclusive(pte_t pte)
 {
 	return pte_val(pte) & _PAGE_SWP_EXCLUSIVE;
 }
@@ -962,6 +950,12 @@ static inline pmd_t pmd_clear_soft_dirty(pmd_t pmd)
 {
 	return clear_pmd_bit(pmd, __pgprot(_SEGMENT_ENTRY_SOFT_DIRTY));
 }
+
+#ifdef CONFIG_ARCH_ENABLE_THP_MIGRATION
+#define pmd_swp_soft_dirty(pmd)		pmd_soft_dirty(pmd)
+#define pmd_swp_mksoft_dirty(pmd)	pmd_mksoft_dirty(pmd)
+#define pmd_swp_clear_soft_dirty(pmd)	pmd_clear_soft_dirty(pmd)
+#endif
 
 /*
  * query functions pte_write/pte_dirty/pte_young only work if
@@ -1148,17 +1142,15 @@ static inline pte_t pte_mkhuge(pte_t pte)
 #define IPTE_NODAT	0x400
 #define IPTE_GUEST_ASCE	0x800
 
-static __always_inline void __ptep_rdp(unsigned long addr, pte_t *ptep,
-				       unsigned long opt, unsigned long asce,
-				       int local)
+static __always_inline void __ptep_rdp(unsigned long addr, pte_t *ptep, int local)
 {
 	unsigned long pto;
 
 	pto = __pa(ptep) & ~(PTRS_PER_PTE * sizeof(pte_t) - 1);
-	asm volatile(".insn rrf,0xb98b0000,%[r1],%[r2],%[asce],%[m4]"
+	asm volatile(".insn	rrf,0xb98b0000,%[r1],%[r2],%%r0,%[m4]"
 		     : "+m" (*ptep)
-		     : [r1] "a" (pto), [r2] "a" ((addr & PAGE_MASK) | opt),
-		       [asce] "a" (asce), [m4] "i" (local));
+		     : [r1] "a" (pto), [r2] "a" (addr & PAGE_MASK),
+		       [m4] "i" (local));
 }
 
 static __always_inline void __ptep_ipte(unsigned long address, pte_t *ptep,
@@ -1342,7 +1334,7 @@ static inline void flush_tlb_fix_spurious_fault(struct vm_area_struct *vma,
 	 * A local RDP can be used to do the flush.
 	 */
 	if (cpu_has_rdp() && !(pte_val(*ptep) & _PAGE_PROTECT))
-		__ptep_rdp(address, ptep, 0, 0, 1);
+		__ptep_rdp(address, ptep, 1);
 }
 #define flush_tlb_fix_spurious_fault flush_tlb_fix_spurious_fault
 
@@ -1396,7 +1388,6 @@ int set_pgste_bits(struct mm_struct *mm, unsigned long addr,
 int get_pgste(struct mm_struct *mm, unsigned long hva, unsigned long *pgstep);
 int pgste_perform_essa(struct mm_struct *mm, unsigned long hva, int orc,
 			unsigned long *oldpte, unsigned long *oldpgste);
-void gmap_pmdp_csp(struct mm_struct *mm, unsigned long vmaddr);
 void gmap_pmdp_invalidate(struct mm_struct *mm, unsigned long vmaddr);
 void gmap_pmdp_idte_local(struct mm_struct *mm, unsigned long vmaddr);
 void gmap_pmdp_idte_global(struct mm_struct *mm, unsigned long vmaddr);
@@ -1446,16 +1437,6 @@ static inline pte_t mk_pte_phys(unsigned long physpage, pgprot_t pgprot)
 
 	__pte = __pte(physpage | pgprot_val(pgprot));
 	return pte_mkyoung(__pte);
-}
-
-static inline pte_t mk_pte(struct page *page, pgprot_t pgprot)
-{
-	unsigned long physpage = page_to_phys(page);
-	pte_t __pte = mk_pte_phys(physpage, pgprot);
-
-	if (pte_write(__pte) && PageDirty(page))
-		__pte = pte_mkdirty(__pte);
-	return __pte;
 }
 
 #define pgd_index(address) (((address) >> PGDIR_SHIFT) & (PTRS_PER_PGD-1))
@@ -1696,10 +1677,10 @@ static inline pmd_t mk_pmd_phys(unsigned long physpage, pgprot_t pgprot)
 
 #endif /* CONFIG_TRANSPARENT_HUGEPAGE || CONFIG_HUGETLB_PAGE */
 
-static inline void __pmdp_csp(pmd_t *pmdp)
+static inline void __pmdp_cspg(pmd_t *pmdp)
 {
-	csp((unsigned int *)pmdp + 1, pmd_val(*pmdp),
-	    pmd_val(*pmdp) | _SEGMENT_ENTRY_INVALID);
+	cspg((unsigned long *)pmdp, pmd_val(*pmdp),
+	     pmd_val(*pmdp) | _SEGMENT_ENTRY_INVALID);
 }
 
 #define IDTE_GLOBAL	0
@@ -1879,7 +1860,6 @@ static inline pmd_t pmdp_collapse_flush(struct vm_area_struct *vma,
 #define pmdp_collapse_flush pmdp_collapse_flush
 
 #define pfn_pmd(pfn, pgprot)	mk_pmd_phys(((pfn) << PAGE_SHIFT), (pgprot))
-#define mk_pmd(page, pgprot)	pfn_pmd(page_to_pfn(page), (pgprot))
 
 static inline int pmd_trans_huge(pmd_t pmd)
 {
@@ -1990,6 +1970,45 @@ static inline unsigned long __swp_offset_rste(swp_entry_t entry)
 
 #define __rste_to_swp_entry(rste)	((swp_entry_t) { rste })
 
+/*
+ * s390 has different layout for PTE and region / segment table entries (RSTE).
+ * This is also true for swap entries, and their swap type and offset encoding.
+ * For hugetlbfs PTE_MARKER support, s390 has internal __swp_type_rste() and
+ * __swp_offset_rste() helpers to correctly handle RSTE swap entries.
+ *
+ * But common swap code does not know about this difference, and only uses
+ * __swp_type(), __swp_offset() and __swp_entry() helpers for conversion between
+ * arch-dependent and arch-independent representation of swp_entry_t for all
+ * pagetable levels. On s390, those helpers only work for PTE swap entries.
+ *
+ * Therefore, implement __pmd_to_swp_entry() to build a fake PTE swap entry
+ * and return the arch-dependent representation of that. Correspondingly,
+ * implement __swp_entry_to_pmd() to convert that into a proper PMD swap
+ * entry again. With this, the arch-dependent swp_entry_t representation will
+ * always look like a PTE swap entry in common code.
+ *
+ * This is somewhat similar to fake PTEs in hugetlbfs code for s390, but only
+ * requires conversion of the swap type and offset, and not all the possible
+ * PTE bits.
+ */
+static inline swp_entry_t __pmd_to_swp_entry(pmd_t pmd)
+{
+	swp_entry_t arch_entry;
+	pte_t pte;
+
+	arch_entry = __rste_to_swp_entry(pmd_val(pmd));
+	pte = mk_swap_pte(__swp_type_rste(arch_entry), __swp_offset_rste(arch_entry));
+	return __pte_to_swp_entry(pte);
+}
+
+static inline pmd_t __swp_entry_to_pmd(swp_entry_t arch_entry)
+{
+	pmd_t pmd;
+
+	pmd = __pmd(mk_swap_rste(__swp_type(arch_entry), __swp_offset(arch_entry)));
+	return pmd;
+}
+
 extern int vmem_add_mapping(unsigned long start, unsigned long size);
 extern void vmem_remove_mapping(unsigned long start, unsigned long size);
 extern int __vmem_map_4k_page(unsigned long addr, unsigned long phys, pgprot_t prot, bool alloc);
@@ -2019,6 +2038,28 @@ static inline unsigned long gmap_pgste_get_pgt_addr(unsigned long *pgt)
 	res |= (pgstes[3] & PGSTE_ST2_MASK) >> 32;
 
 	return res;
+}
+
+static inline pgste_t pgste_get_lock(pte_t *ptep)
+{
+	unsigned long value = 0;
+#ifdef CONFIG_PGSTE
+	unsigned long *ptr = (unsigned long *)(ptep + PTRS_PER_PTE);
+
+	do {
+		value = __atomic64_or_barrier(PGSTE_PCL_BIT, ptr);
+	} while (value & PGSTE_PCL_BIT);
+	value |= PGSTE_PCL_BIT;
+#endif
+	return __pgste(value);
+}
+
+static inline void pgste_set_unlock(pte_t *ptep, pgste_t pgste)
+{
+#ifdef CONFIG_PGSTE
+	barrier();
+	WRITE_ONCE(*(unsigned long *)(ptep + PTRS_PER_PTE), pgste_val(pgste) & ~PGSTE_PCL_BIT);
+#endif
 }
 
 #endif /* _S390_PAGE_H */

@@ -282,7 +282,7 @@ static int pm8xxx_pin_config_get(struct pinctrl_dev *pctldev,
 			return -EINVAL;
 		arg = 1;
 		break;
-	case PIN_CONFIG_OUTPUT:
+	case PIN_CONFIG_LEVEL:
 		if (pin->mode & PM8XXX_GPIO_MODE_OUTPUT)
 			arg = pin->output_value;
 		else
@@ -364,7 +364,7 @@ static int pm8xxx_pin_config_set(struct pinctrl_dev *pctldev,
 			pin->mode = PM8XXX_GPIO_MODE_INPUT;
 			banks |= BIT(0) | BIT(1);
 			break;
-		case PIN_CONFIG_OUTPUT:
+		case PIN_CONFIG_LEVEL:
 			pin->mode = PM8XXX_GPIO_MODE_OUTPUT;
 			pin->output_value = !!arg;
 			banks |= BIT(0) | BIT(1);
@@ -507,7 +507,8 @@ static int pm8xxx_gpio_get(struct gpio_chip *chip, unsigned offset)
 	return ret;
 }
 
-static void pm8xxx_gpio_set(struct gpio_chip *chip, unsigned offset, int value)
+static int pm8xxx_gpio_set(struct gpio_chip *chip, unsigned int offset,
+			   int value)
 {
 	struct pm8xxx_gpio *pctrl = gpiochip_get_data(chip);
 	struct pm8xxx_pin_data *pin = pctrl->desc.pins[offset].drv_data;
@@ -519,7 +520,7 @@ static void pm8xxx_gpio_set(struct gpio_chip *chip, unsigned offset, int value)
 	val |= pin->open_drain << 1;
 	val |= pin->output_value;
 
-	pm8xxx_write_bank(pctrl, pin, 1, val);
+	return pm8xxx_write_bank(pctrl, pin, 1, val);
 }
 
 static int pm8xxx_gpio_of_xlate(struct gpio_chip *chip,

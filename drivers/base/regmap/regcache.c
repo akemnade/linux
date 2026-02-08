@@ -16,6 +16,7 @@
 #include "internal.h"
 
 static const struct regcache_ops *cache_types[] = {
+	&regcache_flat_sparse_ops,
 	&regcache_rbtree_ops,
 	&regcache_maple_ops,
 	&regcache_flat_ops,
@@ -34,21 +35,10 @@ static int regcache_defaults_cmp(const void *a, const void *b)
 		return 0;
 }
 
-static void regcache_defaults_swap(void *a, void *b, int size)
-{
-	struct reg_default *x = a;
-	struct reg_default *y = b;
-	struct reg_default tmp;
-
-	tmp = *x;
-	*x = *y;
-	*y = tmp;
-}
-
 void regcache_sort_defaults(struct reg_default *defaults, unsigned int ndefaults)
 {
 	sort(defaults, ndefaults, sizeof(*defaults),
-	     regcache_defaults_cmp, regcache_defaults_swap);
+	     regcache_defaults_cmp, NULL);
 }
 EXPORT_SYMBOL_GPL(regcache_sort_defaults);
 
@@ -232,8 +222,24 @@ int regcache_init(struct regmap *map, const struct regmap_config *config)
 		if (ret)
 			goto err_free;
 	}
+
+	if (map->num_reg_defaults && map->cache_ops->populate) {
+		dev_dbg(map->dev, "Populating %s cache\n", map->cache_ops->name);
+		map->lock(map->lock_arg);
+		ret = map->cache_ops->populate(map);
+		map->unlock(map->lock_arg);
+		if (ret)
+			goto err_exit;
+	}
 	return 0;
 
+err_exit:
+	if (map->cache_ops->exit) {
+		dev_dbg(map->dev, "Destroying %s cache\n", map->cache_ops->name);
+		map->lock(map->lock_arg);
+		ret = map->cache_ops->exit(map);
+		map->unlock(map->lock_arg);
+	}
 err_free:
 	kfree(map->reg_defaults);
 	if (map->cache_free)

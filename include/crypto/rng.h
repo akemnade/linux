@@ -102,12 +102,10 @@ static inline struct rng_alg *__crypto_rng_alg(struct crypto_alg *alg)
 }
 
 /**
- * crypto_rng_alg - obtain name of RNG
- * @tfm: cipher handle
+ * crypto_rng_alg() - obtain 'struct rng_alg' pointer from RNG handle
+ * @tfm: RNG handle
  *
- * Return the generic name (cra_name) of the initialized random number generator
- *
- * Return: generic name string
+ * Return: Pointer to 'struct rng_alg', derived from @tfm RNG handle
  */
 static inline struct rng_alg *crypto_rng_alg(struct crypto_rng *tfm)
 {
@@ -171,12 +169,11 @@ static inline int crypto_rng_get_bytes(struct crypto_rng *tfm,
  *
  * The reset function completely re-initializes the random number generator
  * referenced by the cipher handle by clearing the current state. The new state
- * is initialized with the caller provided seed or automatically, depending
- * on the random number generator type (the ANSI X9.31 RNG requires
- * caller-provided seed, the SP800-90A DRBGs perform an automatic seeding).
- * The seed is provided as a parameter to this function call. The provided seed
- * should have the length of the seed size defined for the random number
- * generator as defined by crypto_rng_seedsize.
+ * is initialized with the caller provided seed or automatically, depending on
+ * the random number generator type. (The SP800-90A DRBGs perform an automatic
+ * seeding.) The seed is provided as a parameter to this function call. The
+ * provided seed should have the length of the seed size defined for the random
+ * number generator as defined by crypto_rng_seedsize.
  *
  * Return: 0 if the setting of the key was successful; < 0 if an error occurred
  */

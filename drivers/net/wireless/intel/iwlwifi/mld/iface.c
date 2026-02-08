@@ -22,8 +22,16 @@ void iwl_mld_cleanup_vif(void *data, u8 *mac, struct ieee80211_vif *vif)
 	struct iwl_mld *mld = mld_vif->mld;
 	struct iwl_mld_link *link;
 
+	mld_vif->emlsr.blocked_reasons &= ~IWL_MLD_EMLSR_BLOCKED_ROC;
+
+	if (mld_vif->aux_sta.sta_id != IWL_INVALID_STA)
+		iwl_mld_free_internal_sta(mld, &mld_vif->aux_sta);
+
 	/* EMLSR is turned back on during recovery */
 	vif->driver_flags &= ~IEEE80211_VIF_EML_ACTIVE;
+
+	if (mld_vif->roc_activity != ROC_NUM_ACTIVITIES)
+		ieee80211_remain_on_channel_expired(mld->hw);
 
 	mld_vif->roc_activity = ROC_NUM_ACTIVITIES;
 
@@ -103,6 +111,16 @@ static bool iwl_mld_is_nic_ack_enabled(struct iwl_mld *mld,
 			       IEEE80211_HE_MAC_CAP2_ACK_EN);
 }
 
+static void iwl_mld_set_he_support(struct iwl_mld *mld,
+				   struct ieee80211_vif *vif,
+				   struct iwl_mac_config_cmd *cmd)
+{
+	if (vif->type == NL80211_IFTYPE_AP)
+		cmd->wifi_gen.he_ap_support = 1;
+	else
+		cmd->wifi_gen.he_support = 1;
+}
+
 /* fill the common part for all interface types */
 static void iwl_mld_mac_cmd_fill_common(struct iwl_mld *mld,
 					struct ieee80211_vif *vif,
@@ -138,12 +156,8 @@ static void iwl_mld_mac_cmd_fill_common(struct iwl_mld *mld,
 	 * and enable both when we have MLO.
 	 */
 	if (ieee80211_vif_is_mld(vif)) {
-		if (vif->type == NL80211_IFTYPE_AP)
-			cmd->he_ap_support = cpu_to_le16(1);
-		else
-			cmd->he_support = cpu_to_le16(1);
-
-		cmd->eht_support = cpu_to_le32(1);
+		iwl_mld_set_he_support(mld, vif, cmd);
+		cmd->wifi_gen.eht_support = 1;
 		return;
 	}
 
@@ -151,10 +165,7 @@ static void iwl_mld_mac_cmd_fill_common(struct iwl_mld *mld,
 		if (!link_conf->he_support)
 			continue;
 
-		if (vif->type == NL80211_IFTYPE_AP)
-			cmd->he_ap_support = cpu_to_le16(1);
-		else
-			cmd->he_support = cpu_to_le16(1);
+		iwl_mld_set_he_support(mld, vif, cmd);
 
 		/* EHT, if supported, was already set above */
 		break;
@@ -226,11 +237,6 @@ static void iwl_mld_fill_mac_cmd_sta(struct iwl_mld *mld,
 	if (vif->probe_req_reg && vif->cfg.assoc && vif->p2p)
 		cmd->filter_flags |=
 			cpu_to_le32(MAC_CFG_FILTER_ACCEPT_PROBE_REQ);
-
-	if (vif->p2p)
-		cmd->client.ctwin =
-			cpu_to_le32(vif->bss_conf.p2p_noa_attr.oppps_ctwindow &
-				    IEEE80211_P2P_OPPPS_CTWINDOW_MASK);
 }
 
 static void iwl_mld_fill_mac_cmd_ap(struct iwl_mld *mld,
@@ -365,6 +371,17 @@ int iwl_mld_mac_fw_action(struct iwl_mld *mld, struct ieee80211_vif *vif,
 	return iwl_mld_send_mac_cmd(mld, &cmd);
 }
 
+static void iwl_mld_mlo_scan_start_wk(struct wiphy *wiphy,
+				      struct wiphy_work *wk)
+{
+	struct iwl_mld_vif *mld_vif = container_of(wk, struct iwl_mld_vif,
+						   mlo_scan_start_wk.work);
+	struct ieee80211_hw *hw = wiphy_to_ieee80211_hw(wiphy);
+	struct iwl_mld *mld = IWL_MAC80211_GET_MLD(hw);
+
+	iwl_mld_int_mlo_scan(mld, iwl_mld_vif_to_mac80211(mld_vif));
+}
+
 IWL_MLD_ALLOC_FN(vif, vif)
 
 /* Constructor function for struct iwl_mld_vif */
@@ -392,7 +409,10 @@ iwl_mld_init_vif(struct iwl_mld *mld, struct ieee80211_vif *vif)
 					iwl_mld_emlsr_prevent_done_wk);
 		wiphy_delayed_work_init(&mld_vif->emlsr.tmp_non_bss_done_wk,
 					iwl_mld_emlsr_tmp_non_bss_done_wk);
+		wiphy_delayed_work_init(&mld_vif->mlo_scan_start_wk,
+					iwl_mld_mlo_scan_start_wk);
 	}
+	iwl_mld_init_internal_sta(&mld_vif->aux_sta);
 
 	return 0;
 }
@@ -415,24 +435,21 @@ int iwl_mld_add_vif(struct iwl_mld *mld, struct ieee80211_vif *vif)
 	return ret;
 }
 
-int iwl_mld_rm_vif(struct iwl_mld *mld, struct ieee80211_vif *vif)
+void iwl_mld_rm_vif(struct iwl_mld *mld, struct ieee80211_vif *vif)
 {
 	struct iwl_mld_vif *mld_vif = iwl_mld_vif_from_mac80211(vif);
-	int ret;
 
 	lockdep_assert_wiphy(mld->wiphy);
 
-	ret = iwl_mld_mac_fw_action(mld, vif, FW_CTXT_ACTION_REMOVE);
+	iwl_mld_mac_fw_action(mld, vif, FW_CTXT_ACTION_REMOVE);
 
 	if (WARN_ON(mld_vif->fw_id >= ARRAY_SIZE(mld->fw_id_to_vif)))
-		return -EINVAL;
+		return;
 
 	RCU_INIT_POINTER(mld->fw_id_to_vif[mld_vif->fw_id], NULL);
 
 	iwl_mld_cancel_notifications_of_object(mld, IWL_MLD_OBJECT_TYPE_VIF,
 					       mld_vif->fw_id);
-
-	return ret;
 }
 
 void iwl_mld_set_vif_associated(struct iwl_mld *mld,
@@ -508,6 +525,19 @@ void iwl_mld_handle_probe_resp_data_notif(struct iwl_mld *mld,
 		return;
 
 	mld_link = &iwl_mld_vif_from_mac80211(vif)->deflink;
+
+	/* len_low should be 2 + n*13 (where n is the number of descriptors.
+	 * 13 is the size of a NoA descriptor). We can have either one or two
+	 * descriptors.
+	 */
+	if (IWL_FW_CHECK(mld, notif->noa_active &&
+			 notif->noa_attr.len_low != 2 +
+			 sizeof(struct ieee80211_p2p_noa_desc) &&
+			 notif->noa_attr.len_low != 2 +
+			 sizeof(struct ieee80211_p2p_noa_desc) * 2,
+			 "Invalid noa_attr.len_low (%d)\n",
+			 notif->noa_attr.len_low))
+		return;
 
 	new_data = kzalloc(sizeof(*new_data), GFP_KERNEL);
 	if (!new_data)

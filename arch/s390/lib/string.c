@@ -27,7 +27,7 @@ static inline char *__strend(const char *s)
 	asm volatile(
 		"	lghi	0,0\n"
 		"0:	srst	%[e],%[s]\n"
-		"	jo	0b\n"
+		"	jo	0b"
 		: [e] "+&a" (e), [s] "+&a" (s)
 		:
 		: "cc", "memory", "0");
@@ -41,7 +41,7 @@ static inline char *__strnend(const char *s, size_t n)
 	asm volatile(
 		"	lghi	0,0\n"
 		"0:	srst	%[p],%[s]\n"
-		"	jo	0b\n"
+		"	jo	0b"
 		: [p] "+&d" (p), [s] "+&a" (s)
 		:
 		: "cc", "memory", "0");
@@ -78,50 +78,6 @@ EXPORT_SYMBOL(strnlen);
 #endif
 
 /**
- * strcpy - Copy a %NUL terminated string
- * @dest: Where to copy the string to
- * @src: Where to copy the string from
- *
- * returns a pointer to @dest
- */
-#ifdef __HAVE_ARCH_STRCPY
-char *strcpy(char *dest, const char *src)
-{
-	char *ret = dest;
-
-	asm volatile(
-		"	lghi	0,0\n"
-		"0:	mvst	%[dest],%[src]\n"
-		"	jo	0b\n"
-		: [dest] "+&a" (dest), [src] "+&a" (src)
-		:
-		: "cc", "memory", "0");
-	return ret;
-}
-EXPORT_SYMBOL(strcpy);
-#endif
-
-/**
- * strncpy - Copy a length-limited, %NUL-terminated string
- * @dest: Where to copy the string to
- * @src: Where to copy the string from
- * @n: The maximum number of bytes to copy
- *
- * The result is not %NUL-terminated if the source exceeds
- * @n bytes.
- */
-#ifdef __HAVE_ARCH_STRNCPY
-char *strncpy(char *dest, const char *src, size_t n)
-{
-	size_t len = __strnend(src, n) - src;
-	memset(dest + len, 0, n - len);
-	memcpy(dest, src, len);
-	return dest;
-}
-EXPORT_SYMBOL(strncpy);
-#endif
-
-/**
  * strcat - Append one %NUL-terminated string to another
  * @dest: The string to be appended to
  * @src: The string to append to it
@@ -139,7 +95,7 @@ char *strcat(char *dest, const char *src)
 		"0:	srst	%[dummy],%[dest]\n"
 		"	jo	0b\n"
 		"1:	mvst	%[dummy],%[src]\n"
-		"	jo	1b\n"
+		"	jo	1b"
 		: [dummy] "+&a" (dummy), [dest] "+&a" (dest), [src] "+&a" (src)
 		:
 		: "cc", "memory", "0");
@@ -181,9 +137,6 @@ EXPORT_SYMBOL(strlcat);
  * @n: The maximum numbers of bytes to copy
  *
  * returns a pointer to @dest
- *
- * Note that in contrast to strncpy, strncat ensures the result is
- * terminated.
  */
 #ifdef __HAVE_ARCH_STRNCAT
 char *strncat(char *dest, const char *src, size_t n)
@@ -338,7 +291,7 @@ void *memscan(void *s, int c, size_t n)
 	asm volatile(
 		"	lgr	0,%[c]\n"
 		"0:	srst	%[ret],%[s]\n"
-		"	jo	0b\n"
+		"	jo	0b"
 		: [ret] "+&a" (ret), [s] "+&a" (s)
 		: [c] "d" (c)
 		: "cc", "memory", "0");

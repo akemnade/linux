@@ -64,10 +64,10 @@ static const struct mgb4_i2c_kv gmsl_i2c[] = {
 static const struct v4l2_dv_timings_cap video_timings_cap = {
 	.type = V4L2_DV_BT_656_1120,
 	.bt = {
-		.min_width = 320,
+		.min_width = 240,
 		.max_width = 4096,
 		.min_height = 240,
-		.max_height = 2160,
+		.max_height = 4096,
 		.min_pixelclock = 1843200, /* 320 x 240 x 24Hz */
 		.max_pixelclock = 530841600, /* 4096 x 2160 x 60Hz */
 		.standards = V4L2_DV_BT_STD_CEA861 | V4L2_DV_BT_STD_DMT |
@@ -610,8 +610,7 @@ static int vidioc_s_dv_timings(struct file *file, void *fh,
 	    timings->bt.height < video_timings_cap.bt.min_height ||
 	    timings->bt.height > video_timings_cap.bt.max_height)
 		return -EINVAL;
-	if (timings->bt.width == vindev->timings.bt.width &&
-	    timings->bt.height == vindev->timings.bt.height)
+	if (v4l2_match_dv_timings(timings, &vindev->timings, 0, false))
 		return 0;
 	if (vb2_is_busy(&vindev->queue))
 		return -EBUSY;
@@ -641,7 +640,14 @@ static int vidioc_query_dv_timings(struct file *file, void *fh,
 static int vidioc_enum_dv_timings(struct file *file, void *fh,
 				  struct v4l2_enum_dv_timings *timings)
 {
-	return v4l2_enum_dv_timings_cap(timings, &video_timings_cap, NULL, NULL);
+	struct mgb4_vin_dev *vindev = video_drvdata(file);
+
+	if (timings->index != 0)
+		return -EINVAL;
+	if (get_timings(vindev, &timings->timings) < 0)
+		return -ENODATA;
+
+	return 0;
 }
 
 static int vidioc_dv_timings_cap(struct file *file, void *fh,
@@ -749,14 +755,14 @@ static void signal_change(struct work_struct *work)
 	u32 width = resolution >> 16;
 	u32 height = resolution & 0xFFFF;
 
+	static const struct v4l2_event ev = {
+		.type = V4L2_EVENT_SOURCE_CHANGE,
+		.u.src_change.changes = V4L2_EVENT_SRC_CH_RESOLUTION,
+	};
+
+	v4l2_event_queue(&vindev->vdev, &ev);
+
 	if (timings->width != width || timings->height != height) {
-		static const struct v4l2_event ev = {
-			.type = V4L2_EVENT_SOURCE_CHANGE,
-			.u.src_change.changes = V4L2_EVENT_SRC_CH_RESOLUTION,
-		};
-
-		v4l2_event_queue(&vindev->vdev, &ev);
-
 		if (vb2_is_streaming(&vindev->queue))
 			vb2_queue_error(&vindev->queue);
 	}

@@ -4439,6 +4439,8 @@ out:
 		txq_pcpu->count += frags;
 		aggr_txq->count += frags;
 
+		skb_tx_timestamp(skb);
+
 		/* Enable transmit */
 		wmb();
 		mvpp2_aggr_txq_pend_desc_add(port, frags);
@@ -5173,38 +5175,40 @@ mvpp2_get_stats64(struct net_device *dev, struct rtnl_link_stats64 *stats)
 	stats->tx_dropped	= dev->stats.tx_dropped;
 }
 
-static int mvpp2_set_ts_config(struct mvpp2_port *port, struct ifreq *ifr)
+static int mvpp2_hwtstamp_set(struct net_device *dev,
+			      struct kernel_hwtstamp_config *config,
+			      struct netlink_ext_ack *extack)
 {
-	struct hwtstamp_config config;
+	struct mvpp2_port *port = netdev_priv(dev);
 	void __iomem *ptp;
 	u32 gcr, int_mask;
 
-	if (copy_from_user(&config, ifr->ifr_data, sizeof(config)))
-		return -EFAULT;
+	if (!port->hwtstamp)
+		return -EOPNOTSUPP;
 
-	if (config.tx_type != HWTSTAMP_TX_OFF &&
-	    config.tx_type != HWTSTAMP_TX_ON)
+	if (config->tx_type != HWTSTAMP_TX_OFF &&
+	    config->tx_type != HWTSTAMP_TX_ON)
 		return -ERANGE;
 
 	ptp = port->priv->iface_base + MVPP22_PTP_BASE(port->gop_id);
 
 	int_mask = gcr = 0;
-	if (config.tx_type != HWTSTAMP_TX_OFF) {
+	if (config->tx_type != HWTSTAMP_TX_OFF) {
 		gcr |= MVPP22_PTP_GCR_TSU_ENABLE | MVPP22_PTP_GCR_TX_RESET;
 		int_mask |= MVPP22_PTP_INT_MASK_QUEUE1 |
 			    MVPP22_PTP_INT_MASK_QUEUE0;
 	}
 
 	/* It seems we must also release the TX reset when enabling the TSU */
-	if (config.rx_filter != HWTSTAMP_FILTER_NONE)
+	if (config->rx_filter != HWTSTAMP_FILTER_NONE)
 		gcr |= MVPP22_PTP_GCR_TSU_ENABLE | MVPP22_PTP_GCR_RX_RESET |
 		       MVPP22_PTP_GCR_TX_RESET;
 
 	if (gcr & MVPP22_PTP_GCR_TSU_ENABLE)
 		mvpp22_tai_start(port->priv->tai);
 
-	if (config.rx_filter != HWTSTAMP_FILTER_NONE) {
-		config.rx_filter = HWTSTAMP_FILTER_ALL;
+	if (config->rx_filter != HWTSTAMP_FILTER_NONE) {
+		config->rx_filter = HWTSTAMP_FILTER_ALL;
 		mvpp2_modify(ptp + MVPP22_PTP_GCR,
 			     MVPP22_PTP_GCR_RX_RESET |
 			     MVPP22_PTP_GCR_TX_RESET |
@@ -5225,26 +5229,22 @@ static int mvpp2_set_ts_config(struct mvpp2_port *port, struct ifreq *ifr)
 	if (!(gcr & MVPP22_PTP_GCR_TSU_ENABLE))
 		mvpp22_tai_stop(port->priv->tai);
 
-	port->tx_hwtstamp_type = config.tx_type;
-
-	if (copy_to_user(ifr->ifr_data, &config, sizeof(config)))
-		return -EFAULT;
+	port->tx_hwtstamp_type = config->tx_type;
 
 	return 0;
 }
 
-static int mvpp2_get_ts_config(struct mvpp2_port *port, struct ifreq *ifr)
+static int mvpp2_hwtstamp_get(struct net_device *dev,
+			      struct kernel_hwtstamp_config *config)
 {
-	struct hwtstamp_config config;
+	struct mvpp2_port *port = netdev_priv(dev);
 
-	memset(&config, 0, sizeof(config));
+	if (!port->hwtstamp)
+		return -EOPNOTSUPP;
 
-	config.tx_type = port->tx_hwtstamp_type;
-	config.rx_filter = port->rx_hwtstamp ?
-		HWTSTAMP_FILTER_ALL : HWTSTAMP_FILTER_NONE;
-
-	if (copy_to_user(ifr->ifr_data, &config, sizeof(config)))
-		return -EFAULT;
+	config->tx_type = port->tx_hwtstamp_type;
+	config->rx_filter = port->rx_hwtstamp ? HWTSTAMP_FILTER_ALL :
+			    HWTSTAMP_FILTER_NONE;
 
 	return 0;
 }
@@ -5254,14 +5254,14 @@ static int mvpp2_ethtool_get_ts_info(struct net_device *dev,
 {
 	struct mvpp2_port *port = netdev_priv(dev);
 
+	ethtool_op_get_ts_info(dev, info);
 	if (!port->hwtstamp)
-		return -EOPNOTSUPP;
+		return 0;
 
 	info->phc_index = mvpp22_tai_ptp_clock_index(port->priv->tai);
-	info->so_timestamping = SOF_TIMESTAMPING_TX_SOFTWARE |
-				SOF_TIMESTAMPING_TX_HARDWARE |
-				SOF_TIMESTAMPING_RX_HARDWARE |
-				SOF_TIMESTAMPING_RAW_HARDWARE;
+	info->so_timestamping |= SOF_TIMESTAMPING_TX_HARDWARE |
+				 SOF_TIMESTAMPING_RX_HARDWARE |
+				 SOF_TIMESTAMPING_RAW_HARDWARE;
 	info->tx_types = BIT(HWTSTAMP_TX_OFF) |
 			 BIT(HWTSTAMP_TX_ON);
 	info->rx_filters = BIT(HWTSTAMP_FILTER_NONE) |
@@ -5273,18 +5273,6 @@ static int mvpp2_ethtool_get_ts_info(struct net_device *dev,
 static int mvpp2_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
 {
 	struct mvpp2_port *port = netdev_priv(dev);
-
-	switch (cmd) {
-	case SIOCSHWTSTAMP:
-		if (port->hwtstamp)
-			return mvpp2_set_ts_config(port, ifr);
-		break;
-
-	case SIOCGHWTSTAMP:
-		if (port->hwtstamp)
-			return mvpp2_get_ts_config(port, ifr);
-		break;
-	}
 
 	if (!port->phylink)
 		return -ENOTSUPP;
@@ -5592,6 +5580,13 @@ static int mvpp2_ethtool_set_link_ksettings(struct net_device *dev,
 	return phylink_ethtool_ksettings_set(port->phylink, cmd);
 }
 
+static u32 mvpp2_ethtool_get_rx_ring_count(struct net_device *dev)
+{
+	struct mvpp2_port *port = netdev_priv(dev);
+
+	return port->nrxqs;
+}
+
 static int mvpp2_ethtool_get_rxnfc(struct net_device *dev,
 				   struct ethtool_rxnfc *info, u32 *rules)
 {
@@ -5602,12 +5597,6 @@ static int mvpp2_ethtool_get_rxnfc(struct net_device *dev,
 		return -EOPNOTSUPP;
 
 	switch (info->cmd) {
-	case ETHTOOL_GRXFH:
-		ret = mvpp2_ethtool_rxfh_get(port, info);
-		break;
-	case ETHTOOL_GRXRINGS:
-		info->data = port->nrxqs;
-		break;
 	case ETHTOOL_GRXCLSRLCNT:
 		info->rule_cnt = port->n_rfs_rules;
 		break;
@@ -5642,9 +5631,6 @@ static int mvpp2_ethtool_set_rxnfc(struct net_device *dev,
 		return -EOPNOTSUPP;
 
 	switch (info->cmd) {
-	case ETHTOOL_SRXFH:
-		ret = mvpp2_ethtool_rxfh_set(port, info);
-		break;
 	case ETHTOOL_SRXCLSRLINS:
 		ret = mvpp2_ethtool_cls_rule_ins(port, info);
 		break;
@@ -5761,6 +5747,29 @@ static int mvpp2_ethtool_set_rxfh(struct net_device *dev,
 	return mvpp2_modify_rxfh_context(dev, NULL, rxfh, extack);
 }
 
+static int mvpp2_ethtool_get_rxfh_fields(struct net_device *dev,
+					 struct ethtool_rxfh_fields *info)
+{
+	struct mvpp2_port *port = netdev_priv(dev);
+
+	if (!mvpp22_rss_is_supported(port))
+		return -EOPNOTSUPP;
+
+	return mvpp2_ethtool_rxfh_get(port, info);
+}
+
+static int mvpp2_ethtool_set_rxfh_fields(struct net_device *dev,
+					 const struct ethtool_rxfh_fields *info,
+					 struct netlink_ext_ack *extack)
+{
+	struct mvpp2_port *port = netdev_priv(dev);
+
+	if (!mvpp22_rss_is_supported(port))
+		return -EOPNOTSUPP;
+
+	return mvpp2_ethtool_rxfh_set(port, info);
+}
+
 static int mvpp2_ethtool_get_eee(struct net_device *dev,
 				 struct ethtool_keee *eee)
 {
@@ -5799,6 +5808,8 @@ static const struct net_device_ops mvpp2_netdev_ops = {
 	.ndo_set_features	= mvpp2_set_features,
 	.ndo_bpf		= mvpp2_xdp,
 	.ndo_xdp_xmit		= mvpp2_xdp_xmit,
+	.ndo_hwtstamp_get	= mvpp2_hwtstamp_get,
+	.ndo_hwtstamp_set	= mvpp2_hwtstamp_set,
 };
 
 static const struct ethtool_ops mvpp2_eth_tool_ops = {
@@ -5820,11 +5831,14 @@ static const struct ethtool_ops mvpp2_eth_tool_ops = {
 	.set_pauseparam		= mvpp2_ethtool_set_pause_param,
 	.get_link_ksettings	= mvpp2_ethtool_get_link_ksettings,
 	.set_link_ksettings	= mvpp2_ethtool_set_link_ksettings,
+	.get_rx_ring_count	= mvpp2_ethtool_get_rx_ring_count,
 	.get_rxnfc		= mvpp2_ethtool_get_rxnfc,
 	.set_rxnfc		= mvpp2_ethtool_set_rxnfc,
 	.get_rxfh_indir_size	= mvpp2_ethtool_get_rxfh_indir_size,
 	.get_rxfh		= mvpp2_ethtool_get_rxfh,
 	.set_rxfh		= mvpp2_ethtool_set_rxfh,
+	.get_rxfh_fields	= mvpp2_ethtool_get_rxfh_fields,
+	.set_rxfh_fields	= mvpp2_ethtool_set_rxfh_fields,
 	.create_rxfh_context	= mvpp2_create_rxfh_context,
 	.modify_rxfh_context	= mvpp2_modify_rxfh_context,
 	.remove_rxfh_context	= mvpp2_remove_rxfh_context,
@@ -6215,6 +6229,12 @@ static struct mvpp2_port *mvpp2_pcs_gmac_to_port(struct phylink_pcs *pcs)
 	return container_of(pcs, struct mvpp2_port, pcs_gmac);
 }
 
+static unsigned int mvpp2_xjg_pcs_inband_caps(struct phylink_pcs *pcs,
+					      phy_interface_t interface)
+{
+	return LINK_INBAND_DISABLE;
+}
+
 static void mvpp2_xlg_pcs_get_state(struct phylink_pcs *pcs,
 				    unsigned int neg_mode,
 				    struct phylink_link_state *state)
@@ -6249,6 +6269,7 @@ static int mvpp2_xlg_pcs_config(struct phylink_pcs *pcs, unsigned int neg_mode,
 }
 
 static const struct phylink_pcs_ops mvpp2_phylink_xlg_pcs_ops = {
+	.pcs_inband_caps = mvpp2_xjg_pcs_inband_caps,
 	.pcs_get_state = mvpp2_xlg_pcs_get_state,
 	.pcs_config = mvpp2_xlg_pcs_config,
 };

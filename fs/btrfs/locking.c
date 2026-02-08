@@ -149,15 +149,15 @@ void btrfs_tree_read_lock_nested(struct extent_buffer *eb, enum btrfs_lock_nesti
 /*
  * Try-lock for read.
  *
- * Return 1 if the rwlock has been taken, 0 otherwise
+ * Return true if the rwlock has been taken, false otherwise
  */
-int btrfs_try_tree_read_lock(struct extent_buffer *eb)
+bool btrfs_try_tree_read_lock(struct extent_buffer *eb)
 {
 	if (down_read_trylock(&eb->lock)) {
 		trace_btrfs_try_tree_read_lock(eb);
-		return 1;
+		return true;
 	}
-	return 0;
+	return false;
 }
 
 /*
@@ -361,7 +361,7 @@ void btrfs_drew_read_lock(struct btrfs_drew_lock *lock)
 	atomic_inc(&lock->readers);
 
 	/*
-	 * Ensure the pending reader count is perceieved BEFORE this reader
+	 * Ensure the pending reader count is perceived BEFORE this reader
 	 * goes to sleep in case of active writers. This guarantees new writers
 	 * won't be allowed and that the current reader will be woken up when
 	 * the last active writer finishes its jobs.

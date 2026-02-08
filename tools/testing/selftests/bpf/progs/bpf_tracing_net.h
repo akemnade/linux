@@ -128,6 +128,7 @@
 #define sk_refcnt		__sk_common.skc_refcnt
 #define sk_state		__sk_common.skc_state
 #define sk_net			__sk_common.skc_net
+#define sk_rcv_saddr		__sk_common.skc_rcv_saddr
 #define sk_v6_daddr		__sk_common.skc_v6_daddr
 #define sk_v6_rcv_saddr		__sk_common.skc_v6_rcv_saddr
 #define sk_flags		__sk_common.skc_flags
@@ -144,6 +145,20 @@
 #define tw_v6_rcv_saddr		__tw_common.skc_v6_rcv_saddr
 
 #define tcp_jiffies32 ((__u32)bpf_jiffies64())
+
+#ifndef min
+#define min(a, b) ((a) < (b) ? (a) : (b))
+#endif
+#ifndef max
+#define max(a, b) ((a) > (b) ? (a) : (b))
+#endif
+
+static inline bool before(__u32 seq1, __u32 seq2)
+{
+	return (__s32)(seq1 - seq2) < 0;
+}
+
+#define after(seq2, seq1) before(seq1, seq2)
 
 static inline struct inet_connection_sock *inet_csk(const struct sock *sk)
 {

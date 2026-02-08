@@ -175,12 +175,12 @@ static void dw_mci_init_debugfs(struct dw_mci_slot *slot)
 	if (!root)
 		return;
 
-	debugfs_create_file("regs", S_IRUSR, root, host, &dw_mci_regs_fops);
-	debugfs_create_file("req", S_IRUSR, root, slot, &dw_mci_req_fops);
-	debugfs_create_u32("state", S_IRUSR, root, &host->state);
-	debugfs_create_xul("pending_events", S_IRUSR, root,
+	debugfs_create_file("regs", 0400, root, host, &dw_mci_regs_fops);
+	debugfs_create_file("req", 0400, root, slot, &dw_mci_req_fops);
+	debugfs_create_u32("state", 0400, root, &host->state);
+	debugfs_create_xul("pending_events", 0400, root,
 			   &host->pending_events);
-	debugfs_create_xul("completed_events", S_IRUSR, root,
+	debugfs_create_xul("completed_events", 0400, root,
 			   &host->completed_events);
 #ifdef CONFIG_FAULT_INJECTION
 	fault_create_debugfs_attr("fail_data_crc", root, &host->fail_data_crc);
@@ -3008,7 +3008,7 @@ static int dw_mci_init_slot(struct dw_mci *host)
 	struct dw_mci_slot *slot;
 	int ret;
 
-	mmc = mmc_alloc_host(sizeof(struct dw_mci_slot), host->dev);
+	mmc = devm_mmc_alloc_host(host->dev, sizeof(*slot));
 	if (!mmc)
 		return -ENOMEM;
 
@@ -3024,18 +3024,18 @@ static int dw_mci_init_slot(struct dw_mci *host)
 	/*if there are external regulators, get them*/
 	ret = mmc_regulator_get_supply(mmc);
 	if (ret)
-		goto err_host_allocated;
+		return ret;
 
 	if (!mmc->ocr_avail)
 		mmc->ocr_avail = MMC_VDD_32_33 | MMC_VDD_33_34;
 
 	ret = mmc_of_parse(mmc);
 	if (ret)
-		goto err_host_allocated;
+		return ret;
 
 	ret = dw_mci_init_slot_caps(slot);
 	if (ret)
-		goto err_host_allocated;
+		return ret;
 
 	/* Useful defaults if platform data is unset. */
 	if (host->use_dma == TRANS_MODE_IDMAC) {
@@ -3065,17 +3065,13 @@ static int dw_mci_init_slot(struct dw_mci *host)
 
 	ret = mmc_add_host(mmc);
 	if (ret)
-		goto err_host_allocated;
+		return ret;
 
 #if defined(CONFIG_DEBUG_FS)
 	dw_mci_init_debugfs(slot);
 #endif
 
 	return 0;
-
-err_host_allocated:
-	mmc_free_host(mmc);
-	return ret;
 }
 
 static void dw_mci_cleanup_slot(struct dw_mci_slot *slot)
@@ -3083,7 +3079,6 @@ static void dw_mci_cleanup_slot(struct dw_mci_slot *slot)
 	/* Debugfs stuff is cleaned up by mmc core */
 	mmc_remove_host(slot->mmc);
 	slot->host->slot = NULL;
-	mmc_free_host(slot->mmc);
 }
 
 static void dw_mci_init_dma(struct dw_mci *host)
@@ -3125,9 +3120,8 @@ static void dw_mci_init_dma(struct dw_mci *host)
 			host->dma_64bit_address = 1;
 			dev_info(host->dev,
 				 "IDMAC supports 64-bit address mode.\n");
-			if (!dma_set_mask(host->dev, DMA_BIT_MASK(64)))
-				dma_set_coherent_mask(host->dev,
-						      DMA_BIT_MASK(64));
+			if (dma_set_mask_and_coherent(host->dev, DMA_BIT_MASK(64)))
+				dev_info(host->dev, "Fail to set 64-bit DMA mask");
 		} else {
 			/* host supports IDMAC in 32-bit address mode */
 			host->dma_64bit_address = 0;
@@ -3179,7 +3173,7 @@ no_dma:
 
 static void dw_mci_cmd11_timer(struct timer_list *t)
 {
-	struct dw_mci *host = from_timer(host, t, cmd11_timer);
+	struct dw_mci *host = timer_container_of(host, t, cmd11_timer);
 
 	if (host->state != STATE_SENDING_CMD11) {
 		dev_warn(host->dev, "Unexpected CMD11 timeout\n");
@@ -3193,7 +3187,7 @@ static void dw_mci_cmd11_timer(struct timer_list *t)
 
 static void dw_mci_cto_timer(struct timer_list *t)
 {
-	struct dw_mci *host = from_timer(host, t, cto_timer);
+	struct dw_mci *host = timer_container_of(host, t, cto_timer);
 	unsigned long irqflags;
 	u32 pending;
 
@@ -3248,7 +3242,7 @@ exit:
 
 static void dw_mci_dto_timer(struct timer_list *t)
 {
-	struct dw_mci *host = from_timer(host, t, dto_timer);
+	struct dw_mci *host = timer_container_of(host, t, dto_timer);
 	unsigned long irqflags;
 	u32 pending;
 
@@ -3622,7 +3616,7 @@ int dw_mci_runtime_suspend(struct device *dev)
 	clk_disable_unprepare(host->ciu_clk);
 
 	if (host->slot &&
-	    (mmc_can_gpio_cd(host->slot->mmc) ||
+	    (mmc_host_can_gpio_cd(host->slot->mmc) ||
 	     !mmc_card_is_removable(host->slot->mmc)))
 		clk_disable_unprepare(host->biu_clk);
 
@@ -3636,7 +3630,7 @@ int dw_mci_runtime_resume(struct device *dev)
 	struct dw_mci *host = dev_get_drvdata(dev);
 
 	if (host->slot &&
-	    (mmc_can_gpio_cd(host->slot->mmc) ||
+	    (mmc_host_can_gpio_cd(host->slot->mmc) ||
 	     !mmc_card_is_removable(host->slot->mmc))) {
 		ret = clk_prepare_enable(host->biu_clk);
 		if (ret)
@@ -3690,7 +3684,7 @@ int dw_mci_runtime_resume(struct device *dev)
 
 err:
 	if (host->slot &&
-	    (mmc_can_gpio_cd(host->slot->mmc) ||
+	    (mmc_host_can_gpio_cd(host->slot->mmc) ||
 	     !mmc_card_is_removable(host->slot->mmc)))
 		clk_disable_unprepare(host->biu_clk);
 

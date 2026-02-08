@@ -209,7 +209,6 @@
 			/* U12 */
 			cp0_module_expander1: pca9555@21 {
 				compatible = "nxp,pca9555";
-				pinctrl-names = "default";
 				gpio-controller;
 				#gpio-cells = <2>;
 				reg = <0x21>;
@@ -380,7 +379,7 @@
 				       "mpp27";
 			marvell,function = "dev";
 		};
-		nand_rb: nand-rb {
+		nand_rb: nand-rb-pins {
 			marvell,pins = "mpp13";
 			marvell,function = "nf";
 		};

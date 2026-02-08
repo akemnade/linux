@@ -12,10 +12,6 @@
 #include <linux/lz4.h>
 #include <crypto/internal/scompress.h>
 
-struct lz4_ctx {
-	void *lz4_comp_mem;
-};
-
 static void *lz4_alloc_ctx(void)
 {
 	void *ctx;
@@ -72,8 +68,10 @@ static int lz4_sdecompress(struct crypto_scomp *tfm, const u8 *src,
 }
 
 static struct scomp_alg scomp = {
-	.alloc_ctx		= lz4_alloc_ctx,
-	.free_ctx		= lz4_free_ctx,
+	.streams		= {
+		.alloc_ctx	= lz4_alloc_ctx,
+		.free_ctx	= lz4_free_ctx,
+	},
 	.compress		= lz4_scompress,
 	.decompress		= lz4_sdecompress,
 	.base			= {
@@ -93,7 +91,7 @@ static void __exit lz4_mod_fini(void)
 	crypto_unregister_scomp(&scomp);
 }
 
-subsys_initcall(lz4_mod_init);
+module_init(lz4_mod_init);
 module_exit(lz4_mod_fini);
 
 MODULE_LICENSE("GPL");

@@ -1406,6 +1406,15 @@ void run_posix_cpu_timers(void)
 	lockdep_assert_irqs_disabled();
 
 	/*
+	 * Ensure that release_task(tsk) can't happen while
+	 * handle_posix_cpu_timers() is running. Otherwise, a concurrent
+	 * posix_cpu_timer_del() may fail to lock_task_sighand(tsk) and
+	 * miss timer->it.cpu.firing != 0.
+	 */
+	if (tsk->exit_state)
+		return;
+
+	/*
 	 * If the actual expiry is deferred to task work context and the
 	 * work is already scheduled there is no point to do anything here.
 	 */
@@ -1548,7 +1557,7 @@ static int do_cpu_nanosleep(const clockid_t which_clock, int flags,
 		 * Report back to the user the time still remaining.
 		 */
 		restart = &current->restart_block;
-		restart->nanosleep.expires = expires;
+		restart->nanosleep.expires = ns_to_ktime(expires);
 		if (restart->nanosleep.type != TT_NONE)
 			error = nanosleep_copyout(restart, &it.it_value);
 	}
@@ -1590,7 +1599,7 @@ static long posix_cpu_nsleep_restart(struct restart_block *restart_block)
 	clockid_t which_clock = restart_block->nanosleep.clockid;
 	struct timespec64 t;
 
-	t = ns_to_timespec64(restart_block->nanosleep.expires);
+	t = ktime_to_timespec64(restart_block->nanosleep.expires);
 
 	return do_cpu_nanosleep(which_clock, TIMER_ABSTIME, &t);
 }

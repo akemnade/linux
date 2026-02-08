@@ -1077,13 +1077,12 @@ static int smk_open_net4addr(struct inode *inode, struct file *file)
 }
 
 /**
- * smk_net4addr_insert
+ * smk_net4addr_insert - insert a new entry into the net4addrs list
  * @new : netlabel to insert
  *
- * This helper insert netlabel in the smack_net4addrs list
+ * This helper inserts netlabel in the smack_net4addrs list
  * sorted by netmask length (longest to smallest)
- * locked by &smk_net4addr_lock in smk_write_net4addr
- *
+ * locked by &smk_net4addr_lock in smk_write_net4addr.
  */
 static void smk_net4addr_insert(struct smk_net4addr *new)
 {
@@ -1340,13 +1339,12 @@ static int smk_open_net6addr(struct inode *inode, struct file *file)
 }
 
 /**
- * smk_net6addr_insert
+ * smk_net6addr_insert - insert a new entry into the net6addrs list
  * @new : entry to insert
  *
  * This inserts an entry in the smack_net6addrs list
  * sorted by netmask length (longest to smallest)
- * locked by &smk_net6addr_lock in smk_write_net6addr
- *
+ * locked by &smk_net6addr_lock in smk_write_net6addr.
  */
 static void smk_net6addr_insert(struct smk_net6addr *new)
 {
@@ -2962,7 +2960,7 @@ static int smk_init_fs_context(struct fs_context *fc)
 static struct file_system_type smk_fs_type = {
 	.name		= "smackfs",
 	.init_fs_context = smk_init_fs_context,
-	.kill_sb	= kill_litter_super,
+	.kill_sb	= kill_anon_super,
 };
 
 static struct vfsmount *smackfs_mount;
@@ -2980,7 +2978,7 @@ static struct vfsmount *smackfs_mount;
  * Returns true if we were not chosen on boot or if
  * we were chosen and filesystem registration succeeded.
  */
-static int __init init_smk_fs(void)
+int __init init_smk_fs(void)
 {
 	int err;
 	int rc;
@@ -3023,5 +3021,3 @@ static int __init init_smk_fs(void)
 
 	return err;
 }
-
-__initcall(init_smk_fs);

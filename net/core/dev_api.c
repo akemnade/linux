@@ -84,14 +84,15 @@ void dev_set_group(struct net_device *dev, int new_group)
 	netdev_unlock_ops(dev);
 }
 
-int dev_set_mac_address_user(struct net_device *dev, struct sockaddr *sa,
+int dev_set_mac_address_user(struct net_device *dev,
+			     struct sockaddr_storage *ss,
 			     struct netlink_ext_ack *extack)
 {
 	int ret;
 
 	down_write(&dev_addr_sem);
 	netdev_lock_ops(dev);
-	ret = netif_set_mac_address(dev, sa, extack);
+	ret = netif_set_mac_address(dev, ss, extack);
 	netdev_unlock_ops(dev);
 	up_write(&dev_addr_sem);
 
@@ -319,20 +320,20 @@ EXPORT_SYMBOL(dev_set_allmulti);
 /**
  * dev_set_mac_address() - change Media Access Control Address
  * @dev: device
- * @sa: new address
+ * @ss: new address
  * @extack: netlink extended ack
  *
  * Change the hardware (MAC) address of the device
  *
  * Return: 0 on success, -errno on failure.
  */
-int dev_set_mac_address(struct net_device *dev, struct sockaddr *sa,
+int dev_set_mac_address(struct net_device *dev, struct sockaddr_storage *ss,
 			struct netlink_ext_ack *extack)
 {
 	int ret;
 
 	netdev_lock_ops(dev);
-	ret = netif_set_mac_address(dev, sa, extack);
+	ret = netif_set_mac_address(dev, ss, extack);
 	netdev_unlock_ops(dev);
 
 	return ret;
@@ -366,3 +367,16 @@ void netdev_state_change(struct net_device *dev)
 	netdev_unlock_ops(dev);
 }
 EXPORT_SYMBOL(netdev_state_change);
+
+int dev_set_threaded(struct net_device *dev,
+		     enum netdev_napi_threaded threaded)
+{
+	int ret;
+
+	netdev_lock(dev);
+	ret = netif_set_threaded(dev, threaded);
+	netdev_unlock(dev);
+
+	return ret;
+}
+EXPORT_SYMBOL(dev_set_threaded);

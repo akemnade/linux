@@ -25,7 +25,7 @@ extern __always_inline unsigned long native_save_fl(void)
 	 */
 	asm volatile("# __raw_save_flags\n\t"
 		     "pushf ; pop %0"
-		     : "=rm" (flags)
+		     : ASM_OUTPUT_RM (flags)
 		     : /* no input */
 		     : "memory");
 
@@ -44,13 +44,13 @@ static __always_inline void native_irq_enable(void)
 
 static __always_inline void native_safe_halt(void)
 {
-	mds_idle_clear_cpu_buffers();
+	x86_idle_clear_cpu_buffers();
 	asm volatile("sti; hlt": : :"memory");
 }
 
 static __always_inline void native_halt(void)
 {
-	mds_idle_clear_cpu_buffers();
+	x86_idle_clear_cpu_buffers();
 	asm volatile("hlt": : :"memory");
 }
 

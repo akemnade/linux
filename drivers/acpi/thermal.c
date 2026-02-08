@@ -803,6 +803,12 @@ static int acpi_thermal_add(struct acpi_device *device)
 
 	acpi_thermal_aml_dependency_fix(tz);
 
+	/*
+	 * Set the cooling mode [_SCP] to active cooling. This needs to happen before
+	 * we retrieve the trip point values.
+	 */
+	acpi_execute_simple_method(tz->device->handle, "_SCP", ACPI_THERMAL_MODE_ACTIVE);
+
 	/* Get trip points [_ACi, _PSV, etc.] (required). */
 	acpi_thermal_get_trip_points(tz);
 
@@ -813,10 +819,6 @@ static int acpi_thermal_add(struct acpi_device *device)
 	result = acpi_thermal_get_temperature(tz);
 	if (result)
 		goto free_memory;
-
-	/* Set the cooling mode [_SCP] to active cooling. */
-	acpi_execute_simple_method(tz->device->handle, "_SCP",
-				   ACPI_THERMAL_MODE_ACTIVE);
 
 	/* Determine the default polling frequency [_TZP]. */
 	if (tzp)
@@ -922,7 +924,7 @@ static int acpi_thermal_suspend(struct device *dev)
 static int acpi_thermal_resume(struct device *dev)
 {
 	struct acpi_thermal *tz;
-	int i, j, power_state;
+	int i, j;
 
 	if (!dev)
 		return -EINVAL;
@@ -937,10 +939,8 @@ static int acpi_thermal_resume(struct device *dev)
 		if (!acpi_thermal_trip_valid(acpi_trip))
 			break;
 
-		for (j = 0; j < acpi_trip->devices.count; j++) {
-			acpi_bus_update_power(acpi_trip->devices.handles[j],
-					      &power_state);
-		}
+		for (j = 0; j < acpi_trip->devices.count; j++)
+			acpi_bus_update_power(acpi_trip->devices.handles[j], NULL);
 	}
 
 	acpi_queue_thermal_check(tz);
@@ -1060,7 +1060,8 @@ static int __init acpi_thermal_init(void)
 	}
 
 	acpi_thermal_pm_queue = alloc_workqueue("acpi_thermal_pm",
-						WQ_HIGHPRI | WQ_MEM_RECLAIM, 0);
+						WQ_HIGHPRI | WQ_MEM_RECLAIM | WQ_PERCPU,
+						0);
 	if (!acpi_thermal_pm_queue)
 		return -ENODEV;
 

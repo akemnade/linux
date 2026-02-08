@@ -11,7 +11,7 @@
 #include <linux/of_address.h>
 #include <linux/of_platform.h>
 
-#include "irq-msi-lib.h"
+#include <linux/irqchip/irq-msi-lib.h>
 
 #define MIP_INT_RAISE		0x00
 #define MIP_INT_CLEAR		0x10
@@ -172,17 +172,17 @@ static const struct msi_parent_ops mip_msi_parent_ops = {
 
 static int mip_init_domains(struct mip_priv *mip, struct device_node *np)
 {
-	struct irq_domain *middle;
+	struct irq_domain_info info = {
+		.fwnode		= of_fwnode_handle(np),
+		.ops		= &mip_middle_domain_ops,
+		.host_data	= mip,
+		.size		= mip->num_msis,
+		.parent		= mip->parent,
+		.dev		= mip->dev,
+	};
 
-	middle = irq_domain_add_hierarchy(mip->parent, 0, mip->num_msis, np,
-					  &mip_middle_domain_ops, mip);
-	if (!middle)
+	if (!msi_create_parent_irq_domain(&info, &mip_msi_parent_ops))
 		return -ENOMEM;
-
-	irq_domain_update_bus_token(middle, DOMAIN_BUS_GENERIC_MSI);
-	middle->dev = mip->dev;
-	middle->flags |= IRQ_DOMAIN_FLAG_MSI_PARENT;
-	middle->msi_parent_ops = &mip_msi_parent_ops;
 
 	/*
 	 * All MSI-X unmasked for the host, masked for the VPU, and edge-triggered.
@@ -232,16 +232,11 @@ err_put:
 	return ret;
 }
 
-static int __init mip_of_msi_init(struct device_node *node, struct device_node *parent)
+static int mip_msi_probe(struct platform_device *pdev, struct device_node *parent)
 {
-	struct platform_device *pdev;
+	struct device_node *node = pdev->dev.of_node;
 	struct mip_priv *mip;
 	int ret;
-
-	pdev = of_find_device_by_node(node);
-	of_node_put(node);
-	if (!pdev)
-		return -EPROBE_DEFER;
 
 	mip = kzalloc(sizeof(*mip), GFP_KERNEL);
 	if (!mip)
@@ -285,7 +280,7 @@ err_priv:
 }
 
 IRQCHIP_PLATFORM_DRIVER_BEGIN(mip_msi)
-IRQCHIP_MATCH("brcm,bcm2712-mip", mip_of_msi_init)
+IRQCHIP_MATCH("brcm,bcm2712-mip", mip_msi_probe)
 IRQCHIP_PLATFORM_DRIVER_END(mip_msi)
 MODULE_DESCRIPTION("Broadcom BCM2712 MSI-X interrupt controller");
 MODULE_AUTHOR("Phil Elwell <phil@raspberrypi.com>");

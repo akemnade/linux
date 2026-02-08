@@ -17,6 +17,7 @@ properties:
   compatible:
     enum:
       - airoha,en7581-eth
+      - airoha,an7583-eth
 
   reg:
     items:
@@ -44,6 +45,7 @@ properties:
       - description: PDMA irq
 
   resets:
+    minItems: 7
     maxItems: 8
 
   reset-names:
@@ -54,8 +56,19 @@ properties:
       - const: xsi-mac
       - const: hsi0-mac
       - const: hsi1-mac
-      - const: hsi-mac
+      - enum: [ hsi-mac, xfp-mac ]
       - const: xfp-mac
+    minItems: 7
+
+  memory-region:
+    items:
+      - description: QDMA0 buffer memory
+      - description: QDMA1 buffer memory
+
+  memory-region-names:
+    items:
+      - const: qdma0-buf
+      - const: qdma1-buf
 
   "#address-cells":
     const: 1
@@ -70,6 +83,36 @@ properties:
       The Airoha Network Processor Unit (NPU) provides a configuration
       interface to implement hardware flow offloading programming Packet
       Processor Engine (PPE) flow table.
+
+allOf:
+  - $ref: ethernet-controller.yaml#
+  - if:
+      properties:
+        compatible:
+          contains:
+            enum:
+              - airoha,en7581-eth
+    then:
+      properties:
+        resets:
+          minItems: 8
+
+        reset-names:
+          minItems: 8
+
+  - if:
+      properties:
+        compatible:
+          contains:
+            enum:
+              - airoha,an7583-eth
+    then:
+      properties:
+        resets:
+          maxItems: 7
+
+        reset-names:
+          maxItems: 7
 
 patternProperties:
   "^ethernet@[1-4]$":
@@ -139,6 +182,9 @@ examples:
                      <GIC_SPI 60 IRQ_TYPE_LEVEL_HIGH>,
                      <GIC_SPI 49 IRQ_TYPE_LEVEL_HIGH>,
                      <GIC_SPI 64 IRQ_TYPE_LEVEL_HIGH>;
+
+        memory-region = <&qdma0_buf>, <&qdma1_buf>;
+        memory-region-names = "qdma0-buf", "qdma1-buf";
 
         airoha,npu = <&npu>;
 

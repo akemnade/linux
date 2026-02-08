@@ -17,8 +17,6 @@
 #include <linux/uaccess.h>
 #include <linux/vmalloc.h>
 
-#include <asm/msr.h>
-
 /* make sure there is space for all the signed info */
 static_assert(sizeof(struct cpucp_info) <= SEC_DEV_INFO_BUF_SZ);
 
@@ -961,6 +959,12 @@ static int send_fw_generic_request(struct hl_device *hdev, struct hl_info_args *
 
 	switch (info_args->fw_sub_opcode) {
 	case HL_PASSTHROUGH_VERSIONS:
+		need_input_buff = false;
+		break;
+	case  HL_GET_ERR_COUNTERS_CMD:
+		need_input_buff = true;
+		break;
+	case HL_GET_P_STATE:
 		need_input_buff = false;
 		break;
 	default:

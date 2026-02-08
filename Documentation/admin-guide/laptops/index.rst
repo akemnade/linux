@@ -7,6 +7,7 @@ Laptop Drivers
 .. toctree::
    :maxdepth: 1
 
+   alienware-wmi
    asus-laptop
    disk-shock-protection
    laptop-mode
@@ -16,3 +17,4 @@ Laptop Drivers
    sonypi
    thinkpad-acpi
    toshiba_haps
+   uniwill-laptop

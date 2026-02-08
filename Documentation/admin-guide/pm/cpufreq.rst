@@ -231,7 +231,7 @@ are the following:
 	present).
 
 	The existence of the limit may be a result of some (often unintentional)
-	BIOS settings, restrictions coming from a service processor or another
+	BIOS settings, restrictions coming from a service processor or other
 	BIOS/HW-based mechanisms.
 
 	This does not cover ACPI thermal limitations which can be discovered
@@ -258,8 +258,8 @@ are the following:
         extension on ARM). If one cannot be determined, this attribute should
         not be present.
 
-        Note, that failed attempt to retrieve current frequency for a given
-        CPU(s) will result in an appropriate error, i.e: EAGAIN for CPU that
+        Note that failed attempt to retrieve current frequency for a given
+        CPU(s) will result in an appropriate error, i.e.: EAGAIN for CPU that
         remains idle (raised on ARM).
 
 ``cpuinfo_max_freq``
@@ -273,10 +273,6 @@ are the following:
 ``cpuinfo_transition_latency``
 	The time it takes to switch the CPUs belonging to this policy from one
 	P-state to another, in nanoseconds.
-
-	If unknown or if known to be so high that the scaling driver does not
-	work with the `ondemand`_ governor, -1 (:c:macro:`CPUFREQ_ETERNAL`)
-	will be returned by reads from this attribute.
 
 ``related_cpus``
 	List of all (online and offline) CPUs belonging to this policy.
@@ -398,7 +394,9 @@ policy limits change after that.
 
 This governor does not do anything by itself.  Instead, it allows user space
 to set the CPU frequency for the policy it is attached to by writing to the
-``scaling_setspeed`` attribute of that policy.
+``scaling_setspeed`` attribute of that policy. Though the intention may be to
+set an exact frequency for the policy, the actual frequency may vary depending
+on hardware coordination, thermal and power limits, and other factors.
 
 ``schedutil``
 -------------
@@ -499,7 +497,7 @@ This governor exposes the following tunables:
 	represented by it to be 1.5 times as high as the transition latency
 	(the default)::
 
-	# echo `$(($(cat cpuinfo_transition_latency) * 3 / 2)) > ondemand/sampling_rate
+	# echo `$(($(cat cpuinfo_transition_latency) * 3 / 2))` > ondemand/sampling_rate
 
 ``up_threshold``
 	If the estimated CPU load is above this value (in percent), the governor

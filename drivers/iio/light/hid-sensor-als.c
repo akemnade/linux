@@ -262,8 +262,9 @@ static int als_proc_event(struct hid_sensor_hub_device *hsdev,
 		if (!als_state->timestamp)
 			als_state->timestamp = iio_get_time_ns(indio_dev);
 
-		iio_push_to_buffers_with_timestamp(indio_dev, &als_state->scan,
-						   als_state->timestamp);
+		iio_push_to_buffers_with_ts(indio_dev, &als_state->scan,
+					    sizeof(als_state->scan),
+					    als_state->timestamp);
 		als_state->timestamp = 0;
 	}
 
@@ -456,7 +457,7 @@ static const struct platform_device_id hid_als_ids[] = {
 		/* Format: HID-SENSOR-custom_sensor_tag-usage_id_in_hex_lowercase */
 		.name = "HID-SENSOR-LISS-0041",
 	},
-	{ /* sentinel */ }
+	{ }
 };
 MODULE_DEVICE_TABLE(platform, hid_als_ids);
 

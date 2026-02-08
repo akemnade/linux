@@ -807,12 +807,13 @@ static void mtk_output_dsi_disable(struct mtk_dsi *dsi)
 }
 
 static int mtk_dsi_bridge_attach(struct drm_bridge *bridge,
+				 struct drm_encoder *encoder,
 				 enum drm_bridge_attach_flags flags)
 {
 	struct mtk_dsi *dsi = bridge_to_dsi(bridge);
 
 	/* Attach the panel or bridge to the dsi bridge */
-	return drm_bridge_attach(bridge->encoder, dsi->next_bridge,
+	return drm_bridge_attach(encoder, dsi->next_bridge,
 				 &dsi->bridge, flags);
 }
 
@@ -1195,9 +1196,10 @@ static int mtk_dsi_probe(struct platform_device *pdev)
 	int irq_num;
 	int ret;
 
-	dsi = devm_kzalloc(dev, sizeof(*dsi), GFP_KERNEL);
-	if (!dsi)
-		return -ENOMEM;
+	dsi = devm_drm_bridge_alloc(dev, struct mtk_dsi, bridge,
+				    &mtk_dsi_bridge_funcs);
+	if (IS_ERR(dsi))
+		return PTR_ERR(dsi);
 
 	dsi->driver_data = of_device_get_match_data(dev);
 
@@ -1245,7 +1247,6 @@ static int mtk_dsi_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, dsi);
 
-	dsi->bridge.funcs = &mtk_dsi_bridge_funcs;
 	dsi->bridge.of_node = dev->of_node;
 	dsi->bridge.type = DRM_MODE_CONNECTOR_DSI;
 

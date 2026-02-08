@@ -425,7 +425,7 @@ static void ibmvscsis_disconnect(struct work_struct *work)
 
 	/*
 	 * check which state we are in and see if we
-	 * should transitition to the new state
+	 * should transition to the new state
 	 */
 	switch (vscsi->state) {
 	/* Should never be called while in this state. */
@@ -3533,7 +3533,8 @@ static int ibmvscsis_probe(struct vio_dev *vdev,
 	init_completion(&vscsi->wait_idle);
 	init_completion(&vscsi->unconfig);
 
-	vscsi->work_q = alloc_workqueue("ibmvscsis%s", WQ_MEM_RECLAIM, 1,
+	vscsi->work_q = alloc_workqueue("ibmvscsis%s",
+					WQ_MEM_RECLAIM | WQ_PERCPU, 1,
 					dev_name(&vdev->dev));
 	if (!vscsi->work_q) {
 		rc = -ENOMEM;

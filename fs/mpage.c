@@ -148,7 +148,7 @@ struct mpage_readpage_args {
  * represent the validity of its disk mapping and to decide when to do the next
  * get_block() call.
  */
-static struct bio *do_mpage_readpage(struct mpage_readpage_args *args)
+static void do_mpage_readpage(struct mpage_readpage_args *args)
 {
 	struct folio *folio = args->folio;
 	struct inode *inode = folio->mapping->host;
@@ -305,7 +305,7 @@ alloc_new:
 	else
 		args->last_block_in_bio = first_block + blocks_per_folio - 1;
 out:
-	return args->bio;
+	return;
 
 confused:
 	if (args->bio)
@@ -368,7 +368,13 @@ void mpage_readahead(struct readahead_control *rac, get_block_t get_block)
 		prefetchw(&folio->flags);
 		args.folio = folio;
 		args.nr_pages = readahead_count(rac);
-		args.bio = do_mpage_readpage(&args);
+		do_mpage_readpage(&args);
+		/*
+		 * If read ahead failed synchronously, it may cause by removed
+		 * device, or some filesystem metadata error.
+		 */
+		if (!folio_test_locked(folio) && !folio_test_uptodate(folio))
+			break;
 	}
 	if (args.bio)
 		mpage_bio_submit_read(args.bio);
@@ -386,7 +392,7 @@ int mpage_read_folio(struct folio *folio, get_block_t get_block)
 		.get_block = get_block,
 	};
 
-	args.bio = do_mpage_readpage(&args);
+	do_mpage_readpage(&args);
 	if (args.bio)
 		mpage_bio_submit_read(args.bio);
 	return 0;
@@ -445,10 +451,9 @@ static void clean_buffers(struct folio *folio, unsigned first_unmapped)
 		try_to_free_buffers(folio);
 }
 
-static int __mpage_writepage(struct folio *folio, struct writeback_control *wbc,
-		      void *data)
+static int mpage_write_folio(struct writeback_control *wbc, struct folio *folio,
+		struct mpage_data *mpd)
 {
-	struct mpage_data *mpd = data;
 	struct bio *bio = mpd->bio;
 	struct address_space *mapping = folio->mapping;
 	struct inode *inode = mapping->host;
@@ -656,14 +661,16 @@ mpage_writepages(struct address_space *mapping,
 	struct mpage_data mpd = {
 		.get_block	= get_block,
 	};
+	struct folio *folio = NULL;
 	struct blk_plug plug;
-	int ret;
+	int error;
 
 	blk_start_plug(&plug);
-	ret = write_cache_pages(mapping, wbc, __mpage_writepage, &mpd);
+	while ((folio = writeback_iter(mapping, wbc, folio, &error)))
+		error = mpage_write_folio(wbc, folio, &mpd);
 	if (mpd.bio)
 		mpage_bio_submit_write(mpd.bio);
 	blk_finish_plug(&plug);
-	return ret;
+	return error;
 }
 EXPORT_SYMBOL(mpage_writepages);

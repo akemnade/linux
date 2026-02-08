@@ -55,6 +55,13 @@ config LEDS_BRIGHTNESS_HW_CHANGED
 
 	  See Documentation/ABI/testing/sysfs-class-led for details.
 
+config LEDS_KUNIT_TEST
+	tristate "KUnit tests for LEDs"
+	depends on KUNIT && LEDS_CLASS
+	default KUNIT_ALL_TESTS
+	help
+	  Say Y here to enable KUnit testing for the LEDs framework.
+
 comment "LED drivers"
 
 config LEDS_88PM860X
@@ -206,10 +213,6 @@ config LEDS_EL15203000
 
 	  To compile this driver as a module, choose M here: the module
 	  will be called leds-el15203000.
-
-config LEDS_EXPRESSWIRE
-	bool
-	depends on GPIOLIB
 
 config LEDS_TURRIS_OMNIA
 	tristate "LED support for CZ.NIC's Turris Omnia"
@@ -436,8 +439,8 @@ config LEDS_LP55XX_COMMON
 	depends on LEDS_CLASS_MULTICOLOR
 	depends on OF
 	depends on I2C
-	select FW_LOADER
-	select FW_LOADER_USER_HELPER
+	imply FW_LOADER
+	imply FW_LOADER_USER_HELPER
 	help
 	  This option supports common operations for LP5521/5523/55231/5562/5569/
 	  8501 devices.
@@ -667,7 +670,7 @@ config LEDS_BD2606MVV
 	help
 	  This option enables support for BD2606MVV LED driver chips
 	  accessed via the I2C bus. It supports setting brightness, with
-	  the limitiation that there are groups of two channels sharing
+	  the limitation that there are groups of two channels sharing
 	  a brightness setting, but not the on/off setting.
 
 	  To compile this driver as a module, choose M here: the module will
@@ -735,7 +738,7 @@ config LEDS_NS2
 	tristate "LED support for Network Space v2 GPIO LEDs"
 	depends on LEDS_CLASS
 	depends on MACH_KIRKWOOD || MACH_ARMADA_370 || COMPILE_TEST
-	default y
+	default y if MACH_KIRKWOOD || MACH_ARMADA_370
 	help
 	  This option enables support for the dual-GPIO LEDs found on the
 	  following LaCie/Seagate boards:
@@ -750,7 +753,7 @@ config LEDS_NETXBIG
 	depends on LEDS_CLASS
 	depends on MACH_KIRKWOOD || COMPILE_TEST
 	depends on OF_GPIO
-	default y
+	default MACH_KIRKWOOD
 	help
 	  This option enables support for LEDs found on the LaCie 2Big
 	  and 5Big Network v2 boards. The LEDs are wired to a CPLD and are
