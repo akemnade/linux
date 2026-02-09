@@ -1,0 +1,95 @@
+// SPDX-License-Identifier: (GPL-2.0)
+/*
+ * Device tree for the Kobo Clara HD Rev B ebook reader
+ *
+ * Name on mainboard is: 37NB-E60K00+4B0
+ * Serials start with: E60K02 (a number also seen in
+ * vendor kernel sources)
+ *
+ * Copyright 2024 Andreas Kemnade
+ */
+
+/dts-v1/;
+
+#include "imx6sll-kobo-clarahd.dts"
+
+/ {
+	model = "Kobo Clara HD Rev B";
+	compatible = "kobo,clarahd", "kobo,clarahd-b", "fsl,imx6sll";
+};
+
+&cpu0 {
+	arm-supply = <&dcdc5_reg>;
+	soc-supply = <&dcdc2_reg>;
+
+	/* taken from vendor dtb, SoC must be some low-voltage variant */
+	operating-points = <
+		/* kHz    uV */
+		996000  1062500
+		792000  1062500
+		396000  1062500
+		198000  975000
+	>;
+	fsl,soc-operating-points = <
+		/* ARM kHz	SOC-PU uV */
+		996000		987500
+		792000		987500
+		396000		987500
+		198000		900000
+	>;  
+};
+
+&dcdc1_reg {
+	/delete-property/ regulator-min-microvolt;
+	/delete-property/ regulator-max-microvolt;
+
+	regulator-state-mem {
+		regulator-suspend-min-microvolt = <1040000>;
+		regulator-suspend-max-microvolt = <1040000>;
+	};
+};
+	
+&dcdc2_reg {
+	regulator-min-microvolt = <660000>;
+	regulator-max-microvolt = <1000000>;
+
+	regulator-state-mem {
+		regulator-suspend-min-microvolt = <660000>;
+		regulator-suspend-max-microvolt = <660000>;
+	};
+};
+
+&dcdc3_reg {
+	/delete-property/ regulator-min-microvolt;
+	/delete-property/ regulator-max-microvolt;
+
+	regulator-state-mem {
+		regulator-suspend-min-microvolt = <3300000>;
+		regulator-suspend-max-microvolt = <3300000>;
+	};
+};
+
+&dcdc4_reg {
+	/delete-property/ regulator-min-microvolt;
+	/delete-property/ regulator-max-microvolt;
+
+	regulator-state-mem {
+		regulator-suspend-min-microvolt = <1700000>;
+		regulator-suspend-max-microvolt = <1700000>;
+	};
+};
+
+&dcdc5_reg {
+	regulator-min-microvolt = <710000>;
+	regulator-max-microvolt = <1100000>;
+
+	regulator-state-mem {
+		regulator-suspend-min-microvolt = <710000>;
+		regulator-suspend-max-microvolt = <710000>;
+	};
+};
+
+&ldo8_reg {
+		/delete-property/ regulator-min-microvolt;
+		/delete-property/ regulator-max-microvolt;
+};
