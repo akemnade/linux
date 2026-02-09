@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (C) 2023 Andreas Kemnade
  *
@@ -27,6 +28,16 @@
 	aliases {
 		mmc0 = &usdhc2;
 		mmc1 = &usdhc1;
+	};
+
+	epd_pmic_supply: regulator-epd-pmic-in {
+		compatible = "regulator-fixed";
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_epd_pmic_supply>;
+		regulator-name = "epd_pmic_supply";
+		gpio = <&gpio3 14 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+		startup-delay-us = <20000>;
 	};
 
 	reg_vref_3v3: vref3v3-regulator {
@@ -93,9 +104,9 @@
 	safe-ticks-turnoff-ep3v3=<400>;
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_epdc0>;
-	V3P3-supply = <&V3P3_reg>;
-	VCOM-supply = <&VCOM_reg>;
-	DISPLAY-supply = <&DISPLAY_reg>;
+	V3P3-supply = <&vcom_reg>;
+	VCOM-supply = <&vcom_reg>;
+	DISPLAY-supply = <&vcom_reg>;
 	panel-name = "E60XC5";
 
 	vscan-holdoff = <4>;
@@ -126,8 +137,8 @@
 &i2c1 {
 	clock-frequency = <100000>;
 	pinctrl-names = "default","sleep";
-	pinctrl-0 = <&pinctrl_i2c1 &pinctrl_tps65185_gpio>;
-	pinctrl-1 = <&pinctrl_i2c1_sleep &pinctrl_tps65185_gpio_sleep>;
+	pinctrl-0 = <&pinctrl_i2c1>;
+	pinctrl-1 = <&pinctrl_i2c1_sleep>;
 	status = "okay";
 
         touchscreen@15 {
@@ -338,25 +349,19 @@
 		>;
 	};
 
-	pinctrl_tps65185_gpio: tps65185_gpio_grp {
+	pinctrl_epd_pmic_supply: epdc-pmic-supplygrp {
 		fsl,pins = <
 			MX6UL_PAD_LCD_DATA09__GPIO3_IO14		0x40010059 /* EP_PWRALL */
+		>;
+	};
+
+	pinctrl_sy7636a_gpio: sy7636a-grpiogrp {
+		fsl,pins = <
 			MX6UL_PAD_LCD_DATA19__GPIO3_IO24		0x40010059 /* VCOM_CTRL0 */
 			MX6UL_PAD_LCD_DATA12__GPIO3_IO17		0x40010059 /* EP_PWRCTRL0 EP_WAKEUP */
 			MX6UL_PAD_LCD_DATA20__GPIO3_IO25		0x40010059 /* EP_PWRCTRL1 PWRUP */
 			MX6UL_PAD_UART5_RX_DATA__GPIO1_IO31			0x17059 /* EP_PWRSTAT */
 			MX6UL_PAD_UART5_TX_DATA__GPIO1_IO30			0x17059 /* EP_INT */
-		>;
-	};
-
-	pinctrl_tps65185_gpio_sleep: tps65185_gpio_sleep_grp {
-		fsl,pins = <
-			MX6UL_PAD_LCD_DATA09__GPIO3_IO14		0x10059 /* EP_PWRALL */
-			MX6UL_PAD_LCD_DATA19__GPIO3_IO24		0x10059 /* VCOM_CTRL0 */
-			MX6UL_PAD_LCD_DATA12__GPIO3_IO17		0x10059 /* EP_PWRCTRL0 EP_WAKEUP */
-			MX6UL_PAD_LCD_DATA20__GPIO3_IO25		0x10059 /* EP_PWRCTRL1 PWRUP */
-			MX6UL_PAD_UART5_RX_DATA__GPIO1_IO31			0x13059 /* EP_PWRSTAT */
-			MX6UL_PAD_UART5_TX_DATA__GPIO1_IO30			0x13059 /* EP_INT */
 		>;
 	};
 
@@ -500,64 +505,23 @@
 };
 
 &i2c1 {
-	sy7636@62 {
-	    compatible = "silergy,sy7636";
-	    reg = <0x62>;
-	    /*
-	 * power on delay for SY7636
-	 * 0x0 : 0ms
-	 * 0x1 : 1ms
-	 * 0x2 : 2ms
-	 * 0x3 : 4ms
-	 * chip default is 2ms .
-	 */
-	on_delay1 = <0x2>;
-	on_delay2 = <0x2>;
-	on_delay3 = <0x2>;
-	on_delay4 = <0x2>;
+	sy7636: pmic@62 {
+		compatible = "silergy,sy7636a";
+		reg = <0x62>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_sy7636a_gpio>;
+		enable-gpios = <&gpio3 25 GPIO_ACTIVE_HIGH>;
+		vcom-en-gpios = <&gpio3 24 GPIO_ACTIVE_HIGH>;
+		epd-pwr-good-gpios = <&gpio1 13 GPIO_ACTIVE_HIGH>;
+		vin-supply = <&epd_pmic_supply>;
 
-		turnoff_delay_ep3v3 = <100>;
-
-	/*
-	 * VLDO Voltage Adjustment Control 
-	 * 0x0 = reserved
-	 * 0x1 = +/-18V
-	 * 0x2 = +/-15.25V
-	 * 0x3 = +/-15V (default)
-	 * 0x4 = +/-14.75V
-	 * 0x5 = +/-14.5V
-	 * 0x6 = +/-14.25V
-	 * 0x7 = reserved
-	VLDO = <0x2>;
-	 */
-
-	gpio_pmic_pwrgood = <&gpio1 13 0>;
-	gpio_pmic_vcom_ctrl = <&gpio3 24 GPIO_ACTIVE_HIGH>;
-	gpio_pmic_powerup = <&gpio3 25 GPIO_ACTIVE_HIGH>;
-
-	/* gpio_pmic_v3p3 = <&gpio2 14 GPIO_ACTIVE_HIGH>; */
-	gpio_pmic_pwrall = <&gpio3 14 GPIO_ACTIVE_HIGH>;
-
-	regulators {
-		DISPLAY_reg: DISPLAY {
-			regulator-name = "DISPLAY";
+		regulators {
+			vcom_reg: vcom {
+				regulator-name = "vcom";
+				regulator-min-microvolt = <2750000>;
+				regulator-max-microvolt = <2750000>;
+			};
 		};
- 
-		VCOM_reg: VCOM {
-			regulator-name = "VCOM";
-			regulator-min-microvolt = <2750000>;
-			regulator-max-microvolt = <2750000>;
-		};
-
-		V3P3_reg: V3P3 {
-			regulator-name = "V3P3";
-		};
-
-#if 1
-		TMST_reg: TMST {
-			regulator-name = "TMST";
-		};
-#endif
 	};
-};
+
 };
