@@ -6,6 +6,7 @@
 #include <linux/gpio/consumer.h>
 #include <linux/module.h>
 #include <linux/regulator/consumer.h>
+#include <linux/mod_devicetable.h>
 
 #include <video/mipi_display.h>
 
@@ -230,9 +231,9 @@ static int init_seq(struct bt200 *ctx)
 				tc358762_init_seq[0].data, sizeof(u32));
 	tc358762_write_register(ctx, tc358762_init_seq[0].reg,
 				tc358762_init_seq[0].data, sizeof(u32));
-	dev_info(ctx->dev, "id reg %d %x\n" ,tc358762_read_register(ctx, IDREG, &rback));
-	dev_info(ctx->dev, "id reg %d %x\n" ,tc358762_read_register(ctx, IDREG, &rback));
-	dev_info(ctx->dev, "id reg %d %x\n" ,tc358762_read_register(ctx, IDREG, &rback));
+	dev_info(ctx->dev, "id reg %d %x\n" ,tc358762_read_register(ctx, IDREG, &rback), rback);
+	dev_info(ctx->dev, "id reg %d %x\n" ,tc358762_read_register(ctx, IDREG, &rback), rback);
+	dev_info(ctx->dev, "id reg %d %x\n" ,tc358762_read_register(ctx, IDREG, &rback), rback);
 	// Rx read
 	r = tc358762_read_register(ctx, IDREG, &rback);
 	if (r < 0) {
