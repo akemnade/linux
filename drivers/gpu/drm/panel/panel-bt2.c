@@ -231,6 +231,7 @@ static int init_seq(struct bt200 *ctx)
 				tc358762_init_seq[0].data, sizeof(u32));
 	tc358762_write_register(ctx, tc358762_init_seq[0].reg,
 				tc358762_init_seq[0].data, sizeof(u32));
+#if 0
 	dev_info(ctx->dev, "id reg %d %x\n" ,tc358762_read_register(ctx, IDREG, &rback), rback);
 	dev_info(ctx->dev, "id reg %d %x\n" ,tc358762_read_register(ctx, IDREG, &rback), rback);
 	dev_info(ctx->dev, "id reg %d %x\n" ,tc358762_read_register(ctx, IDREG, &rback), rback);
@@ -242,23 +243,28 @@ static int init_seq(struct bt200 *ctx)
 
 		return r;
 	}
+#endif
 
 	for (i = 0; i < ARRAY_SIZE(tc358762_init_seq); ++i) {
 		u16 reg = tc358762_init_seq[i].reg;
 		u32 data = tc358762_init_seq[i].data;
 
+#if 0
 		dev_info(ctx->dev, "rbefore %d %x %x\n" ,tc358762_read_register(ctx, reg, &rback), (u32)reg, rback);
 		if (rback != data) {
+#endif
 		r = tc358762_write_register(ctx, reg, data, sizeof(u32));
 		if (r) {
 			dev_err(ctx->dev,
 				"failed to write initial config (write) %d\n", i);
 			return r;
 		}
+#if 0
 		} else {
 			dev_info(ctx->dev, "%x = %x\n" , rback, data);
 		}
 		dev_info(ctx->dev, "rback %d %x %x\n" ,tc358762_read_register(ctx, reg, &rback), (u32)reg, rback);
+#endif
 	}
 
 
