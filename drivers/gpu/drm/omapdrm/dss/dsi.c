@@ -2148,6 +2148,20 @@ static int dsi_vc_send_long(struct dsi_data *dsi, int vc,
 		dsi_vc_write_long_payload(dsi, vc, b1, b2, b3, 0);
 	}
 
+	 /* wait for IRQ for long packet transmission confirmation */
+        for (i = 0; i < 1000; i++) {
+                u32 val;
+                val = dsi_read_reg(dsi, DSI_VC_IRQSTATUS(vc));
+                if (val & 0x4) {
+                        DSSDBG("long packet success\n");
+                        REG_FLD_MOD(dsi, DSI_VC_IRQSTATUS(vc), 1, 2, 2);
+                        return 0;
+                }
+                udelay(1);
+        }
+
+
+
 	return r;
 }
 
@@ -2212,6 +2226,7 @@ static int dsi_vc_write_common(struct omap_dss_device *dssdev, int vc,
 	 * In that case we can return early.
 	 */
 
+#if 0
 	r = dsi_vc_send_bta_sync(dssdev, vc);
 	if (r) {
 		DSSERR("bta sync failed\n");
@@ -2224,6 +2239,7 @@ static int dsi_vc_write_common(struct omap_dss_device *dssdev, int vc,
 		dsi_vc_flush_receive_data(dsi, vc);
 		return -EIO;
 	}
+#endif
 
 	return 0;
 }
