@@ -17,6 +17,40 @@
 		mmc1 = &usdhc3;
 	};
 
+	battery: battery {
+		compatible = "simple-battery";
+		constant-charge-current-max-microamp = <700000>;
+		charge-full-design-microamp-hours = <1500000>;
+		voltage-max-design-microvolt = <4200000>;
+		voltage-min-design-microvolt = <3200000>;
+	        ocv-capacity-celsius = <28>;
+		/* based on vendor ocv_table_28_PR284983N */
+		ocv-capacity-table-0 = <4200000 100>,
+					<4166349 99>,
+					<4114949 95>,
+					<4072016 90>,
+					<4031575 85>,
+					<3995353 80>,
+					<3963956 75>,
+					<3935650 70>,
+					<3910161 65>,
+					<3883395 60>,
+					<3845310 55>,
+					<3817535 50>,
+					<3801354 45>,
+					<3789708 40>,
+					<3781393 35>,
+					<3774994 30>,
+					<3765230 25>,
+					<3749035 20>,
+					<3726707 15>,
+					<3699147 10>,
+					<3671953 5>,
+					<3607301 0>;
+
+                operating-range-celsius = <0 45>;
+	};
+
 	chosen {
 		stdout-path = &uart1;
 	};
@@ -51,6 +85,14 @@
 	memory@80000000 {
 		device_type = "memory";
 		reg = <0x80000000 0x20000000>;
+	};
+
+	reg_bl: regulator-backlight {
+		compatible = "regulator-fixed";
+		regulator-name = "bl_power";
+                gpio = <&gpio5 13 GPIO_ACTIVE_HIGH>;
+                startup-delay-us = <20000>;
+		enable-active-high;
 	};
 
 	reg_wifi: regulator-wifi {
@@ -112,7 +154,34 @@
 	clock-frequency = <100000>;
 	status = "okay";
 
-	/* backlight aw99703 at 0x36 */
+	backlight@36 {
+		compatible = "awinic,aw99703";
+		reg = <0x36>;
+		//pinctrl-names = "default";
+		//pinctrl-0 = <&pinctrl_bl_1grp>;
+		/* hwen gpio */
+		enable-gpios = <&gpio2 10 GPIO_ACTIVE_HIGH>;
+
+		vin-supply = <&reg_bl>;
+
+		//aw99703,hwen-gpio = <&gpio2 10 0>;
+		/* pin does not exist */
+                aw99703,pwron = <&gpio5 13 0>;
+                aw99703,pwm-mode = <1>;  //0 pwm disable,1 PWM enable
+                aw99703,using-lsb;
+		aw99703,ovp-level = <1>;
+		aw99703,ovc-level = <0>;
+                aw99703,bl-fscal-led = <4>; //default 20mA
+                aw99703,turn-on-ramp = <0>;
+                aw99703,turn-off-ramp = <0>;
+                aw99703,pwm-trans-dim = <0>;
+                aw99703,i2c-trans-dim = <0x07>;
+                aw99703,bl-channel = <1>;
+                aw99703,bl-map = <3>; // brightness map level 1:256,2:1024,3:2048
+		aw99703,work-mode = <1>;
+                aw99703,label = "FL1";
+
+	};
 };
 
 &i2c2 {
@@ -122,7 +191,33 @@
 	clock-frequency = <100000>;
 	status = "okay";
 
-	/* backlight aw99703 at 0x36 */
+	backlight@36 {
+		compatible = "awinic,aw99703";
+		reg = <0x36>;
+		//pinctrl-names = "default";
+		//pinctrl-0 = <&pinctrl_bl_1grp>;
+		/* hwen gpio */
+		enable-gpios = <&gpio2 10 GPIO_ACTIVE_HIGH>;
+
+		vin-supply = <&reg_bl>;
+
+		//aw99703,hwen-gpio = <&gpio2 10 0>;
+		/* pin does not exist */
+                aw99703,pwron = <&gpio5 13 0>;
+                aw99703,pwm-mode = <1>;  //0 pwm disable,1 PWM enable
+                aw99703,using-lsb;
+		aw99703,ovp-level = <1>;
+		aw99703,ovc-level = <0>;
+                aw99703,bl-fscal-led = <4>; //default 20mA
+                aw99703,turn-on-ramp = <0>;
+                aw99703,turn-off-ramp = <0>;
+                aw99703,pwm-trans-dim = <0>;
+                aw99703,i2c-trans-dim = <0x07>;
+                aw99703,bl-channel = <1>;
+                aw99703,bl-map = <3>; // brightness map level 1:256,2:1024,3:2048
+		aw99703,work-mode = <1>;
+                aw99703,label = "FL2";
+	};
 
 	touchscreen@38 {
 		compatible = "focaltech,ft5426";
@@ -163,8 +258,8 @@
 		gpio-controller;
 		#gpio-cells = <2>;
 		gpio-reserved-ranges = <0 1>, <2 1>;
-
-		/* charge sense resistor is 30 milli-ohm */
+		rohm,charger-sense-resistor-micro-ohms = <30000>;
+		monitored-battery = <&battery>;
 
 		regulators {
 			LDO1 {
