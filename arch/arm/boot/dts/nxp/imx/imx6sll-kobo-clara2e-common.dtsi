@@ -87,6 +87,14 @@
 		reg = <0x80000000 0x20000000>;
 	};
 
+	reg_bl: regulator-backlight {
+		compatible = "regulator-fixed";
+		regulator-name = "bl_power";
+                gpio = <&gpio5 13 GPIO_ACTIVE_HIGH>;
+                startup-delay-us = <20000>;
+		enable-active-high;
+	};
+
 	reg_wifi: regulator-wifi {
 		compatible = "regulator-fixed";
 		regulator-name = "SD3_SPWR";
@@ -114,7 +122,34 @@
 	clock-frequency = <100000>;
 	status = "okay";
 
-	/* backlight aw99703 at 0x36 */
+	backlight@36 {
+		compatible = "awinic,aw99703";
+		reg = <0x36>;
+		//pinctrl-names = "default";
+		//pinctrl-0 = <&pinctrl_bl_1grp>;
+		/* hwen gpio */
+		enable-gpios = <&gpio2 10 GPIO_ACTIVE_HIGH>;
+
+		vin-supply = <&reg_bl>;
+
+		//aw99703,hwen-gpio = <&gpio2 10 0>;
+		/* pin does not exist */
+                aw99703,pwron = <&gpio5 13 0>;
+                aw99703,pwm-mode = <1>;  //0 pwm disable,1 PWM enable
+                aw99703,using-lsb;
+		aw99703,ovp-level = <1>;
+		aw99703,ovc-level = <0>;
+                aw99703,bl-fscal-led = <4>; //default 20mA
+                aw99703,turn-on-ramp = <0>;
+                aw99703,turn-off-ramp = <0>;
+                aw99703,pwm-trans-dim = <0>;
+                aw99703,i2c-trans-dim = <0x07>;
+                aw99703,bl-channel = <1>;
+                aw99703,bl-map = <3>; // brightness map level 1:256,2:1024,3:2048
+		aw99703,work-mode = <1>;
+                aw99703,label = "FL1";
+
+	};
 };
 
 &i2c2 {
@@ -124,7 +159,33 @@
 	clock-frequency = <100000>;
 	status = "okay";
 
-	/* backlight aw99703 at 0x36 */
+	backlight@36 {
+		compatible = "awinic,aw99703";
+		reg = <0x36>;
+		//pinctrl-names = "default";
+		//pinctrl-0 = <&pinctrl_bl_1grp>;
+		/* hwen gpio */
+		enable-gpios = <&gpio2 10 GPIO_ACTIVE_HIGH>;
+
+		vin-supply = <&reg_bl>;
+
+		//aw99703,hwen-gpio = <&gpio2 10 0>;
+		/* pin does not exist */
+                aw99703,pwron = <&gpio5 13 0>;
+                aw99703,pwm-mode = <1>;  //0 pwm disable,1 PWM enable
+                aw99703,using-lsb;
+		aw99703,ovp-level = <1>;
+		aw99703,ovc-level = <0>;
+                aw99703,bl-fscal-led = <4>; //default 20mA
+                aw99703,turn-on-ramp = <0>;
+                aw99703,turn-off-ramp = <0>;
+                aw99703,pwm-trans-dim = <0>;
+                aw99703,i2c-trans-dim = <0x07>;
+                aw99703,bl-channel = <1>;
+                aw99703,bl-map = <3>; // brightness map level 1:256,2:1024,3:2048
+		aw99703,work-mode = <1>;
+                aw99703,label = "FL2";
+	};
 
 	touchscreen@38 {
 		compatible = "focaltech,ft5426";
