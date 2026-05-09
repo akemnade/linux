@@ -123,6 +123,11 @@ static inline void set_cpu_wakeup_addr(unsigned int cpu_id, u32 addr)
 		writel_relaxed(addr, pm_info->wkup_sar_addr);
 }
 
+static int omap4_finish_suspend_cfi(unsigned long cpu_state)
+{
+	return omap4_finish_suspend(cpu_state);
+}
+
 /*
  * Store the SCU power status value to scratchpad memory
  */
@@ -437,7 +442,7 @@ int __init omap4_mpuss_init(void)
 	}
 
 	if (cpu_is_omap44xx()) {
-		omap_pm_ops.finish_suspend = omap4_finish_suspend;
+		omap_pm_ops.finish_suspend = omap4_finish_suspend_cfi;
 		omap_pm_ops.resume = omap4_cpu_resume;
 		omap_pm_ops.scu_prepare = scu_pwrst_prepare;
 		omap_pm_ops.hotplug_restart = omap4_secondary_startup;
