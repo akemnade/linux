@@ -198,7 +198,9 @@ static void drm_connector_free(struct kref *kref)
 	struct drm_device *dev = connector->dev;
 
 	drm_mode_object_unregister(dev, &connector->base);
-	connector->funcs->destroy(connector);
+
+	if (connector->funcs->destroy)
+		connector->funcs->destroy(connector);
 }
 
 void drm_connector_free_work_fn(struct work_struct *work)
@@ -216,7 +218,9 @@ void drm_connector_free_work_fn(struct work_struct *work)
 
 	llist_for_each_entry_safe(connector, n, freed, free_node) {
 		drm_mode_object_unregister(dev, &connector->base);
-		connector->funcs->destroy(connector);
+
+		if (connector->funcs->destroy)
+			connector->funcs->destroy(connector);
 	}
 }
 
