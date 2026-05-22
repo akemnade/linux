@@ -73,6 +73,7 @@ struct mxc_epdc {
 	struct drm_connector connector;
 	struct display_timing timing;
 	struct imx_epdc_fb_mode imx_mode;
+	unsigned int rotation;
 	void __iomem *iobase;
 	struct completion powerdown_compl;
 	struct clk *epdc_clk_axi;

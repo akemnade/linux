@@ -10,6 +10,9 @@
 #include <linux/bits.h>
 #include <linux/delay.h>
 #include <linux/platform_device.h>
+#include <drm/drm_blend.h>
+#include <drm/drm_rect.h>
+#include <media/pxp.h>
 #include <asm/cacheflush.h>
 #include "mxc_epdc.h"
 #include "epdc_hw.h"
@@ -335,17 +338,40 @@ static int epdc_submit_merge(struct update_desc_list *upd_desc_list,
 	return MERGE_OK;
 }
 
-static void epdc_from_rgb_clear_lower_nibble(struct drm_rect *clip, void *vaddr, int pitch, u8 *dst, int dst_pitch)
+/* Transform coordinates based on rotation */
+static void transform_coords(unsigned int x, unsigned int y,
+			      u32 width, u32 height, unsigned int rotation,
+			      unsigned int *out_x, unsigned int *out_y)
+{
+	switch (rotation) {
+	case DRM_MODE_ROTATE_90:
+		*out_x = height - 1 - y;
+		*out_y = x;
+		break;
+	case DRM_MODE_ROTATE_180:
+		*out_x = width - 1 - x;
+		*out_y = height - 1 - y;
+		break;
+	case DRM_MODE_ROTATE_270:
+		*out_x = y;
+		*out_y = width - 1 - x;
+		break;
+	default:
+		*out_x = x;
+		*out_y = y;
+		break;
+	}
+}
+
+static void epdc_from_rgb_clear_lower_nibble(struct drm_rect *clip, void *vaddr, int pitch, u8 *dst, int dst_pitch,
+					      u32 fb_width, u32 fb_height, unsigned int rotation)
 {
 	unsigned int x, y;
 
-	dst += clip->y1 * dst_pitch;
-
-	for (y = clip->y1; y < clip->y2; y++, dst += dst_pitch) {
-		u32 *src;
-		src = vaddr + (y * pitch);
-		src += clip->x1;
+	for (y = clip->y1; y < clip->y2; y++) {
+		u32 *src = vaddr + (y * pitch) + clip->x1;
 		for (x = clip->x1; x < clip->x2; x++) {
+			unsigned int out_x, out_y;
 			u8 r = (*src & 0x00ff0000) >> 16;
 			u8 g = (*src & 0x0000ff00) >> 8;
 			u8 b =  *src & 0x000000ff;
@@ -355,34 +381,35 @@ static void epdc_from_rgb_clear_lower_nibble(struct drm_rect *clip, void *vaddr,
 
 			/*
 			 * done in Tolino 3.0.x kernels via PXP_LUT_AA
-			 * needed for 5 bit waveforms 
+			 * needed for 5 bit waveforms
 			 */
 
-			dst[x] = gray & 0xF0;
+			transform_coords(x, y, fb_width, fb_height, rotation, &out_x, &out_y);
+			dst[out_y * dst_pitch + out_x] = gray & 0xF0;
 			src++;
 		}
 	}
 }
 
 /* found by experimentation, reduced number of levels of gray */
-static void epdc_from_rgb_shift(struct drm_rect *clip, void *vaddr, int pitch, u8 *dst, int dst_pitch)
+static void epdc_from_rgb_shift(struct drm_rect *clip, void *vaddr, int pitch, u8 *dst, int dst_pitch,
+					 u32 fb_width, u32 fb_height, unsigned int rotation)
 {
 	unsigned int x, y;
 
-	dst += clip->y1 * dst_pitch;
-
-	for (y = clip->y1; y < clip->y2; y++, dst += dst_pitch) {
-		u32 *src;
-		src = vaddr + (y * pitch);
-		src += clip->x1;
+	for (y = clip->y1; y < clip->y2; y++) {
+		u32 *src = vaddr + (y * pitch) + clip->x1;
 		for (x = clip->x1; x < clip->x2; x++) {
+			unsigned int out_x, out_y;
 			u8 r = (*src & 0x00ff0000) >> 16;
 			u8 g = (*src & 0x0000ff00) >> 8;
 			u8 b =  *src & 0x000000ff;
 
 			/* ITU BT.601: Y = 0.299 R + 0.587 G + 0.114 B */
 			u8 gray = (3 * r + 6 * g + b) / 10;
-			dst[x] = (gray >> 2) | 0xC0;
+
+			transform_coords(x, y, fb_width, fb_height, rotation, &out_x, &out_y);
+			dst[out_y * dst_pitch + out_x] = (gray >> 2) | 0xC0;
 			src++;
 		}
 	}
@@ -843,19 +870,67 @@ void mxc_epdc_draw_mode0(struct mxc_epdc *priv)
 }
 
 
-int mxc_epdc_send_single_update(struct drm_rect *clip, int pitch, void *vaddr,
+int mxc_epdc_send_single_update(struct drm_rect *clip, int pitch, dma_addr_t src_addr, void *vaddr,
 				struct mxc_epdc *priv)
 {
 	struct update_desc_list *upd_desc;
 
+	unsigned int rotation = priv->rotation;
+	bool rotate_90_270 = drm_rotation_90_or_270(rotation);
+	u32 fb_width, fb_height;
+	struct pxp_epdc_config pxp_cfg;
+	enum pxp_grayscale_mode pxp_mode;
+	struct device *pxp_dev;
+	int ret;
+
+	/* Framebuffer dimensions (before rotation) */
+	if (rotate_90_270) {
+		fb_width = priv->epdc_mem_height;
+		fb_height = priv->epdc_mem_width;
+	} else {
+		fb_width = priv->epdc_mem_width;
+		fb_height = priv->epdc_mem_height;
+	}
+
+	/* Try to use PxP for hardware processing */
+	pxp_dev = pxp_get_device();
+	if (pxp_dev) {
+		/* Determine grayscale mode for EPDC */
+		if ((priv->rev < 30) || (priv->buf_pix_fmt == EPDC_FORMAT_BUF_PIXEL_FORMAT_P4N))
+			pxp_mode = PXP_GRAYSCALE_Y4_UPPER;
+		else
+			pxp_mode = PXP_GRAYSCALE_Y8;
+
+		/* Configure PxP for this update */
+		pxp_cfg.src_addr = src_addr;
+		pxp_cfg.dst_addr = priv->epdc_mem_phys;
+		pxp_cfg.src_width = fb_width;
+		pxp_cfg.src_height = fb_height;
+		pxp_cfg.src_stride = pitch;
+		pxp_cfg.dst_stride = priv->epdc_mem_width;
+		pxp_cfg.rotation = rotation;
+		pxp_cfg.clip = clip;
+
+		ret = pxp_epdc_process(pxp_dev, &pxp_cfg, pxp_mode);
+		if (ret == 0)
+			goto pxp_done;  /* PxP succeeded, skip software copy */
+		/* PxP failed, fall back to software */
+		dev_dbg(priv->drm.dev, "PxP processing failed, using software fallback\n");
+	}
+
+	/* Software fallback for pixel processing */
+	/* I'm not really certain if this is still needed on some devices */
 	if ((priv->rev < 30) || (priv->buf_pix_fmt == EPDC_FORMAT_BUF_PIXEL_FORMAT_P4N))
 		epdc_from_rgb_clear_lower_nibble(clip, vaddr, pitch,
 						 (u8 *)priv->epdc_mem_virt,
-						 priv->epdc_mem_width);
+						 priv->epdc_mem_width,
+						 fb_width, fb_height, rotation);
 	else
 		epdc_from_rgb_shift(clip, vaddr, pitch,
 				    (u8 *)priv->epdc_mem_virt,
-				    priv->epdc_mem_width);
+				    priv->epdc_mem_width,
+				    fb_width, fb_height, rotation);
+pxp_done:
 
 	/* Has EPDC HW been initialized? */
 	if (!priv->hw_ready) {
@@ -885,6 +960,7 @@ int mxc_epdc_send_single_update(struct drm_rect *clip, int pitch, void *vaddr,
 	}
 	/* Initialize per-update marker list */
 	upd_desc->upd_data.update_region = *clip;
+	drm_rect_rotate(&upd_desc->upd_data.update_region, fb_width, fb_height, rotation);
 	upd_desc->upd_data.waveform_mode = WAVEFORM_MODE_AUTO;
 	upd_desc->upd_data.temp = TEMP_USE_AMBIENT;
 	upd_desc->upd_data.update_mode = UPDATE_MODE_PARTIAL;
