@@ -12,6 +12,7 @@
 #include <linux/platform_device.h>
 #include <drm/drm_blend.h>
 #include <drm/drm_rect.h>
+#include <media/pxp.h>
 #include <asm/cacheflush.h>
 #include "mxc_epdc.h"
 #include "epdc_hw.h"
@@ -869,7 +870,7 @@ void mxc_epdc_draw_mode0(struct mxc_epdc *priv)
 }
 
 
-int mxc_epdc_send_single_update(struct drm_rect *clip, int pitch, void *vaddr,
+int mxc_epdc_send_single_update(struct drm_rect *clip, int pitch, dma_addr_t src_addr, void *vaddr,
 				struct mxc_epdc *priv)
 {
 	struct update_desc_list *upd_desc;
@@ -877,6 +878,10 @@ int mxc_epdc_send_single_update(struct drm_rect *clip, int pitch, void *vaddr,
 	unsigned int rotation = priv->rotation;
 	bool rotate_90_270 = drm_rotation_90_or_270(rotation);
 	u32 fb_width, fb_height;
+	struct pxp_epdc_config pxp_cfg;
+	enum pxp_grayscale_mode pxp_mode;
+	struct device *pxp_dev;
+	int ret;
 
 	/* Framebuffer dimensions (before rotation) */
 	if (rotate_90_270) {
@@ -887,6 +892,34 @@ int mxc_epdc_send_single_update(struct drm_rect *clip, int pitch, void *vaddr,
 		fb_height = priv->epdc_mem_height;
 	}
 
+	/* Try to use PxP for hardware processing */
+	pxp_dev = pxp_get_device();
+	if (pxp_dev) {
+		/* Determine grayscale mode for EPDC */
+		if ((priv->rev < 30) || (priv->buf_pix_fmt == EPDC_FORMAT_BUF_PIXEL_FORMAT_P4N))
+			pxp_mode = PXP_GRAYSCALE_Y4_UPPER;
+		else
+			pxp_mode = PXP_GRAYSCALE_Y8;
+
+		/* Configure PxP for this update */
+		pxp_cfg.src_addr = src_addr;
+		pxp_cfg.dst_addr = priv->epdc_mem_phys;
+		pxp_cfg.src_width = fb_width;
+		pxp_cfg.src_height = fb_height;
+		pxp_cfg.src_stride = pitch;
+		pxp_cfg.dst_stride = priv->epdc_mem_width;
+		pxp_cfg.rotation = rotation;
+		pxp_cfg.clip = clip;
+
+		ret = pxp_epdc_process(pxp_dev, &pxp_cfg, pxp_mode);
+		if (ret == 0)
+			goto pxp_done;  /* PxP succeeded, skip software copy */
+		/* PxP failed, fall back to software */
+		dev_dbg(priv->drm.dev, "PxP processing failed, using software fallback\n");
+	}
+
+	/* Software fallback for pixel processing */
+	/* I'm not really certain if this is still needed on some devices */
 	if ((priv->rev < 30) || (priv->buf_pix_fmt == EPDC_FORMAT_BUF_PIXEL_FORMAT_P4N))
 		epdc_from_rgb_clear_lower_nibble(clip, vaddr, pitch,
 						 (u8 *)priv->epdc_mem_virt,
@@ -897,6 +930,7 @@ int mxc_epdc_send_single_update(struct drm_rect *clip, int pitch, void *vaddr,
 				    (u8 *)priv->epdc_mem_virt,
 				    priv->epdc_mem_width,
 				    fb_width, fb_height, rotation);
+pxp_done:
 
 	/* Has EPDC HW been initialized? */
 	if (!priv->hw_ready) {

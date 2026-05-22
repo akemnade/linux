@@ -31,12 +31,20 @@
 #include <media/v4l2-ioctl.h>
 #include <media/v4l2-mem2mem.h>
 #include <media/videobuf2-dma-contig.h>
+#include <media/pxp.h>
+#include <linux/completion.h>
+#include <drm/drm_rect.h>
 
 #include "imx-pxp.h"
 
 static unsigned int debug;
 module_param(debug, uint, 0644);
 MODULE_PARM_DESC(debug, "activates debug info");
+
+/* PXP device pointer for EPDC internal API */
+static struct pxp_dev *g_pxp_dev;
+static DEFINE_MUTEX(pxp_epdc_mutex);
+static struct completion pxp_epdc_completion;
 
 #define MIN_W 8
 #define MIN_H 8
@@ -1878,6 +1886,9 @@ static int pxp_probe(struct platform_device *pdev)
 	}
 #endif
 
+	g_pxp_dev = dev;
+	init_completion(&pxp_epdc_completion);
+
 	return 0;
 
 #ifdef CONFIG_MEDIA_CONTROLLER
@@ -1899,6 +1910,10 @@ err_clk:
 static void pxp_remove(struct platform_device *pdev)
 {
 	struct pxp_dev *dev = platform_get_drvdata(pdev);
+
+	mutex_lock(&pxp_epdc_mutex);
+	g_pxp_dev = NULL;
+	mutex_unlock(&pxp_epdc_mutex);
 
 	pxp_write(dev, HW_PXP_CTRL_SET, BM_PXP_CTRL_CLKGATE);
 	pxp_write(dev, HW_PXP_CTRL_SET, BM_PXP_CTRL_SFTRST);
@@ -1945,3 +1960,205 @@ module_platform_driver(pxp_driver);
 MODULE_DESCRIPTION("i.MX PXP mem2mem scaler/CSC/rotator");
 MODULE_AUTHOR("Philipp Zabel <kernel@pengutronix.de>");
 MODULE_LICENSE("GPL");
+
+/* EPDC internal API - synchronous PXP processing */
+
+static void pxp_epdc_irq_handler(struct pxp_dev *dev)
+{
+	complete(&pxp_epdc_completion);
+}
+
+/**
+ * pxp_get_device() - Get the PXP device for EPDC
+ *
+ * Returns a pointer to the PXP device for use with pxp_epdc_process().
+ */
+struct device *pxp_get_device(void)
+{
+	if (!g_pxp_dev)
+		return NULL;
+	return g_pxp_dev->v4l2_dev.dev;
+}
+EXPORT_SYMBOL_GPL(pxp_get_device);
+
+/**
+ * pxp_epdc_process() - Process a framebuffer region for EPDC
+ *
+ * Configures the PXP hardware to read RGB32 pixels from source buffer,
+ * convert to grayscale using ITU BT.601, apply rotation, and write
+ * to destination buffer.
+ */
+int pxp_epdc_process(struct device *dev, const struct pxp_epdc_config *cfg,
+		      enum pxp_grayscale_mode mode)
+{
+	struct pxp_dev *pxp = g_pxp_dev;
+	u32 ctrl, out_ctrl, out_buf, out_pitch, out_lrc, out_ps_ulc, out_ps_lrc;
+	u32 ps_ctrl, ps_buf, ps_ubuf, ps_vbuf, ps_pitch, ps_scale, ps_offset;
+	u32 as_ulc, as_lrc;
+	u32 rotation_val;
+	u32 src_x, src_y, src_w, src_h;
+	u32 dst_x, dst_y, dst_w, dst_h;
+	u32 fb_width, fb_height;
+	int ret;
+	long timeout;
+
+	if (!pxp)
+		return -ENODEV;
+
+	mutex_lock(&pxp_epdc_mutex);
+
+	reinit_completion(&pxp_epdc_completion);
+
+	/* Get clip region dimensions */
+	src_x = cfg->clip->x1;
+	src_y = cfg->clip->y1;
+	src_w = cfg->clip->x2 - cfg->clip->x1;
+	src_h = cfg->clip->y2 - cfg->clip->y1;
+
+	/* Align dimensions to 8-pixel blocks (PxP requirement for rotation) */
+	src_w = ALIGN(src_w, 8);
+	src_h = ALIGN(src_h, 8);
+
+	/* Full framebuffer dimensions */
+	fb_width = cfg->src_width;
+	fb_height = cfg->src_height;
+
+	/* Convert rotation degrees to PXP rotation value and calculate
+	 * destination position in EPDC memory */
+	switch (cfg->rotation) {
+	case 0:
+		rotation_val = BV_PXP_CTRL_ROTATE0__ROT_0;
+		dst_x = src_x;
+		dst_y = src_y;
+		dst_w = src_w;
+		dst_h = src_h;
+		break;
+	case 90:
+		rotation_val = BV_PXP_CTRL_ROTATE0__ROT_90;
+		dst_x = fb_height - src_y - src_h;
+		dst_y = src_x;
+		dst_w = src_h;
+		dst_h = src_w;
+		break;
+	case 180:
+		rotation_val = BV_PXP_CTRL_ROTATE0__ROT_180;
+		dst_x = fb_width - src_x - src_w;
+		dst_y = fb_height - src_y - src_h;
+		dst_w = src_w;
+		dst_h = src_h;
+		break;
+	case 270:
+		rotation_val = BV_PXP_CTRL_ROTATE0__ROT_270;
+		dst_x = src_y;
+		dst_y = fb_width - src_x - src_w;
+		dst_w = src_h;
+		dst_h = src_w;
+		break;
+	default:
+		mutex_unlock(&pxp_epdc_mutex);
+		return -EINVAL;
+	}
+
+	/* Reset PXP */
+	pxp_write(pxp, HW_PXP_CTRL_SET, BM_PXP_CTRL_SFTRST);
+	usleep_range(10, 20);
+	pxp_write(pxp, HW_PXP_CTRL_CLR, BM_PXP_CTRL_SFTRST);
+	usleep_range(10, 20);
+	pxp_write(pxp, HW_PXP_CTRL_CLR, BM_PXP_CTRL_CLKGATE);
+	usleep_range(10, 20);
+
+	/* Control register with rotation */
+	ctrl = BF_PXP_CTRL_ROTATE0(rotation_val);
+	pxp_write(pxp, HW_PXP_CTRL, ctrl);
+
+	/* Output configuration - grayscale format */
+	out_ctrl = BV_PXP_OUT_CTRL_FORMAT__Y8;
+	if (mode == PXP_GRAYSCALE_Y4_UPPER)
+		out_ctrl = BV_PXP_OUT_CTRL_FORMAT__Y4;
+	pxp_write(pxp, HW_PXP_OUT_CTRL, out_ctrl);
+
+	/* Output buffer address */
+	out_buf = cfg->dst_addr;
+	pxp_write(pxp, HW_PXP_OUT_BUF, out_buf);
+
+	/* Output pitch and total buffer dimensions */
+	out_pitch = BF_PXP_OUT_PITCH_PITCH(cfg->dst_stride);
+	pxp_write(pxp, HW_PXP_OUT_PITCH, out_pitch);
+	out_lrc = BF_PXP_OUT_LRC_X(cfg->dst_stride - 1) |
+		  BF_PXP_OUT_LRC_Y((rotation_val == BV_PXP_CTRL_ROTATE0__ROT_90 ||
+				     rotation_val == BV_PXP_CTRL_ROTATE0__ROT_270) ?
+				    fb_width - 1 : fb_height - 1);
+	pxp_write(pxp, HW_PXP_OUT_LRC, out_lrc);
+
+	/* Output PS bounds - where processed region is placed in output */
+	out_ps_ulc = BF_PXP_OUT_PS_ULC_X(dst_x) | BF_PXP_OUT_PS_ULC_Y(dst_y);
+	out_ps_lrc = BF_PXP_OUT_PS_LRC_X(dst_x + dst_w - 1) |
+		     BF_PXP_OUT_PS_LRC_Y(dst_y + dst_h - 1);
+	pxp_write(pxp, HW_PXP_OUT_PS_ULC, out_ps_ulc);
+	pxp_write(pxp, HW_PXP_OUT_PS_LRC, out_ps_lrc);
+
+	/* No alpha surface */
+	as_ulc = BF_PXP_OUT_AS_ULC_X(1) | BF_PXP_OUT_AS_ULC_Y(1);
+	as_lrc = BF_PXP_OUT_AS_LRC_X(0) | BF_PXP_OUT_AS_LRC_Y(0);
+	pxp_write(pxp, HW_PXP_OUT_AS_ULC, as_ulc);
+	pxp_write(pxp, HW_PXP_OUT_AS_LRC, as_lrc);
+
+	/* Process surface configuration - RGB888 input */
+	ps_ctrl = BV_PXP_PS_CTRL_FORMAT__RGB888;
+	/* Source buffer address with offset for clip region */
+	ps_buf = cfg->src_addr + src_y * cfg->src_stride + src_x * 4;
+	ps_ubuf = 0;
+	ps_vbuf = 0x8080;  /* For grayscale conversion */
+	ps_pitch = BF_PXP_PS_PITCH_PITCH(cfg->src_stride);
+	pxp_write(pxp, HW_PXP_PS_CTRL, ps_ctrl);
+	pxp_write(pxp, HW_PXP_PS_BUF, ps_buf);
+	pxp_write(pxp, HW_PXP_PS_UBUF, ps_ubuf);
+	pxp_write(pxp, HW_PXP_PS_VBUF, ps_vbuf);
+	pxp_write(pxp, HW_PXP_PS_PITCH, ps_pitch);
+
+	/* No scaling - 1:1, but offset to start from clip origin */
+	ps_scale = BF_PXP_PS_SCALE_XSCALE(0x1000) | BF_PXP_PS_SCALE_YSCALE(0x1000);
+	ps_offset = BF_PXP_PS_OFFSET_XOFFSET(0) | BF_PXP_PS_OFFSET_YOFFSET(0);
+	pxp_write(pxp, HW_PXP_PS_SCALE, ps_scale);
+	pxp_write(pxp, HW_PXP_PS_OFFSET, ps_offset);
+
+	/* CSC for RGB to Y conversion - ITU BT.601 coefficients */
+	pxp_write(pxp, HW_PXP_CSC1_COEF0,
+		  BM_PXP_CSC1_COEF0_YCBCR_MODE |
+		  BF_PXP_CSC1_COEF0_C0(0x0123) |  /* 0.299 * 2^9 */
+		  BF_PXP_CSC1_COEF0_Y_OFFSET(0));
+	pxp_write(pxp, HW_PXP_CSC1_COEF1,
+		  BF_PXP_CSC1_COEF1_C1(0x0198) |  /* 0.587 * 2^9 */
+		  BF_PXP_CSC1_COEF1_C4(0x0040));  /* 0.114 * 2^9 */
+	pxp_write(pxp, HW_PXP_CSC1_COEF2,
+		  BF_PXP_CSC1_COEF2_C2(0x0000) |
+		  BF_PXP_CSC1_COEF2_C3(0x0000));
+
+	/* Enable IRQ */
+	pxp_write(pxp, HW_PXP_IRQ_MASK, 0xffff);
+
+	/* Enable PXP and start */
+	pxp_write(pxp, HW_PXP_CTRL_SET,
+		  BM_PXP_CTRL_IRQ_ENABLE |
+		  BM_PXP_CTRL_ENABLE |
+		  BM_PXP_CTRL_ENABLE_CSC2 |
+		  BM_PXP_CTRL_ENABLE_ROTATE0 |
+		  BM_PXP_CTRL_ENABLE_PS_AS_OUT);
+
+	/* Wait for completion */
+	timeout = wait_for_completion_timeout(&pxp_epdc_completion,
+						  msecs_to_jiffies(1000));
+	if (timeout == 0) {
+		dev_err(pxp->v4l2_dev.dev, "PXP EPDC processing timeout\n");
+		ret = -ETIMEDOUT;
+		goto out;
+	}
+
+	ret = 0;
+out:
+	/* Disable PXP */
+	pxp_write(pxp, HW_PXP_CTRL_CLR, BM_PXP_CTRL_ENABLE);
+	mutex_unlock(&pxp_epdc_mutex);
+	return ret;
+}
+EXPORT_SYMBOL_GPL(pxp_epdc_process);

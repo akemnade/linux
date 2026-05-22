@@ -18,6 +18,7 @@
 #include <drm/drm_fb_dma_helper.h>
 #include <drm/drm_fb_helper.h>
 #include <drm/drm_fbdev_ttm.h>
+#include <media/pxp.h>
 #include <drm/drm_file.h>
 #include <drm/drm_format_helper.h>
 #include <drm/drm_framebuffer.h>
@@ -231,7 +232,7 @@ static void mxc_epdc_pipe_enable(struct drm_simple_display_pipe *pipe,
 		gem = drm_fb_dma_get_gem_obj(plane_state->fb, 0);
 		mxc_epdc_send_single_update(&clip,
 					    plane_state->fb->pitches[0],
-					    gem->vaddr, priv);
+					    gem->dma_addr, gem->vaddr, priv);
 	}
 
 }
@@ -283,7 +284,7 @@ static void mxc_epdc_pipe_update(struct drm_simple_display_pipe *pipe,
 			clip.x1, clip.y1, clip.x2, clip.y2);
 
 		mxc_epdc_send_single_update(&clip, old_state->fb->pitches[0],
-					    gem->vaddr, priv);
+					    gem->dma_addr, gem->vaddr, priv);
 	}
 
 	return;
