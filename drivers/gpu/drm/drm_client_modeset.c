@@ -1082,6 +1082,14 @@ retry:
 			plane_state->rotation = rotation;
 		}
 
+		/* Apply fbdev rotation override if set */
+		if (client->fbdev_rotation) {
+			struct drm_plane_state *plane_state;
+
+			plane_state = drm_atomic_get_new_plane_state(state, primary);
+			plane_state->rotation = client->fbdev_rotation;
+		}
+
 		ret = __drm_atomic_helper_set_config(mode_set, state);
 		if (ret != 0)
 			goto out_state;

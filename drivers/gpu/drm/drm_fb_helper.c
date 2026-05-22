@@ -1176,6 +1176,9 @@ int drm_fb_helper_set_par(struct fb_info *info)
 	 */
 	force = var->activate & FB_ACTIVATE_KD_TEXT;
 
+	/* Translate fbdev rotation to DRM rotation property */
+	fb_helper->client.fbdev_rotation = 1 << var->rotate;
+
 	__drm_fb_helper_restore_fbdev_mode_unlocked(fb_helper, force);
 
 	return 0;

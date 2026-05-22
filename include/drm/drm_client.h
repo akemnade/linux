@@ -159,6 +159,14 @@ struct drm_client_dev {
 	 * before. It is usually not tried again.
 	 */
 	bool hotplug_failed;
+
+	/**
+	 * @fbdev_rotation:
+	 *
+	 * Rotation value set by fbdev emulation, to be applied to plane state.
+	 * Value is in DRM rotation format (DRM_MODE_ROTATE_*).
+	 */
+	unsigned int fbdev_rotation;
 };
 
 int drm_client_init(struct drm_device *dev, struct drm_client_dev *client,
