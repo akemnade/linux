@@ -29,6 +29,7 @@
 #include <drm/drm_panel.h>
 #include <drm/drm_prime.h>
 #include <drm/drm_probe_helper.h>
+#include <drm/drm_blend.h>
 #include "mxc_epdc.h"
 #include "epdc_hw.h"
 #include "epdc_update.h"
@@ -189,10 +190,26 @@ static void mxc_epdc_pipe_enable(struct drm_simple_display_pipe *pipe,
 {
 	struct mxc_epdc *priv = drm_pipe_to_mxc_epdc(pipe);
 	struct drm_display_mode *m = &pipe->crtc.state->adjusted_mode;
+	unsigned int rotation = plane_state->rotation;
+	bool rotate_90_270 = drm_rotation_90_or_270(rotation);
+	u32 width, height;
 
-	dev_info(priv->drm.dev, "Mode: %d x %d\n", m->hdisplay, m->vdisplay);
-	priv->epdc_mem_width = m->hdisplay;
-	priv->epdc_mem_height = m->vdisplay;
+	dev_info(priv->drm.dev, "Mode: %d x %d, rotation: %u\n",
+		 m->hdisplay, m->vdisplay, rotation);
+
+	priv->rotation = rotation;
+
+	/* Swap dimensions for 90/270 degree rotation */
+	if (rotate_90_270) {
+		width = m->vdisplay;
+		height = m->hdisplay;
+	} else {
+		width = m->hdisplay;
+		height = m->vdisplay;
+	}
+
+	priv->epdc_mem_width = width;
+	priv->epdc_mem_height = height;
 	priv->epdc_mem_virt = dma_alloc_wc(priv->drm.dev,
 					   m->hdisplay * m->vdisplay,
 					   &priv->epdc_mem_phys, GFP_DMA | GFP_KERNEL);
@@ -354,6 +371,15 @@ static int mxc_epdc_probe(struct platform_device *pdev)
 				     ARRAY_SIZE(mxc_epdc_formats),
 				     NULL,
 				     &priv->connector);
+
+	/* Add rotation property to support display rotation */
+	drm_plane_create_rotation_property(&priv->pipe.plane,
+					    DRM_MODE_ROTATE_0,
+					    DRM_MODE_ROTATE_0 |
+					    DRM_MODE_ROTATE_90 |
+					    DRM_MODE_ROTATE_180 |
+					    DRM_MODE_ROTATE_270);
+
 	drm_plane_enable_fb_damage_clips(&priv->pipe.plane);
 
 	drm_mode_config_reset(&priv->drm);
