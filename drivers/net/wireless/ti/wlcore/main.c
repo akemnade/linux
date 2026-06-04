@@ -2367,6 +2367,7 @@ static int wl12xx_init_vif_data(struct wl1271 *wl, struct ieee80211_vif *vif)
 
 static int wl12xx_init_fw(struct wl1271 *wl)
 {
+	struct wlcore_platdev_data *pdev_data = dev_get_platdata(&wl->pdev->dev);
 	int retries = WL1271_BOOT_RETRIES;
 	bool booted = false;
 	struct wiphy *wiphy = wl->hw->wiphy;
@@ -2421,7 +2422,8 @@ power_off:
 
 	/* WLAN_CIPHER_SUITE_AES_CMAC must be last in cipher_suites;
 	   support only with firmware 8.9.1 and newer */
-	if (wl->chip.fw_ver[FW_VER_MAJOR] < 1)
+	if ((wl->chip.fw_ver[FW_VER_MAJOR] < 1)  ||
+	    (!strncmp(pdev_data->family->name, "wl12", 4)))
 		wl->hw->wiphy->n_cipher_suites--;
 
 	/*
