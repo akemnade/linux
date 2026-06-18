@@ -159,6 +159,15 @@ config DRM_PANEL_ELIDA_KD35T133
 	  KD35T133 controller for 320x480 LCD panels with MIPI-DSI
 	  system interfaces.
 
+config DRM_PANEL_EPSON_BT200
+	tristate "Epson BT200 panel driver"
+	depends on OF && SPI
+	depends on BACKLIGHT_CLASS_DEVICE
+	help
+	  Say Y here if you want to enable support for the 960x540
+	  pixel panels used in the Epson Moverio BT200. They are used
+	  together with the TC358762 DSI-to-DPI bridge.
+
 config DRM_PANEL_FEIXIN_K101_IM2BA02
 	tristate "Feixin K101 IM2BA02 panel"
 	depends on OF
