@@ -16,6 +16,7 @@
 #include <linux/module.h>
 #include <linux/of_graph.h>
 #include <linux/regulator/consumer.h>
+#include <linux/spi.h>
 
 #include <video/mipi_display.h>
 #include <video/videomode.h>
@@ -98,6 +99,7 @@ struct tc358762 {
 	struct regulator *regulator;
 	struct drm_bridge *panel_bridge;
 	struct gpio_desc *reset_gpio;
+	struct spi_controller *spi;
 	bool pre_enabled;
 	int error;
 	bool use_vtg;
@@ -334,6 +336,12 @@ static int tc358762_probe(struct mipi_dsi_device *dsi)
 
 	ctx->dev = dev;
 	ctx->pre_enabled = false;
+
+	ctx->spi = devm_spi_alloc_host(dev, 0);
+	spi_controller_set_drvdata(ctx->spi, ctx);
+	ret = devm_spi_controller_register(dev, ctx->spi);
+	if (ret < 0)
+		return dev_err_probe(dev, ret, "register spi controller  failed\n");
 
 	/* Always use VTG */
 	ctx->use_vtg = true;
