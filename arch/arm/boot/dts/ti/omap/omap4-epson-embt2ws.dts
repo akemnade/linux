@@ -140,6 +140,115 @@
 	};
 };
 
+&dss {
+	status = "okay";
+};
+
+&dsi1 {
+	status = "okay";
+
+	bridge@0 {
+		compatible = "toshiba,tc358762";
+		dsi-lanes = <2>;
+		reg = <0>;
+
+		ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			port@0 {
+				reg = <0>;
+				bridge_in_right: endpoint {
+					remote-endpoint = <&dsi_out_right>;
+				};
+			};
+
+			port@1 {
+				reg = <1>;
+				bridge_out_right: endpoint {
+					remote-endpoint = <&panel_in_right>;
+				};
+			};
+		};
+
+		spi {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			display@0 {
+				compatible = "epson,panel-bt200";
+				reg = <0>;
+
+				port {
+					panel_in_right: endpoint {
+						remote-endpoint = <&bridge_out_right>;
+					};
+				};
+			};
+		};
+	};
+
+	port {
+		dsi_out_right: endpoint {
+                        remote-endpoint = <&bridge_in_right>;
+                        lanes = <2 3 4 5 0 1>;
+                };
+        };
+
+};
+
+&dsi2 {
+	status = "okay";
+
+	bridge@0 {
+		compatible = "toshiba,tc358762";
+		reg = <0>;
+		dsi-lanes = <2>;
+
+		ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			port@0 {
+				reg = <0>;
+				bridge_in_left: endpoint {
+					remote-endpoint = <&dsi_out_left>;
+				};
+			};
+
+			port@1 {
+				reg = <1>;
+				bridge_out_left: endpoint {
+					remote-endpoint = <&panel_in_left>;
+				};
+			};
+		};
+
+		spi {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			display@0 {
+				compatible = "epson,panel-bt200";
+				reg = <0>;
+
+				port {
+					panel_in_left: endpoint {
+						remote-endpoint = <&bridge_out_left>;
+					};
+				};
+			};
+		};
+	};
+
+	port {
+		dsi_out_left: endpoint {
+			remote-endpoint = <&bridge_in_left>;
+			lanes = <2 3 0 1 4 5>;
+		};
+	};
+};
+
 &gpio1 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&gpio1_hog_pins &gpio1wk_hog_pins>;
