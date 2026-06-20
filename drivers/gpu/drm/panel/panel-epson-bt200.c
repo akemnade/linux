@@ -184,12 +184,11 @@ static const struct drm_panel_funcs bt200_panel_funcs = {
 
 static int bt200_probe(struct spi_device *spi)
 {
-	struct device *dev = &spi->dev;
 	struct bt200_panel *ctx;
 	int ret;
 
 	ctx = devm_drm_panel_alloc(&spi->dev, struct bt200_panel, panel,
-				   bt200_panel_funcs, DRM_MODE_CONNECTOR_DPI);
+				   &bt200_panel_funcs, DRM_MODE_CONNECTOR_DPI);
 	if (IS_ERR(ctx))
 		return PTR_ERR(ctx);
 
@@ -202,7 +201,7 @@ static int bt200_probe(struct spi_device *spi)
 	if (ret < 0)
 		return dev_err_probe(&spi->dev, ret, "failed to setup SPI\n");
 
-	ret = drm_panel_of_backlight(&lcd->panel);
+	ret = drm_panel_of_backlight(&ctx->panel);
 	if (ret)
 		return ret;
 
@@ -210,9 +209,9 @@ static int bt200_probe(struct spi_device *spi)
 	return 0;	
 }
 
-static void bt200_remove(struct mipi_dsi_device *dsi)
+static void bt200_remove(struct spi_device *dsi)
 {
-	struct bt200 *ctx = spi_get_drvdata(dsi);
+	struct bt200_panel *ctx = spi_get_drvdata(dsi);
 
 	dev_dbg(&dsi->dev, "%s\n", __func__);
 
@@ -231,7 +230,7 @@ static const struct spi_device_id bt200_ids[] = {
 	{ /* sentinel */ }
 };
 
-MODULE_DEVICE_TABLE(spi, td028ttec1_ids);
+MODULE_DEVICE_TABLE(spi, bt200_ids);
 
 
 static struct spi_driver bt200_driver = {
