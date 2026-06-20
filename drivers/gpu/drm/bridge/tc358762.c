@@ -16,7 +16,7 @@
 #include <linux/module.h>
 #include <linux/of_graph.h>
 #include <linux/regulator/consumer.h>
-#include <linux/spi.h>
+#include <linux/spi/spi.h>
 
 #include <video/mipi_display.h>
 #include <video/videomode.h>
@@ -312,6 +312,19 @@ static int tc358762_parse_dt(struct tc358762 *ctx)
 	return 0;
 }
 
+static int tc358762_spi_transfer_one(struct spi_controller *ctlr,
+				     struct spi_device *spi,
+				     struct spi_transfer *t)
+{
+	return 0;
+}
+
+static int tc358762_spi_setup(struct spi_device *spi)
+{
+	return 0;
+}
+
+
 static int tc358762_configure_regulators(struct tc358762 *ctx)
 {
 	ctx->regulator = devm_regulator_get(ctx->dev, "vddc");
@@ -325,6 +338,7 @@ static int tc358762_probe(struct mipi_dsi_device *dsi)
 {
 	struct device *dev = &dsi->dev;
 	struct tc358762 *ctx;
+	struct device_node *spi_node;
 	int ret;
 
 	ctx = devm_drm_bridge_alloc(dev, struct tc358762, bridge,
@@ -337,11 +351,17 @@ static int tc358762_probe(struct mipi_dsi_device *dsi)
 	ctx->dev = dev;
 	ctx->pre_enabled = false;
 
-	ctx->spi = devm_spi_alloc_host(dev, 0);
-	spi_controller_set_drvdata(ctx->spi, ctx);
-	ret = devm_spi_controller_register(dev, ctx->spi);
-	if (ret < 0)
-		return dev_err_probe(dev, ret, "register spi controller  failed\n");
+	spi_node = of_get_child_by_name(dev->of_node, "spi");
+	if (spi_node) {
+		ctx->spi = devm_spi_alloc_host(dev, 0);
+		spi_controller_set_devdata(ctx->spi, ctx);
+		ctx->spi->setup = tc358762_spi_setup;
+		ctx->spi->transfer_one = tc358762_spi_transfer_one;
+		ctx->spi->dev.of_node = spi_node;
+		ret = devm_spi_register_controller(dev, ctx->spi);
+		if (ret < 0)
+			return dev_err_probe(dev, ret, "register spi controller  failed\n");
+	}
 
 	/* Always use VTG */
 	ctx->use_vtg = true;
