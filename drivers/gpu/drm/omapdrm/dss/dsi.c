@@ -3971,6 +3971,7 @@ static bool dsi_vm_calc_hsdiv_cb(int m_dispc, unsigned long dispc,
 
 	ctx->dsi_cinfo.mX[HSDIV_DISPC] = m_dispc;
 	ctx->dsi_cinfo.clkout[HSDIV_DISPC] = dispc;
+	printk("hsdiv found: %d %lu\n", m_dispc, dispc);
 
 	/*
 	 * In burst mode we can let the dispc pck be arbitrarily high, but it
@@ -3997,6 +3998,7 @@ static bool dsi_vm_calc_pll_cb(int n, int m, unsigned long fint,
 	ctx->dsi_cinfo.m = m;
 	ctx->dsi_cinfo.fint = fint;
 	ctx->dsi_cinfo.clkdco = clkdco;
+	printk("vm calc pll found: %lu %lu %d %d\n", ctx->dsi_cinfo.clkdco, fint, m, n);
 
 	return dss_pll_hsdiv_calc_a(ctx->pll, clkdco, ctx->req_pck_min,
 			dsi->data->max_fck_freq,
@@ -4040,6 +4042,7 @@ static bool dsi_vm_calc(struct dsi_data *dsi,
 		pll_max = byteclk_max * 4 * 4;
 	}
 
+	printk("vm search for %lu - %lu\n", pll_min, pll_max);
 	return dss_pll_calc_a(ctx->pll, clkin,
 			pll_min, pll_max,
 			dsi_vm_calc_pll_cb, ctx);

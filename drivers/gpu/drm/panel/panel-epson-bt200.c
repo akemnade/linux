@@ -40,7 +40,7 @@ static int bt200_panel_write(struct bt200_panel *ctx, u8 addr, u8 data)
 	val[0] = addr;
 	val[1] = data;
 
-	return spi_write(ctx->spi, &val, sizeof(val));
+	return spi_write(ctx->spi, val, sizeof(val));
 }
 
 static inline struct bt200_panel *panel_to_bt200(struct drm_panel *panel)
