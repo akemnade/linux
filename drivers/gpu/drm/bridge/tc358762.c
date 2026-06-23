@@ -354,7 +354,32 @@ static int tc358762_spi_transfer_one(struct spi_controller *ctlr,
 				     struct spi_device *spi,
 				     struct spi_transfer *t)
 {
-	return 0;
+	struct tc358762 *ctx = spi_controller_get_devdata(ctlr);
+	struct mipi_dsi_device *dsi = to_mipi_dsi_device(ctx->dev);
+	/* 
+	 * limits to be determined, just define something which is
+	 * enough for current use case.
+	 */
+	u8 data[8];
+
+	if (t->len > sizeof(data) - 2)
+	       return -EOVERFLOW;	
+
+	/*
+	 * half duplex is supported bi the bridge,
+	 * but due to lack of testing, support only simplex write
+	 */
+	if (t->rx_buf)
+		return -EINVAL;
+
+	if (!t->tx_buf)
+		return -EINVAL;
+
+	put_unaligned_le16(WCMDQUE, data);
+	memcpy(data + 2, t->tx_buf, t->len - 2);
+
+	//return 0;
+	return mipi_dsi_generic_write(dsi, data, t->len + 2);
 }
 
 static int tc358762_spi_setup(struct spi_device *spi)
@@ -393,7 +418,7 @@ static int tc358762_probe(struct mipi_dsi_device *dsi)
 	if (spi_node) {
 		ctx->spi = devm_spi_alloc_host(dev, 0);
 		spi_controller_set_devdata(ctx->spi, ctx);
-		ctx->spi->setup = tc358762_spi_setup;
+		//ctx->spi->setup = tc358762_spi_setup;
 		ctx->spi->transfer_one = tc358762_spi_transfer_one;
 		ctx->spi->dev.of_node = spi_node;
 		ret = devm_spi_register_controller(dev, ctx->spi);
