@@ -368,11 +368,14 @@ static int tc358762_spi_transfer_one(struct spi_controller *ctlr,
 	 */
 	u8 data[8];
 
+	if (!ctx->pre_enabled)
+		return -ENODEV;
+
 	if (t->len > sizeof(data) - 2)
 	       return -EOVERFLOW;	
 
 	/*
-	 * half duplex is supported bi the bridge,
+	 * half duplex is supported by the bridge,
 	 * but due to lack of testing, support only simplex write
 	 */
 	if (t->rx_buf)
@@ -382,7 +385,7 @@ static int tc358762_spi_transfer_one(struct spi_controller *ctlr,
 		return -EINVAL;
 
 	put_unaligned_le16(WCMDQUE, data);
-	memcpy(data + 2, t->tx_buf, t->len - 2);
+	memcpy(data + 2, t->tx_buf, t->len);
 
 	//return 0;
 	return mipi_dsi_generic_write(dsi, data, t->len + 2);
