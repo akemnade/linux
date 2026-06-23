@@ -1,3 +1,4 @@
+#define DEBUG
 // SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (C) 2020 Marek Vasut <marex@denx.de>
@@ -205,6 +206,7 @@ static void tc358762_pre_enable(struct drm_bridge *bridge,
 	struct tc358762 *ctx = bridge_to_tc358762(bridge);
 	int ret;
 
+	dev_dbg(ctx->dev, "pre enable");
 	ret = regulator_enable(ctx->regulator);
 	if (ret < 0)
 		dev_err(ctx->dev, "error enabling regulators (%d)\n", ret);
@@ -229,6 +231,7 @@ static void tc358762_enable(struct drm_bridge *bridge,
 	u32 lcdctrl;
 	int ret;
 
+	dev_dbg(ctx->dev, "enable");
 	bridge_state = drm_atomic_get_new_bridge_state(state, bridge);
 
 	connector = drm_atomic_get_new_connector_for_encoder(state, bridge->encoder);
@@ -313,6 +316,7 @@ static int tc358762_attach(struct drm_bridge *bridge,
 {
 	struct tc358762 *ctx = bridge_to_tc358762(bridge);
 
+	dev_dbg(ctx->dev, "attach\n");
 	return drm_bridge_attach(encoder, ctx->panel_bridge,
 				 bridge, flags);
 }
