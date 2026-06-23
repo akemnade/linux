@@ -234,13 +234,21 @@ static int init_seq(struct bt200 *ctx)
 	syspll = 0;
 	dev_info(ctx->dev, "id reg %d %x\n" ,tc358762_read_register(ctx, IDREG, &rback), rback);
 	dev_info(ctx->dev, "id reg %d %x\n" ,tc358762_read_register(ctx, IDREG, &rback), rback);
+	r = tc358762_read_register(ctx, SYSPLL1, &syspll);
+	dev_info(ctx->dev, "syspll1 reg %d %x\n" , r, syspll);
+	tc358762_write_register32(ctx,  SYSPLL1, 0x810);
+	r = tc358762_read_register(ctx, SYSPLL2, &syspll);
+	dev_info(ctx->dev, "syspll2 reg %d %x\n" , r, syspll);
+	r = init_lcd(ctx);
+	msleep(50);
+
 	for(i = 0 ; i < 2 ; i++) {
 		/* usually fails after writing to that register */
 		r = tc358762_read_register(ctx, SYSPLL3, &syspll);
 		dev_info(ctx->dev, "syspll reg %d %x\n" , r, syspll);
 		msleep(5);
 
-		if (syspll == 0xB8640000) 
+		if (r || (syspll == 0xB8640000)) 
 			break;
 
 		r = tc358762_write_register(ctx, SYSPLL3, 0xB8640000, sizeof(u32));
@@ -253,7 +261,7 @@ static int init_seq(struct bt200 *ctx)
 	if (r)
 		return r;
 
-	r = init_lcd(ctx);
+	//r = init_lcd(ctx);
 	msleep(5);
 	//tc358762_write_lcd(ctx, 0x0A, 1 );
 	return r;
