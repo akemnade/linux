@@ -142,12 +142,14 @@ static int bt200_prepare(struct drm_panel *panel)
 {
 	struct bt200_panel *ctx = panel_to_bt200(panel);
 
-	return init_lcd(ctx);
+	return 0 /*init_lcd(ctx) */;
 }
 
 static int bt200_enable(struct drm_panel *panel)
 {
 	struct bt200_panel *ctx = panel_to_bt200(panel);
+	dev_dbg(panel->dev, "%s\n", __func__);
+	init_lcd(ctx);
 
 	return bt200_panel_write(ctx, 0x0A, 1);
 }
