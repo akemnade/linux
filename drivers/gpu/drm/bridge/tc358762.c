@@ -15,8 +15,10 @@
 #include <linux/gpio/consumer.h>
 #include <linux/module.h>
 #include <linux/of_graph.h>
+#include <linux/property.h>
 #include <linux/regulator/consumer.h>
 #include <linux/spi/spi.h>
+#include <linux/unaligned.h>
 
 #include <video/mipi_display.h>
 #include <video/videomode.h>
@@ -48,6 +50,9 @@
 #define DSI_LANEENABLE_L0EN	BIT(1)
 #define DSI_LANEENABLE_L1EN	BIT(2)
 
+#define RDPKTLN			0x0410 /* Packet length */
+
+
 /* LCDC/DPI Registers */
 #define LCDCTRL			0x0420 /* Video Path Control */
 #define LCDCTRL_MSF		BIT(0) /* Magic square in RGB666 */
@@ -73,7 +78,13 @@
 
 /* SPI Master Registers */
 #define SPICMR			0x0450
-#define SPITCR			0x0454
+#define SPI_SEL_CS0		0x0002
+
+#define SPITCR1			0x0454
+
+#define WCMDQUE			0x0500
+
+
 
 /* System Controller Registers */
 #define SYSCTRL			0x0464
@@ -91,7 +102,9 @@
 #define SYSCTRL_PCLKDIV_DIV_2	2
 #define SYSCTRL_PCLKDIV_DIV_3	4
 
-#define LPX_PERIOD		3
+#define IDREG			0x04A0 /* Chip and Revision ID */
+
+#define LPX_PERIOD		7
 
 struct tc358762 {
 	struct device *dev;
