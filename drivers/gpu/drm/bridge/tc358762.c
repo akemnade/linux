@@ -164,6 +164,7 @@ static void tc358762_write(struct tc358762 *ctx, u16 addr, u32 val)
 	data[4] = val >> 16;
 	data[5] = val >> 24;
 
+	printk("tc358762_write: %04x %d %x\n", (int)addr, val, val);
 	ret = mipi_dsi_generic_write(dsi, data, sizeof(data));
 	if (ret < 0)
 		ctx->error = ret;
@@ -205,6 +206,7 @@ static void tc358762_pre_enable(struct drm_bridge *bridge,
 {
 	struct tc358762 *ctx = bridge_to_tc358762(bridge);
 	int ret;
+	u32 id;
 
 	dev_dbg(ctx->dev, "pre enable");
 	ret = regulator_enable(ctx->regulator);
@@ -335,6 +337,7 @@ static int tc358762_parse_dt(struct tc358762 *ctx)
 {
 	struct drm_bridge *panel_bridge;
 	struct device *dev = ctx->dev;
+	u32 lanes;
 
 	panel_bridge = devm_drm_of_get_bridge(dev, dev->of_node, 1, 0);
 	if (IS_ERR(panel_bridge))
@@ -346,6 +349,9 @@ static int tc358762_parse_dt(struct tc358762 *ctx)
 	ctx->reset_gpio = devm_gpiod_get_optional(dev, "reset", GPIOD_OUT_LOW);
 	if (IS_ERR(ctx->reset_gpio))
 		return PTR_ERR(ctx->reset_gpio);
+
+	if (!device_property_read_u32(dev, "dsi-lanes", &lanes))
+		to_mipi_dsi_device(ctx->dev)->lanes = lanes;
 
 	return 0;
 }
@@ -439,7 +445,8 @@ static int tc358762_probe(struct mipi_dsi_device *dsi)
 	 */
 	dsi->lanes = 1;
 	dsi->format = MIPI_DSI_FMT_RGB888;
-	dsi->mode_flags = MIPI_DSI_MODE_VIDEO | MIPI_DSI_MODE_VIDEO_SYNC_PULSE |
+	dsi->mode_flags = MIPI_DSI_MODE_VIDEO | MIPI_DSI_MODE_VIDEO_BURST |
+			  MIPI_DSI_CLOCK_NON_CONTINUOUS | 
 			  MIPI_DSI_MODE_LPM | MIPI_DSI_MODE_VIDEO_HSE;
 
 	ret = tc358762_parse_dt(ctx);
