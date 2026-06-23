@@ -126,6 +126,27 @@ static int tc358762_clear_error(struct tc358762 *ctx)
 	return ret;
 }
 
+static int tc358762_read(struct tc358762 *ctx, u16 addr, u32 *val)
+{
+	struct mipi_dsi_device *dsi = to_mipi_dsi_device(ctx->dev);
+	ssize_t ret;
+	u8 addr_buf[2];
+	u8 buf[4];
+
+	put_unaligned_le16(addr, addr_buf);
+	dev_info(ctx->dev,"read addr %02x %02x\n", addr_buf[0], addr_buf[1]);
+
+	ret = mipi_dsi_generic_read(dsi, addr_buf, 2, buf, sizeof(buf));
+	if (ret < 0) {
+		dev_err(ctx->dev, "gen read failed: %d\n", ret);
+		return ret;
+	}
+	dev_info(ctx->dev,"read return %02x %02x %02x %02x\n", buf[0], buf[1], buf[2], buf[3]);
+
+	*val = get_unaligned_le32(buf);
+	return ret;
+}
+
 static void tc358762_write(struct tc358762 *ctx, u16 addr, u32 val)
 {
 	struct mipi_dsi_device *dsi = to_mipi_dsi_device(ctx->dev);
