@@ -205,8 +205,13 @@ static void tc358762_pre_enable(struct drm_bridge *bridge,
 				struct drm_atomic_commit *state)
 {
 	struct tc358762 *ctx = bridge_to_tc358762(bridge);
+	struct drm_connector_state *conn_state;
+	struct drm_bridge_state *bridge_state;
+	struct drm_crtc_state *crtc_state;
+	struct drm_connector *connector;
+	struct drm_display_mode *mode;
+	u32 lcdctrl;
 	int ret;
-	u32 id;
 
 	dev_dbg(ctx->dev, "pre enable");
 	ret = regulator_enable(ctx->regulator);
@@ -219,21 +224,7 @@ static void tc358762_pre_enable(struct drm_bridge *bridge,
 	}
 
 	ctx->pre_enabled = true;
-}
 
-static void tc358762_enable(struct drm_bridge *bridge,
-			    struct drm_atomic_commit *state)
-{
-	struct tc358762 *ctx = bridge_to_tc358762(bridge);
-	struct drm_connector_state *conn_state;
-	struct drm_bridge_state *bridge_state;
-	struct drm_crtc_state *crtc_state;
-	struct drm_connector *connector;
-	struct drm_display_mode *mode;
-	u32 lcdctrl;
-	int ret;
-
-	dev_dbg(ctx->dev, "enable");
 	bridge_state = drm_atomic_get_new_bridge_state(state, bridge);
 
 	connector = drm_atomic_get_new_connector_for_encoder(state, bridge->encoder);
@@ -310,6 +301,15 @@ static void tc358762_enable(struct drm_bridge *bridge,
 	ret = tc358762_clear_error(ctx);
 	if (ret < 0)
 		dev_err(ctx->dev, "error initializing bridge (%d)\n", ret);
+}
+
+static void tc358762_enable(struct drm_bridge *bridge,
+			    struct drm_atomic_commit *state)
+{
+	struct tc358762 *ctx = bridge_to_tc358762(bridge);
+	int ret;
+
+	dev_dbg(ctx->dev, "enable");
 }
 
 static int tc358762_attach(struct drm_bridge *bridge,
