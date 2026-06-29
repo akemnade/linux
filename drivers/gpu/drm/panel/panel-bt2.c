@@ -345,9 +345,10 @@ static int bt200_probe(struct mipi_dsi_device *dsi)
 	struct bt200 *ctx;
 	int ret;
 
-	ctx = devm_kzalloc(dev, sizeof(*ctx), GFP_KERNEL);
-	if (!ctx)
-		return -ENOMEM;
+	ctx = devm_drm_panel_alloc(dev, struct bt200, panel,
+				   &bt200_panel_funcs, DRM_MODE_CONNECTOR_DSI);
+	if (IS_ERR(ctx))
+		return PTR_ERR(ctx);
 
 	mipi_dsi_set_drvdata(dsi, ctx);
 	
@@ -362,8 +363,7 @@ static int bt200_probe(struct mipi_dsi_device *dsi)
 	//dsi->lp_rate = 4600000;
 	dsi->lp_rate = 9200000;
 
-	drm_panel_init(&ctx->panel, dev, &bt200_panel_funcs, DRM_MODE_CONNECTOR_DSI);
-	drm_panel_add(&ctx->panel);
+	devm_drm_panel_add(dev, &ctx->panel);
 	ret = mipi_dsi_attach(dsi);
 	if (ret < 0)
 		goto err_dsi_attach;
@@ -381,14 +381,9 @@ err_dsi_attach:
 
 static void bt200_remove(struct mipi_dsi_device *dsi)
 {
-	struct bt200 *ctx = mipi_dsi_get_drvdata(dsi);
-
 	dev_dbg(&dsi->dev, "%s\n", __func__);
 
 	mipi_dsi_detach(dsi);
-
-	drm_panel_remove(&ctx->panel);
-
 }
 
 static const struct of_device_id bt200_of_match[] = {
