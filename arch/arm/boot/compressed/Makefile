@@ -74,6 +74,7 @@ compress-$(CONFIG_KERNEL_LZO)  = lzo_with_size
 compress-$(CONFIG_KERNEL_LZMA) = lzma_with_size
 compress-$(CONFIG_KERNEL_XZ)   = xzkern_with_size
 compress-$(CONFIG_KERNEL_LZ4)  = lz4_with_size
+compress-$(CONFIG_KERNEL_ZSTD)  = zstd22_with_size
 
 libfdt_objs := fdt_rw.o fdt_ro.o fdt_wip.o fdt.o
 
