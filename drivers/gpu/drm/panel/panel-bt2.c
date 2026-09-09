@@ -194,6 +194,7 @@ static int init_lcd(struct bt200 *ctx)
 
 static int init_seq(struct bt200 *ctx)
 {
+	struct mipi_dsi_device *dsi = to_mipi_dsi_device(ctx->dev);
 	int i;
 	int r;
 	u32 rback;
@@ -251,6 +252,7 @@ static int init_seq(struct bt200 *ctx)
 		if (r || (syspll == 0xB8640000)) 
 			break;
 
+		dsi->mode_flags &= ~ MIPI_DSI_MODE_LPM;
 		r = tc358762_write_register(ctx, SYSPLL3, 0xB8640000, sizeof(u32));
 		msleep(5);
 	}
@@ -270,12 +272,15 @@ static int init_seq(struct bt200 *ctx)
 static int bt200_prepare(struct drm_panel *panel)
 {
 	struct bt200 *ctx = panel_to_bt200(panel);
+	struct mipi_dsi_device *dsi = to_mipi_dsi_device(ctx->dev);
 	int r;
 
 	dev_dbg(ctx->dev, "%s\n", __func__);
 
 	if (ctx->prepared)
 		return 0;
+
+	dsi->mode_flags |= MIPI_DSI_MODE_LPM;
 
 	r = init_seq(ctx);
 	if (r < 0)
