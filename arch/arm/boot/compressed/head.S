@@ -337,7 +337,7 @@ restart:	adr	r0, LC1
 		get_inflated_image_size	r9, r10, lr
 
 #ifndef CONFIG_ZBOOT_ROM
-		/* malloc space is above the relocated stack (64k max) */
+		/* malloc space is above the relocated stack (128k max) */
 		add	r10, sp, #MALLOC_SIZE
 #else
 		/*
@@ -629,7 +629,7 @@ not_relocated:	mov	r0, #0
  */
 		mov	r0, r4
 		mov	r1, sp			@ malloc space above stack
-		add	r2, sp, #MALLOC_SIZE	@ 64k max
+		add	r2, sp, #MALLOC_SIZE	@ 128k max
 		mov	r3, r7
 		bl	decompress_kernel
 

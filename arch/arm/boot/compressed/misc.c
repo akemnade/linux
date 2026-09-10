@@ -22,6 +22,7 @@ unsigned int __machine_arch_type;
 #include <linux/compiler.h>	/* for inline */
 #include <linux/types.h>
 #include <linux/linkage.h>
+#include <linux/unaligned.h>
 #include "misc.h"
 #ifdef CONFIG_ARCH_EP93XX
 #include "misc-ep93xx.h"
@@ -128,14 +129,21 @@ asmlinkage void __div0(void)
 	error("Attempting division by 0!");
 }
 
+static u32 get_inflated_image_size(void)
+{
+	return get_unaligned_le32(input_data_end - 4);
+}
+
 void
 decompress_kernel(unsigned long output_start, unsigned long free_mem_ptr_p,
 		unsigned long free_mem_ptr_end_p,
 		int arch_id)
 {
+	unsigned long output_data_len;
 	int ret;
 
 	output_data		= (unsigned char *)output_start;
+	output_data_len         = get_inflated_image_size();
 	free_mem_ptr		= free_mem_ptr_p;
 	free_mem_end_ptr	= free_mem_ptr_end_p;
 	__machine_arch_type	= arch_id;
@@ -147,7 +155,7 @@ decompress_kernel(unsigned long output_start, unsigned long free_mem_ptr_p,
 
 	putstr("Uncompressing Linux...");
 	ret = do_decompress(input_data, input_data_end - input_data,
-			    output_data, error);
+			    output_data, output_data_len, error);
 	if (ret)
 		error("decompressor returned an error");
 	else
