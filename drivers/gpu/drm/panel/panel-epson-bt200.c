@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-
+#define DEBUG
 #include <linux/backlight.h>
 #include <linux/errno.h>
 #include <linux/delay.h>
@@ -16,10 +16,17 @@
 
 static const struct drm_display_mode default_mode = {
 	.clock			= 41600,	/* kHz */
+#if 1 
 	.hdisplay		= 960,
 	.hsync_start		= 960 + 176,
 	.hsync_end		= 960 + 176 + 20,
 	.htotal			= 960 + 176 + 20 + 86,
+#else
+	.hdisplay		= 960,
+	.hsync_start		= 960 + 33,
+	.hsync_end		= 960 + 33 + 20,
+	.htotal			= 960 + 33 + 20 + 86,
+#endif
 	.vdisplay		= 540,
 	.vsync_start		= 540 + 9,
 	.vsync_end		= 540 + 9 + 3,
@@ -28,7 +35,6 @@ static const struct drm_display_mode default_mode = {
 };
 
 struct bt200_panel {
-	struct device *dev;
 	struct drm_panel panel;
 	struct spi_device *spi;
 };
@@ -57,9 +63,7 @@ static int bt200_disable(struct drm_panel *panel)
 
 static int bt200_unprepare(struct drm_panel *panel)
 {
-	struct bt200_panel *ctx = panel_to_bt200(panel);
-
-	dev_dbg(ctx->dev, "%s\n", __func__);
+	dev_dbg(panel->dev, "%s\n", __func__);
 
 	return 0;
 }
@@ -125,12 +129,16 @@ static int init_lcd(struct bt200_panel *ctx)
 	int i;
 	int r;
 
+	r = spi_setup(ctx->spi);
+	if (r < 0)
+		return r;
+
 	for (i = 0; i < ARRAY_SIZE(lcddr_init); ++i) {
 		//printk("addr = %02x value = %02x\n",(u16)lcddr_init[i].addr, lcddr_init[i].data);
 		r = bt200_panel_write(ctx, (u16)lcddr_init[i].addr,
 				      lcddr_init[i].data);
 		if (r) {
-			dev_err(ctx->dev, "failed to write initial config (write) %d\n", i);
+			dev_err(ctx->panel.dev, "failed to write initial config (write) %d\n", i);
 			return r;
 		}
 	}
@@ -140,18 +148,22 @@ static int init_lcd(struct bt200_panel *ctx)
 
 static int bt200_prepare(struct drm_panel *panel)
 {
+	int r;
 	struct bt200_panel *ctx = panel_to_bt200(panel);
-
-	return 0 /*init_lcd(ctx) */;
+	dev_dbg(panel->dev, "%s\n", __func__);
+	r = init_lcd(ctx);
+	if (r)
+		return r;
+	msleep(50);
+	return bt200_panel_write(ctx, 0x0A, 1);
 }
 
 static int bt200_enable(struct drm_panel *panel)
 {
 	struct bt200_panel *ctx = panel_to_bt200(panel);
 	dev_dbg(panel->dev, "%s\n", __func__);
-	init_lcd(ctx);
 
-	return bt200_panel_write(ctx, 0x0A, 1);
+	return 0;
 }
 
 static int bt200_get_modes(struct drm_panel *panel, struct drm_connector *connector)
@@ -196,12 +208,9 @@ static int bt200_probe(struct spi_device *spi)
 
 	spi_set_drvdata(spi, ctx);
 	ctx->spi = spi;
+	ctx->panel.prepare_prev_first = true;
 
 	spi->bits_per_word = 8;
-
-	ret = spi_setup(spi);
-	if (ret < 0)
-		return dev_err_probe(&spi->dev, ret, "failed to setup SPI\n");
 
 	ret = drm_panel_of_backlight(&ctx->panel);
 	if (ret)
