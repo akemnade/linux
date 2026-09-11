@@ -103,6 +103,10 @@
 #define SYSCTRL_PCLKDIV_DIV_2	2
 #define SYSCTRL_PCLKDIV_DIV_3	4
 
+#define SYSPLL1                         0x0468          /*  */
+#define SYSPLL2                         0x046C          /*  */
+#define SYSPLL3                         0x0470          /*  */
+
 #define IDREG			0x04A0 /* Chip and Revision ID */
 
 #define LPX_PERIOD		7
@@ -188,6 +192,7 @@ static void tc358762_post_disable(struct drm_bridge *bridge,
 	if (!ctx->pre_enabled)
 		return;
 
+	to_mipi_dsi_device(ctx->dev)->mode_flags |= MIPI_DSI_MODE_LPM;
 	ctx->pre_enabled = false;
 
 	/* Turn off the DPI output */
@@ -212,7 +217,10 @@ static void tc358762_pre_enable(struct drm_bridge *bridge,
 	struct drm_display_mode *mode;
 	u32 lcdctrl;
 	int ret;
+	u32 id;
+	u32 syspll;
 
+	to_mipi_dsi_device(ctx->dev)->mode_flags |= MIPI_DSI_MODE_LPM;
 	dev_dbg(ctx->dev, "pre enable");
 	ret = regulator_enable(ctx->regulator);
 	if (ret < 0)
@@ -223,8 +231,6 @@ static void tc358762_pre_enable(struct drm_bridge *bridge,
 		usleep_range(5000, 10000);
 	}
 
-	ctx->pre_enabled = true;
-
 	bridge_state = drm_atomic_get_new_bridge_state(state, bridge);
 
 	connector = drm_atomic_get_new_connector_for_encoder(state, bridge->encoder);
@@ -232,23 +238,32 @@ static void tc358762_pre_enable(struct drm_bridge *bridge,
 	crtc_state = drm_atomic_get_new_crtc_state(state, conn_state->crtc);
 	mode = &crtc_state->mode;
 
+	tc358762_clear_error(ctx);
 	/*
 	 * DPIENABLE has reset default of 1. Make sure we don't output on
 	 * DPI until we have finished the coniguration.
 	 */
 	tc358762_write(ctx, LCDCTRL, 0);
 
+	tc358762_write(ctx, RDPKTLN, 3);
+
 	tc358762_write(ctx, SYSCTRL,
 		       FIELD_PREP(SYSCTRL_DPIDATA_IO_MASK, SYSCTRL_DPIDATA_IO_4MA) |
 		       FIELD_PREP(SYSCTRL_DPISTB_IO_MASK, SYSCTRL_DPISTB_IO_4MA) |
-		       FIELD_PREP(SYSCTRL_PCLKDIV_MASK, SYSCTRL_PCLKDIV_DIV_3));
+		       FIELD_PREP(SYSCTRL_PCLKDIV_MASK, SYSCTRL_PCLKDIV_DIV_2));
 
 	msleep(100);
 
-	tc358762_write(ctx, DSI_LANEENABLE,
-		       DSI_LANEENABLE_L0EN | DSI_LANEENABLE_CLEN);
-	tc358762_write(ctx, PPI_D0S_CLRSIPOCOUNT, 5);
-	tc358762_write(ctx, PPI_D1S_CLRSIPOCOUNT, 5);
+	if (to_mipi_dsi_device(ctx->dev)->lanes == 2)  {
+		tc358762_write(ctx, DSI_LANEENABLE,
+			       DSI_LANEENABLE_L0EN | DSI_LANEENABLE_CLEN |
+			       DSI_LANEENABLE_L1EN);
+	} else {
+		tc358762_write(ctx, DSI_LANEENABLE,
+			       DSI_LANEENABLE_L0EN | DSI_LANEENABLE_CLEN);
+	}
+	tc358762_write(ctx, PPI_D0S_CLRSIPOCOUNT, 3);
+	tc358762_write(ctx, PPI_D1S_CLRSIPOCOUNT, 3);
 	tc358762_write(ctx, PPI_D0S_ATMR, 0);
 	tc358762_write(ctx, PPI_D1S_ATMR, 0);
 	tc358762_write(ctx, PPI_LPTXTIMECNT, LPX_PERIOD);
@@ -292,23 +307,53 @@ static void tc358762_pre_enable(struct drm_bridge *bridge,
 		lcdctrl |= LCDCTRL_DE_POL;
 
 	tc358762_write(ctx, LCDCTRL, lcdctrl);
+	tc358762_write(ctx, SPITCR1, 0x00000122);
 
 	tc358762_write(ctx, PPI_STARTPPI, PPI_STARTPPI_STARTPPI);
 	tc358762_write(ctx, DSI_STARTDSI, DSI_STARTDSI_STARTDSI);
 
 	msleep(100);
 
+	tc358762_write(ctx, SPICMR, SPI_SEL_CS0);
+	dev_info(ctx->dev, "id (ret: %d) =  %u\n", tc358762_read(ctx, IDREG, &id), id); 
+	dev_info(ctx->dev, "id (ret: %d) =  %u\n", tc358762_read(ctx, IDREG, &id), id); 
+
 	ret = tc358762_clear_error(ctx);
-	if (ret < 0)
+	if (ret < 0) {
 		dev_err(ctx->dev, "error initializing bridge (%d)\n", ret);
+		return;
+	}
+	tc358762_write(ctx, SYSPLL1, 0x810);
+	msleep(5);
+	ctx->pre_enabled = true;
 }
 
 static void tc358762_enable(struct drm_bridge *bridge,
 			    struct drm_atomic_commit *state)
 {
 	struct tc358762 *ctx = bridge_to_tc358762(bridge);
+	struct mipi_dsi_device *dsi = to_mipi_dsi_device(ctx->dev);
 	int ret;
+	u32 syspll;
 
+	if (dsi->lanes == 2) {
+		tc358762_read(ctx, SYSPLL3, &syspll);
+		msleep(5);
+		dev_info(ctx->dev, "syspll reg: %x\n", syspll);
+		if (syspll != 0xB8640000) {
+			dsi->mode_flags &= ~ MIPI_DSI_MODE_LPM;
+			tc358762_write(ctx, SYSPLL3, 0xB8640000);
+			msleep(5);
+		}
+		ret = tc358762_read(ctx, SYSPLL3, &syspll);
+		msleep(5);
+		dev_info(ctx->dev, "syspll reg (ret= %d): %x\n", ret, syspll);
+		if ((!ret) && (syspll == 0xB8640000))
+			dev_info(ctx->dev, "syspll init success\n");
+
+	}
+
+	//to_mipi_dsi_device(ctx->dev)->mode_flags &= ~MIPI_DSI_MODE_LPM;
 	dev_dbg(ctx->dev, "enable");
 }
 
@@ -362,6 +407,7 @@ static int tc358762_spi_transfer_one(struct spi_controller *ctlr,
 {
 	struct tc358762 *ctx = spi_controller_get_devdata(ctlr);
 	struct mipi_dsi_device *dsi = to_mipi_dsi_device(ctx->dev);
+	u32 id;
 	/* 
 	 * limits to be determined, just define something which is
 	 * enough for current use case.
@@ -384,9 +430,11 @@ static int tc358762_spi_transfer_one(struct spi_controller *ctlr,
 	if (!t->tx_buf)
 		return -EINVAL;
 
+	//dev_info(ctx->dev, "id (ret: %d) =  %u\n", tc358762_read(ctx, IDREG, &id), id); 
 	put_unaligned_le16(WCMDQUE, data);
 	memcpy(data + 2, t->tx_buf, t->len);
 
+	dev_info(ctx->dev, "wcmdque: %d %02x%02x%02x%02x", t->len, data[0], data[1], data[2], data[3]);
 	//return 0;
 	return mipi_dsi_generic_write(dsi, data, t->len + 2);
 }
@@ -450,11 +498,17 @@ static int tc358762_probe(struct mipi_dsi_device *dsi)
 	dsi->format = MIPI_DSI_FMT_RGB888;
 	dsi->mode_flags = MIPI_DSI_MODE_VIDEO | MIPI_DSI_MODE_VIDEO_BURST |
 			  MIPI_DSI_CLOCK_NON_CONTINUOUS | 
-			  MIPI_DSI_MODE_LPM | MIPI_DSI_MODE_VIDEO_HSE;
+			  MIPI_DSI_MODE_LPM;
+
+
 
 	ret = tc358762_parse_dt(ctx);
 	if (ret < 0)
 		return ret;
+
+	dsi->hs_rate = 1050 * 41600 * 24 / (dsi->lanes * 2);
+        //dsi->lp_rate = 4600000;
+        dsi->lp_rate = 9200000;
 
 	ret = tc358762_configure_regulators(ctx);
 	if (ret < 0)
